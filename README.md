@@ -1,4 +1,4 @@
-<![CDATA[<div align="center">
+<div align="center">
 
 # 🎵 KGS Music Academy
 
@@ -492,4 +492,3 @@ This project is licensed under the **MIT License** — see the [LICENSE](./LICEN
 *Empowering music education through technology*
 
 </div>
-]]>
