@@ -9,10 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { Music } from 'lucide-react-native';
 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
@@ -44,7 +44,7 @@ export default function SignupScreen() {
       setError(error.message || 'Failed to create account');
       setLoading(false);
     } else {
-      router.replace('/login');
+      router.replace('/');
     }
   }
 
@@ -56,11 +56,13 @@ export default function SignupScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Music size={48} color="#1e40af" strokeWidth={2} />
-          </View>
-          <Text style={styles.title}>Create Account</Text>
-          <Text style={styles.subtitle}>Join our music academy</Text>
+          <Image
+            source={require('../Images/logo1.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>KGS Music Academy</Text>
+          <Text style={styles.subtitle}>Join our community of musicians</Text>
         </View>
 
         <View style={styles.form}>
@@ -181,14 +183,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 48,
   },
-  iconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#dbeafe',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
+  logo: {
+    width: 100,
+    height: 100,
+    marginBottom: 16,
   },
   title: {
     fontSize: 32,

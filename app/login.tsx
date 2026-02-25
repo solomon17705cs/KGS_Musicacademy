@@ -9,10 +9,10 @@ import {
   KeyboardAvoidingView,
   Platform,
   ScrollView,
+  Image,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { Music } from 'lucide-react-native';
 
 export default function LoginScreen() {
   const [email, setEmail] = useState('');
@@ -47,11 +47,13 @@ export default function LoginScreen() {
         contentContainerStyle={styles.scrollContent}
         keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
-          <View style={styles.iconContainer}>
-            <Music size={48} color="#1e40af" strokeWidth={2} />
-          </View>
-          <Text style={styles.title}>Music Academy</Text>
-          <Text style={styles.subtitle}>Sign in to view your progress</Text>
+          <Image
+            source={require('../Images/logo1.png')}
+            style={styles.logo}
+            resizeMode="contain"
+          />
+          <Text style={styles.title}>KGS Music Academy</Text>
+          <Text style={styles.subtitle}>Sign in to track your musical journey</Text>
         </View>
 
         <View style={styles.form}>
@@ -125,14 +127,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     marginBottom: 48,
   },
-  iconContainer: {
-    width: 96,
-    height: 96,
-    borderRadius: 48,
-    backgroundColor: '#dbeafe',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginBottom: 24,
+  logo: {
+    width: 120,
+    height: 120,
+    marginBottom: 16,
   },
   title: {
     fontSize: 32,

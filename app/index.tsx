@@ -1,23 +1,25 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { View, ActivityIndicator, StyleSheet } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useRootNavigationState } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Index() {
   const { profile, loading } = useAuth();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
 
   useEffect(() => {
-    if (!loading) {
-      if (!profile) {
-        router.replace('/login');
-      } else if (profile.role === 'admin') {
-        router.replace('/(admin)/dashboard');
-      } else {
-        router.replace('/(tabs)/progress');
-      }
+    // Wait for the auth state to resolve and the navigation state to be ready
+    if (loading || !rootNavigationState?.key) return;
+
+    if (!profile) {
+      router.replace('/login');
+    } else if (profile.role === 'admin') {
+      router.replace('/(admin)/dashboard');
+    } else {
+      router.replace('/(tabs)/progress');
     }
-  }, [profile, loading, router]);
+  }, [profile, loading, rootNavigationState?.key]);
 
   return (
     <View style={styles.container}>

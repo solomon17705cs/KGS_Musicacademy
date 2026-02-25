@@ -15,6 +15,13 @@ export interface Profile {
   updated_at: string;
 }
 
+export interface CompletedGrade {
+  grade: string;
+  date: string;
+  mark: string;
+  type: 'theory' | 'practical';
+}
+
 export interface Student {
   id: string;
   user_id: string | null;
@@ -23,6 +30,10 @@ export interface Student {
   date_of_birth: string | null;
   enrollment_date: string;
   instrument: string;
+  initial_grade: string | null;
+  completed_grades: CompletedGrade[];
+  streak: number;
+  points: number;
   created_at: string;
   updated_at: string;
 }

@@ -6,15 +6,18 @@ import {
   ScrollView,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
+import { Student } from '@/types/database';
 import { StudentWithProgress } from '@/types/database';
-import { Music2, TrendingUp, BookOpen, Award } from 'lucide-react-native';
+import { Music2, TrendingUp, BookOpen, Award, Trophy, Crown, Flame } from 'lucide-react-native';
 
 export default function ProgressScreen() {
   const { profile } = useAuth();
   const [students, setStudents] = useState<StudentWithProgress[]>([]);
+  const [topStudents, setTopStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -49,6 +52,19 @@ export default function ProgressScreen() {
       }));
 
       setStudents(studentsWithLatestProgress || []);
+
+      // If parent, also load top 3 students for leaderboard
+      if (profile.role === 'parent') {
+        const { data: topData, error: topError } = await supabase
+          .from('students')
+          .select('*')
+          .order('points', { ascending: false })
+          .limit(3);
+
+        if (!topError) {
+          setTopStudents(topData || []);
+        }
+      }
     } catch (err: any) {
       setError(err.message || 'Failed to load progress');
     } finally {
@@ -95,8 +111,12 @@ export default function ProgressScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.header}>
-        <Music2 size={32} color="#1e40af" />
-        <Text style={styles.headerTitle}>My Progress</Text>
+        <Image
+          source={require('../../Images/logo1.png')}
+          style={styles.headerLogo}
+          resizeMode="contain"
+        />
+        <Text style={styles.headerTitle}>KGS Music Academy</Text>
         <Text style={styles.headerSubtitle}>
           {profile?.role === 'parent'
             ? 'Track your child\'s musical journey'
@@ -109,6 +129,44 @@ export default function ProgressScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }>
+        {profile?.role === 'parent' && topStudents.length > 0 && (
+          <View style={styles.leaderboardContainer}>
+            <View style={styles.leaderboardHeader}>
+              <Trophy size={20} color="#fbbf24" />
+              <Text style={styles.leaderboardTitle}>KGS Top Performers</Text>
+            </View>
+            <View style={styles.leaderboardList}>
+              {topStudents.map((student, index) => (
+                <View key={student.id} style={styles.leaderboardItem}>
+                  <View style={styles.rankBadge}>
+                    {index === 0 ? (
+                      <Crown size={16} color="#fbbf24" />
+                    ) : (
+                      <Text style={styles.rankText}>{index + 1}</Text>
+                    )}
+                  </View>
+                  <View style={styles.leaderboardStudentInfo}>
+                    <Text style={styles.leaderboardStudentName}>
+                      {student.full_name}
+                    </Text>
+                    <Text style={styles.leaderboardStudentPoints}>
+                      {student.points || 0} XP
+                    </Text>
+                  </View>
+                  {index === 0 && (
+                    <View style={styles.topStreakBadge}>
+                      <Flame size={12} color="#f97316" />
+                      <Text style={styles.topStreakText}>
+                        {student.streak || 0}
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              ))}
+            </View>
+          </View>
+        )}
+
         {error ? (
           <View style={styles.errorContainer}>
             <Text style={styles.errorText}>{error}</Text>
@@ -260,6 +318,11 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e2e8f0',
     alignItems: 'center',
   },
+  headerLogo: {
+    width: 60,
+    height: 60,
+    marginBottom: 8,
+  },
   headerTitle: {
     fontSize: 28,
     fontWeight: '700',
@@ -407,5 +470,88 @@ const styles = StyleSheet.create({
   noProgressText: {
     fontSize: 14,
     color: '#64748b',
+  },
+  leaderboardContainer: {
+    backgroundColor: '#fff',
+    borderRadius: 16,
+    padding: 20,
+    marginBottom: 24,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    shadowColor: '#fbbf24',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  leaderboardHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 16,
+  },
+  leaderboardTitle: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1e293b',
+  },
+  leaderboardList: {
+    gap: 12,
+  },
+  leaderboardItem: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
+    padding: 12,
+    borderRadius: 12,
+    gap: 12,
+  },
+  rankBadge: {
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    backgroundColor: '#fff',
+    alignItems: 'center',
+    justifyContent: 'center',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.05,
+    shadowRadius: 2,
+    elevation: 1,
+  },
+  rankText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#64748b',
+  },
+  leaderboardStudentInfo: {
+    flex: 1,
+  },
+  leaderboardStudentName: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  leaderboardStudentPoints: {
+    fontSize: 12,
+    color: '#1e40af',
+    fontWeight: '600',
+    marginTop: 2,
+  },
+  topStreakBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#fff7ed',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#fed7aa',
+  },
+  topStreakText: {
+    fontSize: 13,
+    fontWeight: '800',
+    color: '#f97316',
   },
 });

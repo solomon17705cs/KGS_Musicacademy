@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -7,8 +7,9 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
+  Image,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useRootNavigationState, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { StudentWithProgress } from '@/types/database';
@@ -19,23 +20,38 @@ import {
   LogOut,
   Edit,
   TrendingUp,
+  Plus,
+  ChevronRight,
+  Award,
+  Trophy,
 } from 'lucide-react-native';
 
 export default function AdminDashboard() {
-  const { profile, signOut } = useAuth();
+  const { profile, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
   const [students, setStudents] = useState<StudentWithProgress[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Wait until auth state is resolved and navigation is ready before checking role
+    if (authLoading || !rootNavigationState?.key) return;
+
     if (profile?.role !== 'admin') {
       router.replace('/login');
       return;
     }
-    loadStudents();
-  }, [profile]);
+  }, [profile, authLoading, rootNavigationState?.key]);
+
+  useFocusEffect(
+    useCallback(() => {
+      if (profile?.role === 'admin') {
+        loadStudents();
+      }
+    }, [profile?.role])
+  );
 
   async function loadStudents() {
     try {
@@ -99,16 +115,24 @@ export default function AdminDashboard() {
       <View style={styles.header}>
         <View style={styles.headerTop}>
           <View>
-            <Text style={styles.headerTitle}>Admin Dashboard</Text>
+            <Text style={styles.headerTitle}>KGS Admin Dashboard</Text>
             <Text style={styles.headerSubtitle}>
-              Manage students and progress
+              KGS Music Academy Management
             </Text>
           </View>
-          <TouchableOpacity
-            style={styles.signOutButton}
-            onPress={handleSignOut}>
-            <LogOut size={20} color="#dc2626" />
-          </TouchableOpacity>
+          <View style={styles.headerActions}>
+            <TouchableOpacity
+              style={styles.addButton}
+              onPress={() => router.push('/(admin)/add-student')}>
+              <Plus size={20} color="#fff" />
+              <Text style={styles.addButtonText}>Add Student</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={styles.signOutButton}
+              onPress={handleSignOut}>
+              <LogOut size={20} color="#dc2626" />
+            </TouchableOpacity>
+          </View>
         </View>
 
         <View style={styles.statsContainer}>
@@ -117,6 +141,19 @@ export default function AdminDashboard() {
             <Text style={styles.statNumber}>{students.length}</Text>
             <Text style={styles.statLabel}>Total Students</Text>
           </View>
+          <TouchableOpacity
+            style={[styles.statCard, { backgroundColor: '#fef3c7' }]}
+            onPress={() => router.push('/(admin)/leaderboard')}>
+            <Trophy size={24} color="#b45309" />
+            <Text style={[styles.statNumber, { color: '#b45309' }]}>
+              {students.length > 0
+                ? Math.max(...students.map((s) => s.streak || 0))
+                : 0}
+            </Text>
+            <Text style={[styles.statLabel, { color: '#b45309' }]}>
+              Best Streak
+            </Text>
+          </TouchableOpacity>
         </View>
       </View>
 
@@ -149,11 +186,21 @@ export default function AdminDashboard() {
                 <View style={styles.studentHeader}>
                   <View style={styles.studentInfo}>
                     <Text style={styles.studentName}>{student.full_name}</Text>
-                    <Text style={styles.studentInstrument}>
-                      {student.instrument}
+                    <Text style={styles.studentDetails}>
+                      {student.instrument} • Joined {student.enrollment_date}
                     </Text>
+                    {student.completed_grades && student.completed_grades.length > 0 && (
+                      <View style={styles.achievementsBadge}>
+                        <Award size={12} color="#1e40af" />
+                        <Text style={styles.achievementsText}>
+                          {student.completed_grades.length} Grades Completed
+                          {student.completed_grades.length > 0 &&
+                            ` (Latest: ${student.completed_grades[student.completed_grades.length - 1].grade})`}
+                        </Text>
+                      </View>
+                    )}
                   </View>
-                  <Edit size={20} color="#64748b" />
+                  <ChevronRight size={20} color="#64748b" />
                 </View>
 
                 {student.progress ? (
@@ -258,6 +305,30 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginTop: 4,
   },
+  headerActions: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  addButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#1e40af',
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 12,
+    gap: 8,
+    shadowColor: '#1e40af',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  addButtonText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
   signOutButton: {
     width: 40,
     height: 40,
@@ -346,7 +417,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#1e293b',
   },
-  studentInstrument: {
+  studentDetails: {
     fontSize: 14,
     color: '#64748b',
     marginTop: 2,
@@ -405,5 +476,21 @@ const styles = StyleSheet.create({
   updateText: {
     fontSize: 11,
     color: '#64748b',
+  },
+  achievementsBadge: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    backgroundColor: '#dbeafe',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 6,
+    marginTop: 6,
+    alignSelf: 'flex-start',
+  },
+  achievementsText: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#1e40af',
   },
 });

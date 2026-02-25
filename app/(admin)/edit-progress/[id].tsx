@@ -9,17 +9,20 @@ import {
   ActivityIndicator,
   KeyboardAvoidingView,
   Platform,
+  Alert,
 } from 'react-native';
-import { useRouter, useLocalSearchParams } from 'expo-router';
+import { useRouter, useLocalSearchParams, useRootNavigationState } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Student, ProgressRecord, ProgressStatus } from '@/types/database';
-import { ArrowLeft, Save } from 'lucide-react-native';
+import { ArrowLeft, Save, Trash2 } from 'lucide-react-native';
+import { notifyUser } from '@/lib/notifications';
 
 export default function EditProgressScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
-  const { profile } = useAuth();
+  const { profile, loading: authLoading } = useAuth();
   const router = useRouter();
+  const rootNavigationState = useRootNavigationState();
 
   const [student, setStudent] = useState<Student | null>(null);
   const [theoryGrade, setTheoryGrade] = useState('');
@@ -40,12 +43,15 @@ export default function EditProgressScreen() {
   ];
 
   useEffect(() => {
+    // Wait until auth state is resolved and navigation is ready before checking role
+    if (authLoading || !rootNavigationState?.key) return;
+
     if (profile?.role !== 'admin') {
       router.replace('/login');
       return;
     }
     loadStudentData();
-  }, [id, profile]);
+  }, [id, profile, authLoading, rootNavigationState?.key]);
 
   async function loadStudentData() {
     try {
@@ -103,11 +109,70 @@ export default function EditProgressScreen() {
 
       if (error) throw error;
 
+      // Trigger notifications for student and parent
+      if (student) {
+        const title = 'New Progress Update 🎵';
+        const body = `Your instructor ${profile.full_name} has updated progress for ${student.instrument}. Check it out!`;
+
+        // Notify Student if they have a user account
+        if (student.user_id) {
+          await notifyUser(student.user_id, title, body);
+        }
+
+        // Notify Parent if linked
+        if (student.parent_id) {
+          await notifyUser(
+            student.parent_id,
+            'Student Progress Update',
+            `Update for ${student.full_name}: ${body}`
+          );
+        }
+      }
+
       router.back();
     } catch (err: any) {
       setError(err.message || 'Failed to save progress');
       setSaving(false);
     }
+  }
+
+  async function handleDelete() {
+    if (!student) return;
+
+    Alert.alert(
+      'Delete Student',
+      `Are you sure you want to delete ${student.full_name}? This will also remove all their progress records.`,
+      [
+        { text: 'Cancel', style: 'cancel' },
+        {
+          text: 'Delete',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              setSaving(true);
+              // Delete progress records first
+              await supabase
+                .from('progress_records')
+                .delete()
+                .eq('student_id', id);
+
+              // Delete student
+              const { error } = await supabase
+                .from('students')
+                .delete()
+                .eq('id', id);
+
+              if (error) throw error;
+
+              router.replace('/(admin)/dashboard');
+            } catch (err: any) {
+              setSaving(false);
+              Alert.alert('Error', err.message || 'Failed to delete student');
+            }
+          },
+        },
+      ]
+    );
   }
 
   function getStatusLabel(status: ProgressStatus) {
@@ -160,6 +225,12 @@ export default function EditProgressScreen() {
           <Text style={styles.headerTitle}>{student.full_name}</Text>
           <Text style={styles.headerSubtitle}>{student.instrument}</Text>
         </View>
+        <TouchableOpacity
+          style={styles.deleteButton}
+          onPress={handleDelete}
+          disabled={saving}>
+          <Trash2 size={24} color="#ef4444" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
@@ -444,5 +515,13 @@ const styles = StyleSheet.create({
   },
   bottomPadding: {
     height: 24,
+  },
+  deleteButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#fee2e2',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
 });
