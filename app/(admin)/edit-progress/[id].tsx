@@ -15,7 +15,7 @@ import { useRouter, useLocalSearchParams, useRootNavigationState } from 'expo-ro
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Student, ProgressRecord, ProgressStatus } from '@/types/database';
-import { ArrowLeft, Save, Trash2 } from 'lucide-react-native';
+import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock } from 'lucide-react-native';
 import { notifyUser } from '@/lib/notifications';
 
 export default function EditProgressScreen() {
@@ -31,6 +31,12 @@ export default function EditProgressScreen() {
   const [practicalStatus, setPracticalStatus] =
     useState<ProgressStatus>('good');
   const [notes, setNotes] = useState('');
+  const [attendance, setAttendance] = useState('2/2');
+  const [homeworkCompletion, setHomeworkCompletion] = useState('100');
+  const [practiceScore, setPracticeScore] = useState('0');
+  const [weeklyGoal, setWeeklyGoal] = useState('');
+  const [goalStatus, setGoalStatus] = useState<'achieved' | 'in_progress'>('in_progress');
+  const [masteryLevel, setMasteryLevel] = useState('0');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -81,6 +87,12 @@ export default function EditProgressScreen() {
         setPracticalGrade(progressData.practical_grade);
         setTheoryStatus(progressData.theory_status);
         setPracticalStatus(progressData.practical_status);
+        setAttendance(progressData.attendance || '2/2');
+        setHomeworkCompletion(String(progressData.homework_completion ?? 100));
+        setPracticeScore(String(progressData.practice_score ?? 0));
+        setWeeklyGoal(progressData.weekly_goal || '');
+        setGoalStatus(progressData.goal_status || 'in_progress');
+        setMasteryLevel(String(progressData.mastery_level ?? 0));
         setNotes(progressData.notes);
       }
     } catch (err: any) {
@@ -103,6 +115,12 @@ export default function EditProgressScreen() {
         practical_grade: practicalGrade,
         theory_status: theoryStatus,
         practical_status: practicalStatus,
+        attendance: attendance,
+        homework_completion: parseInt(homeworkCompletion) || 0,
+        practice_score: parseInt(practiceScore) || 0,
+        weekly_goal: weeklyGoal,
+        goal_status: goalStatus,
+        mastery_level: parseInt(masteryLevel) || 0,
         notes: notes,
         updated_by: profile.id,
       });
@@ -136,40 +154,60 @@ export default function EditProgressScreen() {
     }
   }
 
+  async function performDelete() {
+    console.log('[DEBUG] performDelete executing for:', id);
+    try {
+      setSaving(true);
+      // Delete progress records first
+      console.log('[DEBUG] Deleting progress records for student:', id);
+      await supabase
+        .from('progress_records')
+        .delete()
+        .eq('student_id', id);
+
+      // Delete student
+      console.log('[DEBUG] Deleting student record:', id);
+      const { error } = await supabase
+        .from('students')
+        .delete()
+        .eq('id', id);
+
+      if (error) {
+        console.error('[DEBUG] Deletion error:', error);
+        throw error;
+      }
+
+      console.log('[DEBUG] Deletion successful, navigating back');
+      router.replace('/(admin)/dashboard');
+    } catch (err: any) {
+      console.error('[DEBUG] Deletion catch block:', err);
+      setSaving(false);
+      Alert.alert('Error', err.message || 'Failed to delete student');
+    }
+  }
+
   async function handleDelete() {
+    console.log('[DEBUG] handleDelete button pressed', { id, studentName: student?.full_name });
     if (!student) return;
+
+    const message = `Are you sure you want to delete ${student.full_name}? This will also remove all their progress records.`;
+
+    if (Platform.OS === 'web') {
+      if (typeof window !== 'undefined' && window.confirm(message)) {
+        await performDelete();
+      }
+      return;
+    }
 
     Alert.alert(
       'Delete Student',
-      `Are you sure you want to delete ${student.full_name}? This will also remove all their progress records.`,
+      message,
       [
         { text: 'Cancel', style: 'cancel' },
         {
           text: 'Delete',
           style: 'destructive',
-          onPress: async () => {
-            try {
-              setSaving(true);
-              // Delete progress records first
-              await supabase
-                .from('progress_records')
-                .delete()
-                .eq('student_id', id);
-
-              // Delete student
-              const { error } = await supabase
-                .from('students')
-                .delete()
-                .eq('id', id);
-
-              if (error) throw error;
-
-              router.replace('/(admin)/dashboard');
-            } catch (err: any) {
-              setSaving(false);
-              Alert.alert('Error', err.message || 'Failed to delete student');
-            }
-          },
+          onPress: performDelete,
         },
       ]
     );
@@ -343,6 +381,104 @@ export default function EditProgressScreen() {
         </View>
 
         <View style={styles.section}>
+          <Text style={styles.sectionTitle}>Weekly Session Summary</Text>
+
+          <View style={styles.row}>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Attendance</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 2/2"
+                value={attendance}
+                onChangeText={setAttendance}
+                editable={!saving}
+              />
+            </View>
+            <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+              <Text style={styles.label}>Homework %</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0-100"
+                value={homeworkCompletion}
+                onChangeText={setHomeworkCompletion}
+                keyboardType="numeric"
+                editable={!saving}
+              />
+            </View>
+          </View>
+
+          <View style={styles.row}>
+            <View style={[styles.inputGroup, { flex: 1 }]}>
+              <Text style={styles.label}>Practice Score (0-100)</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="e.g., 85"
+                value={practiceScore}
+                onChangeText={setPracticeScore}
+                keyboardType="numeric"
+                editable={!saving}
+              />
+            </View>
+            <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
+              <Text style={styles.label}>Skill Mastery %</Text>
+              <TextInput
+                style={styles.input}
+                placeholder="0-100"
+                value={masteryLevel}
+                onChangeText={setMasteryLevel}
+                keyboardType="numeric"
+                editable={!saving}
+              />
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
+          <View style={styles.sectionHeaderRow}>
+            <Target size={20} color="#1e40af" />
+            <Text style={[styles.sectionTitle, { marginBottom: 0, marginLeft: 8 }]}>Weekly Goal</Text>
+          </View>
+
+          <View style={[styles.inputGroup, { marginTop: 16 }]}>
+            <Text style={styles.label}>Goal Task</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="e.g., Master the C Major Scale"
+              value={weeklyGoal}
+              onChangeText={setWeeklyGoal}
+              editable={!saving}
+            />
+          </View>
+
+          <View style={styles.inputGroup}>
+            <Text style={styles.label}>Status</Text>
+            <View style={styles.row}>
+              <TouchableOpacity
+                style={[
+                  styles.choiceButton,
+                  goalStatus === 'in_progress' && styles.choiceButtonActive,
+                ]}
+                onPress={() => setGoalStatus('in_progress')}
+                disabled={saving}>
+                <Clock size={18} color={goalStatus === 'in_progress' ? '#f97316' : '#64748b'} />
+                <Text style={[styles.choiceButtonText, goalStatus === 'in_progress' && styles.choiceButtonTextActive]}>In Progress</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={[
+                  styles.choiceButton,
+                  { marginLeft: 12 },
+                  goalStatus === 'achieved' && styles.choiceButtonActiveAchieved,
+                ]}
+                onPress={() => setGoalStatus('achieved')}
+                disabled={saving}>
+                <CheckCircle2 size={18} color={goalStatus === 'achieved' ? '#16a34a' : '#64748b'} />
+                <Text style={[styles.choiceButtonText, goalStatus === 'achieved' && styles.choiceButtonTextActiveAchieved]}>Achieved</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+        </View>
+
+        <View style={styles.section}>
           <Text style={styles.sectionTitle}>Instructor Notes</Text>
           <TextInput
             style={styles.textArea}
@@ -445,8 +581,47 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     marginBottom: 16,
   },
+  sectionHeaderRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  row: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
   inputGroup: {
     marginBottom: 20,
+  },
+  choiceButton: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 8,
+    padding: 14,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+  },
+  choiceButtonActive: {
+    borderColor: '#f97316',
+    backgroundColor: '#fff7ed',
+  },
+  choiceButtonActiveAchieved: {
+    borderColor: '#16a34a',
+    backgroundColor: '#f0fdf4',
+  },
+  choiceButtonText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  choiceButtonTextActive: {
+    color: '#f97316',
+  },
+  choiceButtonTextActiveAchieved: {
+    color: '#16a34a',
   },
   label: {
     fontSize: 14,

@@ -7,17 +7,55 @@ import {
   ActivityIndicator,
   RefreshControl,
   Image,
+  TouchableOpacity,
+  Dimensions,
+  Alert,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/lib/supabase';
 import { Student } from '@/types/database';
 import { StudentWithProgress } from '@/types/database';
-import { Music2, TrendingUp, BookOpen, Award, Trophy, Crown, Flame } from 'lucide-react-native';
+import { LinearGradient } from 'expo-linear-gradient';
+import { BlurView } from 'expo-blur';
+import {
+  Music2,
+  TrendingUp,
+  BookOpen,
+  Award,
+  Trophy,
+  Crown,
+  Flame,
+  Search,
+  ChevronRight,
+  Bell,
+  Target
+} from 'lucide-react-native';
+
+const INSTRUMENT_IMAGES: { [key: string]: any } = {
+  'Piano': require('../../Images/Piano.jpeg'),
+  'Violin': require('../../Images/Violin.jpeg'),
+  'Guitar': require('../../Images/Pluctrum Guitar.jpeg'),
+  'Classical Guitar': require('../../Images/Classical Guitar.png'),
+  'Bass Guitar': require('../../Images/Bass Guitar.jpeg'),
+  'Keyboard': require('../../Images/Keyboard.jpg'),
+  'Drum Kit': require('../../Images/Drum Kit.jpeg'),
+  'Drums': require('../../Images/Drum Kit.jpeg'),
+  'Flute': require('../../Images/Flute.jpeg'),
+  'Pluctrum Guitar': require('../../Images/Pluctrum Guitar.jpeg'),
+  'Plectrum Guitar': require('../../Images/Pluctrum Guitar.jpeg'),
+  'Theory': require('../../Images/Theory Of Music.jpeg'),
+};
+
+function getStudentImage(instrument: string, tab: string) {
+  if (tab === 'Theory') return INSTRUMENT_IMAGES['Theory'];
+  return INSTRUMENT_IMAGES[instrument] || INSTRUMENT_IMAGES['Piano'];
+}
 
 export default function ProgressScreen() {
   const { profile } = useAuth();
   const [students, setStudents] = useState<StudentWithProgress[]>([]);
   const [topStudents, setTopStudents] = useState<Student[]>([]);
+  const [activeTab, setActiveTab] = useState<'Practical' | 'Theory'>('Practical');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -53,7 +91,6 @@ export default function ProgressScreen() {
 
       setStudents(studentsWithLatestProgress || []);
 
-      // If parent, also load top 3 students for leaderboard
       if (profile.role === 'parent') {
         const { data: topData, error: topError } = await supabase
           .from('students')
@@ -94,6 +131,7 @@ export default function ProgressScreen() {
   }
 
   function getStatusLabel(status: string) {
+    if (!status) return 'In Progress';
     return status
       .split('_')
       .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
@@ -108,27 +146,96 @@ export default function ProgressScreen() {
     );
   }
 
+  const userFirstName = profile?.full_name?.split(' ')[0] || 'Vanessa';
+
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <Image
-          source={require('../../Images/logo1.png')}
-          style={styles.headerLogo}
-          resizeMode="contain"
-        />
-        <Text style={styles.headerTitle}>KGS Music Academy</Text>
-        <Text style={styles.headerSubtitle}>
-          {profile?.role === 'parent'
-            ? 'Track your child\'s musical journey'
-            : 'Track your musical journey'}
-        </Text>
+      <View style={styles.topHeader}>
+        <View>
+          <Text style={styles.greetingText}>Hello, {userFirstName}</Text>
+          <Text style={styles.welcomeSubtitle}>Welcome back to KGS</Text>
+        </View>
+        <View style={styles.headerRight}>
+          <TouchableOpacity
+            style={styles.iconButton}
+            onPress={() => Alert.alert('Notifications', 'No new notifications at this time.')}>
+            <Bell size={24} color="#0f172a" />
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.avatarContainer}>
+            <Image
+              source={{ uri: `https://ui-avatars.com/api/?name=${userFirstName}&background=1e40af&color=fff` }}
+              style={styles.avatarImage}
+            />
+          </TouchableOpacity>
+        </View>
       </View>
 
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
-        }>
+          <RefreshControl refreshing={refreshing} colors={['#1e40af']} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}>
+
+        <TouchableOpacity style={styles.searchBar} activeOpacity={0.7}>
+          <Search size={20} color="#64748b" />
+          <Text style={styles.searchText}>Search progress report...</Text>
+        </TouchableOpacity>
+
+        <View style={styles.sectionHeaderRow}>
+          <Text style={styles.sectionHeading}>Progress Report</Text>
+        </View>
+
+        <View style={styles.tabContainer}>
+          {(['Practical', 'Theory'] as const).map((tab) => (
+            <TouchableOpacity
+              key={tab}
+              style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
+              onPress={() => setActiveTab(tab)}>
+              <Text style={[styles.tabButtonText, activeTab === tab && styles.activeTabButtonText]}>
+                {tab}
+              </Text>
+            </TouchableOpacity>
+          ))}
+        </View>
+
+        {/* Session-Based Progress Graph */}
+        <View style={styles.graphContainer}>
+          <LinearGradient
+            colors={['#1e40af', '#3b82f6']}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.graphCard}>
+            <View style={styles.graphHeader}>
+              <View>
+                <Text style={styles.graphTitle}>{activeTab} Growth (Monthly)</Text>
+                <Text style={styles.graphSubtitle}>Performance across 2 sessions per week</Text>
+              </View>
+              <View style={styles.growthBadge}>
+                <TrendingUp size={12} color="#22c55e" />
+                <Text style={styles.growthText}>+12%</Text>
+              </View>
+            </View>
+
+            <View style={styles.chartArea}>
+              {[1, 2, 3, 4].map((week) => (
+                <View key={week} style={styles.weekGroup}>
+                  <View style={styles.sessionPair}>
+                    <View style={[styles.chartBar, { height: (week * 10 + 30), backgroundColor: 'rgba(255,255,255,0.8)' }]} />
+                    <View style={[styles.chartBar, { height: (week * 12 + 35), backgroundColor: '#fbbf24' }]} />
+                  </View>
+                  <Text style={styles.chartDayText}>W{week}</Text>
+                </View>
+              ))}
+            </View>
+
+            <TouchableOpacity style={styles.graphFooter}>
+              <Text style={styles.seeMoreText}>Past Session History</Text>
+              <ChevronRight size={16} color="#fff" strokeWidth={3} />
+            </TouchableOpacity>
+          </LinearGradient>
+        </View>
+
         {profile?.role === 'parent' && topStudents.length > 0 && (
           <View style={styles.leaderboardContainer}>
             <View style={styles.leaderboardHeader}>
@@ -146,19 +253,13 @@ export default function ProgressScreen() {
                     )}
                   </View>
                   <View style={styles.leaderboardStudentInfo}>
-                    <Text style={styles.leaderboardStudentName}>
-                      {student.full_name}
-                    </Text>
-                    <Text style={styles.leaderboardStudentPoints}>
-                      {student.points || 0} XP
-                    </Text>
+                    <Text style={styles.leaderboardStudentName}>{student.full_name}</Text>
+                    <Text style={styles.leaderboardStudentPoints}>{student.points || 0} XP</Text>
                   </View>
                   {index === 0 && (
                     <View style={styles.topStreakBadge}>
                       <Flame size={12} color="#f97316" />
-                      <Text style={styles.topStreakText}>
-                        {student.streak || 0}
-                      </Text>
+                      <Text style={styles.topStreakText}>{student.streak || 0}</Text>
                     </View>
                   )}
                 </View>
@@ -175,124 +276,137 @@ export default function ProgressScreen() {
           <View style={styles.emptyContainer}>
             <Music2 size={64} color="#cbd5e1" />
             <Text style={styles.emptyTitle}>No Progress Records</Text>
-            <Text style={styles.emptyText}>
-              {profile?.role === 'parent'
-                ? 'Your child has not been enrolled yet. Please contact the academy.'
-                : 'You have not been enrolled yet. Please contact the academy.'}
-            </Text>
+            <Text style={styles.emptyText}>No students linked to your account yet.</Text>
           </View>
         ) : (
-          students.map((student) => (
-            <View key={student.id} style={styles.card}>
-              <View style={styles.cardHeader}>
-                <View style={styles.studentInfo}>
-                  <Text style={styles.studentName}>{student.full_name}</Text>
-                  <Text style={styles.instrument}>{student.instrument}</Text>
+          <View style={styles.studentsList}>
+            {students.map((student) => (
+              <View key={student.id} style={styles.modernCard}>
+                <View style={styles.cardImageContainer}>
+                  <Image
+                    source={getStudentImage(student.instrument, activeTab)}
+                    style={styles.cardBgImage}
+                  />
+                  <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.cardImageOverlay} />
+                  <View style={styles.cardHeaderOverlay}>
+                    <View style={styles.cardHeaderInfo}>
+                      <Text style={styles.modernStudentName} numberOfLines={1}>{student.full_name}</Text>
+                      <Text style={styles.modernInstrumentText}>{student.instrument}</Text>
+                    </View>
+                    <View style={[
+                      styles.modernStatusBadge,
+                      {
+                        backgroundColor: student.progress
+                          ? getStatusColor(activeTab === 'Theory' ? student.progress.theory_status : student.progress.practical_status)
+                          : '#64748b'
+                      }
+                    ]}>
+                      <Text style={styles.statusBadgeText}>
+                        {student.progress
+                          ? getStatusLabel(activeTab === 'Theory' ? student.progress.theory_status : student.progress.practical_status)
+                          : 'No Data'}
+                      </Text>
+                    </View>
+                  </View>
                 </View>
-                <View style={styles.enrollmentBadge}>
-                  <Text style={styles.enrollmentText}>
-                    Since {new Date(student.enrollment_date).getFullYear()}
-                  </Text>
+
+                <View style={styles.cardBody}>
+                  {student.progress ? (
+                    <>
+                      {/* Weekly Summary Row */}
+                      <View style={styles.weeklySummaryCard}>
+                        <View style={styles.summaryItem}>
+                          <Text style={styles.summaryLabel}>Attendance</Text>
+                          <Text style={styles.summaryValue}>{student.progress.attendance || '2/2'} ✅</Text>
+                        </View>
+                        <View style={[styles.summaryItem, styles.summaryBorder]}>
+                          <Text style={styles.summaryLabel}>Homework</Text>
+                          <Text style={styles.summaryValue}>{student.progress.homework_completion || 100}%</Text>
+                        </View>
+                        <View style={styles.summaryItem}>
+                          <Text style={styles.summaryLabel}>Practice</Text>
+                          <View style={styles.practiceRow}>
+                            <TrendingUp size={12} color="#22c55e" />
+                            <Text style={styles.summaryValue}> {student.progress.practice_score || 85}</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      {/* Goal Tracking Section */}
+                      <View style={styles.goalSection}>
+                        <View style={styles.goalHeader}>
+                          <Target size={18} color="#1e40af" />
+                          <Text style={styles.goalTitle}>Weekly Goal</Text>
+                          <View style={[styles.goalStatusBadge, { backgroundColor: student.progress.goal_status === 'achieved' ? '#f0fdf4' : '#fff7ed' }]}>
+                            <Text style={[styles.goalStatusText, { color: student.progress.goal_status === 'achieved' ? '#16a34a' : '#f97316' }]}>
+                              {student.progress.goal_status === 'achieved' ? 'Achieved' : 'In Progress'}
+                            </Text>
+                          </View>
+                        </View>
+                        <Text style={styles.goalDescription}>{student.progress.weekly_goal || 'Master the current lesson scales'}</Text>
+
+                        <View style={styles.masteryContainer}>
+                          <View style={styles.masteryHeader}>
+                            <Text style={styles.masteryLabel}>Skill Mastery Meter</Text>
+                            <Text style={styles.masteryValue}>{student.progress.mastery_level || 0}%</Text>
+                          </View>
+                          <View style={styles.masteryBarBg}>
+                            <LinearGradient
+                              colors={['#3b82f6', '#1e40af']}
+                              start={{ x: 0, y: 0 }}
+                              end={{ x: 1, y: 0 }}
+                              style={[styles.masteryBarFill, { width: `${student.progress.mastery_level || 0}%` }]}
+                            />
+                          </View>
+                          <View style={styles.masteryLabels}>
+                            <Text style={styles.masterySubLabel}>Beginner</Text>
+                            <Text style={styles.masterySubLabel}>Intermediate</Text>
+                            <Text style={styles.masterySubLabel}>Advanced</Text>
+                          </View>
+                        </View>
+                      </View>
+
+                      <View style={styles.gradeDisplayArea}>
+                        <View style={styles.gradeBox}>
+                          <Text style={styles.gradeBoxLabel}>Current Grade</Text>
+                          <Text style={styles.gradeBoxValue}>
+                            {activeTab === 'Theory'
+                              ? (student.progress.theory_grade || 'Grade 1')
+                              : (student.progress.practical_grade || 'Beginner')}
+                          </Text>
+                        </View>
+                        <View style={styles.streakBox}>
+                          <Flame size={18} color="#f97316" />
+                          <Text style={styles.streakBoxValue}>{student.streak || 0}</Text>
+                          <Text style={styles.streakBoxLabel}>Streak</Text>
+                        </View>
+                      </View>
+
+                      {student.progress.notes && (
+                        <View style={styles.notesBox}>
+                          <Text style={styles.notesTitle}>Latest Feedback</Text>
+                          <Text style={styles.notesTextContent} numberOfLines={2}>
+                            {student.progress.notes}
+                          </Text>
+                        </View>
+                      )}
+
+                      <TouchableOpacity style={styles.viewReportButton} activeOpacity={0.8}>
+                        <Text style={styles.viewReportText}>See Full Report</Text>
+                        <View style={styles.reportArrowCircle}>
+                          <ChevronRight size={16} color="#fff" />
+                        </View>
+                      </TouchableOpacity>
+                    </>
+                  ) : (
+                    <View style={styles.noProgressContainer}>
+                      <Text style={styles.noProgressText}>No progress recorded yet</Text>
+                    </View>
+                  )}
                 </View>
               </View>
-
-              {student.progress ? (
-                <View style={styles.progressContainer}>
-                  <View style={styles.gradeSection}>
-                    <View style={styles.gradeHeader}>
-                      <BookOpen size={20} color="#1e40af" />
-                      <Text style={styles.gradeTitle}>Theory</Text>
-                    </View>
-                    <Text style={styles.gradeLevel}>
-                      {student.progress.theory_grade || 'Not assigned'}
-                    </Text>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            getStatusColor(student.progress.theory_status) +
-                            '20',
-                        },
-                      ]}>
-                      <Text
-                        style={[
-                          styles.statusText,
-                          {
-                            color: getStatusColor(
-                              student.progress.theory_status
-                            ),
-                          },
-                        ]}>
-                        {getStatusLabel(student.progress.theory_status)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  <View style={styles.divider} />
-
-                  <View style={styles.gradeSection}>
-                    <View style={styles.gradeHeader}>
-                      <Award size={20} color="#1e40af" />
-                      <Text style={styles.gradeTitle}>Practical</Text>
-                    </View>
-                    <Text style={styles.gradeLevel}>
-                      {student.progress.practical_grade || 'Not assigned'}
-                    </Text>
-                    <View
-                      style={[
-                        styles.statusBadge,
-                        {
-                          backgroundColor:
-                            getStatusColor(student.progress.practical_status) +
-                            '20',
-                        },
-                      ]}>
-                      <Text
-                        style={[
-                          styles.statusText,
-                          {
-                            color: getStatusColor(
-                              student.progress.practical_status
-                            ),
-                          },
-                        ]}>
-                        {getStatusLabel(student.progress.practical_status)}
-                      </Text>
-                    </View>
-                  </View>
-
-                  {student.progress.notes ? (
-                    <>
-                      <View style={styles.divider} />
-                      <View style={styles.notesSection}>
-                        <Text style={styles.notesLabel}>Instructor Notes</Text>
-                        <Text style={styles.notesText}>
-                          {student.progress.notes}
-                        </Text>
-                      </View>
-                    </>
-                  ) : null}
-
-                  <View style={styles.updateInfo}>
-                    <TrendingUp size={14} color="#64748b" />
-                    <Text style={styles.updateText}>
-                      Last updated{' '}
-                      {new Date(
-                        student.progress.updated_at
-                      ).toLocaleDateString()}
-                    </Text>
-                  </View>
-                </View>
-              ) : (
-                <View style={styles.noProgressContainer}>
-                  <Text style={styles.noProgressText}>
-                    No progress recorded yet
-                  </Text>
-                </View>
-              )}
-            </View>
-          ))
+            ))}
+          </View>
         )}
       </ScrollView>
     </View>
@@ -302,187 +416,443 @@ export default function ProgressScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
+  },
+  topHeader: {
+    paddingTop: 60,
+    paddingHorizontal: 24,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  greetingText: {
+    fontSize: 28,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  welcomeSubtitle: {
+    fontSize: 16,
+    color: '#64748b',
+    marginTop: 2,
+  },
+  avatarContainer: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    overflow: 'hidden',
+    borderWidth: 2,
+    borderColor: '#f1f5f9',
+  },
+  avatarImage: {
+    width: '100%',
+    height: '100%',
+  },
+  headerRight: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 12,
+  },
+  iconButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#f8fafc',
+    alignItems: 'center',
+    justifyContent: 'center',
   },
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
-    backgroundColor: '#f8fafc',
-  },
-  header: {
     backgroundColor: '#fff',
-    padding: 24,
-    paddingTop: 60,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    alignItems: 'center',
-  },
-  headerLogo: {
-    width: 60,
-    height: 60,
-    marginBottom: 8,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
-    color: '#1e293b',
-    marginTop: 16,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 4,
   },
   content: {
     flex: 1,
-    padding: 16,
+    paddingHorizontal: 24,
   },
-  errorContainer: {
-    backgroundColor: '#fee2e2',
-    borderRadius: 12,
-    padding: 16,
-    marginBottom: 16,
-  },
-  errorText: {
-    color: '#dc2626',
-    fontSize: 14,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    padding: 48,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#334155',
-    marginTop: 16,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  card: {
-    backgroundColor: '#fff',
+  searchBar: {
+    backgroundColor: '#f8fafc',
     borderRadius: 16,
-    padding: 20,
+    padding: 16,
+    flexDirection: 'row',
+    alignItems: 'center',
+    marginBottom: 24,
+    height: 56,
+  },
+  searchText: {
+    color: '#94a3b8',
+    fontSize: 16,
+    marginLeft: 12,
+  },
+  sectionHeaderRow: {
     marginBottom: 16,
+  },
+  sectionHeading: {
+    fontSize: 22,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    marginBottom: 24,
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 6,
+    gap: 8,
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 12,
+    alignItems: 'center',
+    borderRadius: 12,
+  },
+  activeTabButton: {
+    backgroundColor: '#fff',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
-  cardHeader: {
+  tabButtonText: {
+    fontSize: 16,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  activeTabButtonText: {
+    color: '#0f172a',
+  },
+  graphContainer: {
+    marginBottom: 24,
+  },
+  graphCard: {
+    borderRadius: 24,
+    padding: 24,
+    shadowColor: '#1e40af',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 8,
+  },
+  graphHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'flex-start',
-    marginBottom: 20,
+    marginBottom: 24,
   },
-  studentInfo: {
-    flex: 1,
-  },
-  studentName: {
-    fontSize: 20,
+  graphTitle: {
+    fontSize: 18,
     fontWeight: '700',
-    color: '#1e293b',
+    color: '#fff',
   },
-  instrument: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 4,
+  graphSubtitle: {
+    fontSize: 13,
+    color: 'rgba(255,255,255,0.7)',
+    marginTop: 2,
   },
-  enrollmentBadge: {
-    backgroundColor: '#dbeafe',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    borderRadius: 12,
-  },
-  enrollmentText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1e40af',
-  },
-  progressContainer: {
-    gap: 16,
-  },
-  gradeSection: {
-    gap: 8,
-  },
-  gradeHeader: {
+  growthBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
     flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+  },
+  growthText: {
+    color: '#fff',
+    fontSize: 12,
+    fontWeight: '700',
+  },
+  chartArea: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+    height: 120,
+    marginBottom: 10,
+  },
+  weekGroup: {
     alignItems: 'center',
     gap: 8,
   },
-  gradeTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#475569',
+  sessionPair: {
+    flexDirection: 'row',
+    alignItems: 'flex-end',
+    gap: 4,
   },
-  gradeLevel: {
-    fontSize: 24,
+  chartBar: {
+    width: 10,
+    borderRadius: 5,
+  },
+  chartDayText: {
+    color: 'rgba(255,255,255,0.6)',
+    fontSize: 10,
     fontWeight: '700',
-    color: '#1e293b',
   },
-  statusBadge: {
+  graphFooter: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
     alignSelf: 'flex-start',
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    marginTop: 8,
+  },
+  seeMoreText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  modernCard: {
+    backgroundColor: '#fff',
+    borderRadius: 24,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
+    overflow: 'hidden',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.05,
+    shadowRadius: 12,
+    elevation: 3,
+  },
+  cardImageContainer: {
+    height: 160,
+    position: 'relative',
+  },
+  cardBgImage: {
+    width: '100%',
+    height: '100%',
+  },
+  cardImageOverlay: {
+    position: 'absolute',
+    left: 0,
+    right: 0,
+    bottom: 0,
+    height: '60%',
+  },
+  cardHeaderOverlay: {
+    position: 'absolute',
+    bottom: 16,
+    left: 16,
+    right: 16,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-end',
+  },
+  cardHeaderInfo: {
+    flex: 1,
+    marginRight: 10,
+  },
+  modernStudentName: {
+    fontSize: 20,
+    fontWeight: '800',
+    color: '#fff',
+  },
+  modernInstrumentText: {
+    fontSize: 12,
+    color: 'rgba(255,255,255,0.8)',
+    marginTop: 2,
+    fontWeight: '600',
+  },
+  modernStatusBadge: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
     borderRadius: 8,
   },
-  statusText: {
-    fontSize: 13,
-    fontWeight: '600',
+  statusBadgeText: {
+    color: '#fff',
+    fontSize: 10,
+    fontWeight: '800',
+    textTransform: 'uppercase',
   },
-  divider: {
-    height: 1,
-    backgroundColor: '#e2e8f0',
+  cardBody: {
+    padding: 20,
   },
-  notesSection: {
-    gap: 8,
+  weeklySummaryCard: {
+    flexDirection: 'row',
+    backgroundColor: '#f8fafc',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 20,
+    borderWidth: 1,
+    borderColor: '#f1f5f9',
   },
-  notesLabel: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#475569',
+  summaryItem: {
+    flex: 1,
+    alignItems: 'center',
   },
-  notesText: {
-    fontSize: 14,
-    color: '#64748b',
-    lineHeight: 20,
+  summaryBorder: {
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: '#e2e8f0',
   },
-  updateInfo: {
+  summaryLabel: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+    marginBottom: 4,
+  },
+  summaryValue: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0f172a',
+  },
+  practiceRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 6,
-    marginTop: 4,
   },
-  updateText: {
-    fontSize: 12,
-    color: '#64748b',
+  goalSection: {
+    marginBottom: 20,
+    padding: 16,
+    backgroundColor: '#eff6ff',
+    borderRadius: 20,
+    borderWidth: 1,
+    borderColor: '#dbeafe',
   },
-  noProgressContainer: {
-    padding: 24,
+  goalHeader: {
+    flexDirection: 'row',
     alignItems: 'center',
+    marginBottom: 10,
   },
-  noProgressText: {
+  goalTitle: {
     fontSize: 14,
+    fontWeight: '700',
+    color: '#1e40af',
+    marginLeft: 8,
+    flex: 1,
+  },
+  goalStatusBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 8,
+  },
+  goalStatusText: {
+    fontSize: 10,
+    fontWeight: '800',
+  },
+  goalDescription: {
+    fontSize: 14,
+    color: '#334155',
+    fontWeight: '600',
+    lineHeight: 20,
+    marginBottom: 16,
+  },
+  masteryContainer: {
+    marginTop: 8,
+  },
+  masteryHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 8,
+  },
+  masteryLabel: {
+    fontSize: 11,
+    fontWeight: '700',
     color: '#64748b',
+  },
+  masteryValue: {
+    fontSize: 11,
+    fontWeight: '800',
+    color: '#1e40af',
+  },
+  masteryBarBg: {
+    height: 8,
+    backgroundColor: '#dbeafe',
+    borderRadius: 4,
+    overflow: 'hidden',
+  },
+  masteryBarFill: {
+    height: '100%',
+    borderRadius: 4,
+  },
+  masteryLabels: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginTop: 6,
+  },
+  masterySubLabel: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#94a3b8',
+    textTransform: 'uppercase',
+  },
+  gradeDisplayArea: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  gradeBox: {
+    flex: 1,
+  },
+  gradeBoxLabel: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '700',
+    textTransform: 'uppercase',
+  },
+  gradeBoxValue: {
+    fontSize: 22,
+    fontWeight: '800',
+    color: '#0f172a',
+    marginTop: 2,
+  },
+  streakBox: {
+    alignItems: 'flex-end',
+  },
+  streakBoxValue: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#0f172a',
+  },
+  streakBoxLabel: {
+    fontSize: 10,
+    color: '#94a3b8',
+    fontWeight: '700',
+  },
+  notesBox: {
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    padding: 12,
+    marginBottom: 16,
+  },
+  notesTitle: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#334155',
+    marginBottom: 2,
+  },
+  notesTextContent: {
+    fontSize: 13,
+    color: '#64748b',
+    lineHeight: 18,
+  },
+  viewReportButton: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    backgroundColor: '#0f172a',
+    padding: 14,
+    borderRadius: 14,
+  },
+  viewReportText: {
+    color: '#fff',
+    fontSize: 14,
+    fontWeight: '700',
+  },
+  reportArrowCircle: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  studentsList: {
+    paddingBottom: 100,
   },
   leaderboardContainer: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 20,
     marginBottom: 24,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    shadowColor: '#fbbf24',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 12,
-    elevation: 4,
   },
   leaderboardHeader: {
     flexDirection: 'row',
@@ -492,8 +862,8 @@ const styles = StyleSheet.create({
   },
   leaderboardTitle: {
     fontSize: 18,
-    fontWeight: '800',
-    color: '#1e293b',
+    fontWeight: '700',
+    color: '#0f172a',
   },
   leaderboardList: {
     gap: 12,
@@ -502,40 +872,35 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
-    padding: 12,
-    borderRadius: 12,
+    padding: 16,
+    borderRadius: 20,
     gap: 12,
   },
   rankBadge: {
-    width: 32,
-    height: 32,
-    borderRadius: 16,
+    width: 36,
+    height: 36,
+    borderRadius: 18,
     backgroundColor: '#fff',
     alignItems: 'center',
     justifyContent: 'center',
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 2,
-    elevation: 1,
   },
   rankText: {
     fontSize: 14,
-    fontWeight: '700',
+    fontWeight: '800',
     color: '#64748b',
   },
   leaderboardStudentInfo: {
     flex: 1,
   },
   leaderboardStudentName: {
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: '700',
-    color: '#1e293b',
+    color: '#0f172a',
   },
   leaderboardStudentPoints: {
     fontSize: 12,
-    color: '#1e40af',
-    fontWeight: '600',
+    color: '#3b82f6',
+    fontWeight: '700',
     marginTop: 2,
   },
   topStreakBadge: {
@@ -546,12 +911,51 @@ const styles = StyleSheet.create({
     paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 20,
-    borderWidth: 1,
-    borderColor: '#fed7aa',
   },
   topStreakText: {
     fontSize: 13,
     fontWeight: '800',
     color: '#f97316',
+  },
+  errorContainer: {
+    backgroundColor: '#fee2e2',
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 24,
+  },
+  errorText: {
+    color: '#dc2626',
+    fontSize: 14,
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    padding: 40,
+    backgroundColor: '#f8fafc',
+    borderRadius: 24,
+    marginBottom: 20,
+  },
+  emptyTitle: {
+    fontSize: 18,
+    fontWeight: '700',
+    color: '#0f172a',
+    marginTop: 16,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 8,
+  },
+  noProgressContainer: {
+    padding: 16,
+    backgroundColor: '#f8fafc',
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  noProgressText: {
+    fontSize: 13,
+    color: '#94a3b8',
+    fontStyle: 'italic',
   },
 });

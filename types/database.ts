@@ -45,6 +45,12 @@ export interface ProgressRecord {
   practical_grade: string;
   theory_status: ProgressStatus;
   practical_status: ProgressStatus;
+  attendance: string; // e.g. "2/2"
+  homework_completion: number; // percentage
+  practice_score: number; // 0-100
+  weekly_goal: string;
+  goal_status: 'achieved' | 'in_progress';
+  mastery_level: number; // 0-100 for meter
   notes: string;
   updated_by: string | null;
   created_at: string;

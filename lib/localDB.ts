@@ -12,7 +12,7 @@ const SEED_PROFILES: Profile[] = [
   {
     id: 'admin-001',
     email: 'admin@kgs.com',
-    full_name: 'Dr. Rajesh Kumar',
+    full_name: 'Kingsly Jesurajan',
     role: 'admin',
     created_at: '2025-01-01T00:00:00Z',
     updated_at: '2025-01-01T00:00:00Z',
@@ -20,7 +20,7 @@ const SEED_PROFILES: Profile[] = [
   {
     id: 'student-001',
     email: 'student@kgs.com',
-    full_name: 'Arjun Mehta',
+    full_name: 'Solomon',
     role: 'student',
     created_at: '2025-03-15T00:00:00Z',
     updated_at: '2025-03-15T00:00:00Z',
@@ -28,7 +28,7 @@ const SEED_PROFILES: Profile[] = [
   {
     id: 'student-002',
     email: 'priya@kgs.com',
-    full_name: 'Priya Sharma',
+    full_name: 'Gideon',
     role: 'student',
     created_at: '2025-06-01T00:00:00Z',
     updated_at: '2025-06-01T00:00:00Z',
@@ -36,7 +36,7 @@ const SEED_PROFILES: Profile[] = [
   {
     id: 'parent-001',
     email: 'parent@kgs.com',
-    full_name: 'Sunita Mehta',
+    full_name: 'Jeba Selvi',
     role: 'parent',
     created_at: '2025-03-15T00:00:00Z',
     updated_at: '2025-03-15T00:00:00Z',
@@ -48,14 +48,14 @@ const SEED_STUDENTS: Student[] = [
     id: 'stu-001',
     user_id: 'student-001',
     parent_id: 'parent-001',
-    full_name: 'Arjun Mehta',
+    full_name: 'Solomon',
     date_of_birth: '2010-05-12',
     enrollment_date: '2025-03-15',
-    instrument: 'Piano',
+    instrument: 'Keyboard',
     initial_grade: 'Grade 1',
     completed_grades: [
-      { grade: 'Initial', date: '2025-06-15', mark: '90%' },
-      { grade: 'Grade 1', date: '2025-12-20', mark: '85%' },
+      { grade: 'Initial', date: '2025-06-15', mark: '90%', type: 'practical' },
+      { grade: 'Grade 1', date: '2025-12-20', mark: '85%', type: 'practical' },
     ],
     streak: 15,
     points: 1250,
@@ -102,6 +102,12 @@ const SEED_PROGRESS: ProgressRecord[] = [
     practical_grade: 'Grade 3',
     theory_status: 'excellent',
     practical_status: 'good',
+    attendance: '2/2',
+    homework_completion: 100,
+    practice_score: 85,
+    weekly_goal: 'Master the C Major Scale',
+    goal_status: 'achieved',
+    mastery_level: 65,
     notes: 'Arjun has shown remarkable improvement in sight-reading. Scales are progressing well. Keep practising arpeggios daily.',
     updated_by: 'admin-001',
     created_at: '2026-01-10T00:00:00Z',
@@ -114,6 +120,12 @@ const SEED_PROGRESS: ProgressRecord[] = [
     practical_grade: 'Grade 2',
     theory_status: 'good',
     practical_status: 'needs_improvement',
+    attendance: '1/2',
+    homework_completion: 75,
+    practice_score: 72,
+    weekly_goal: 'Fix bowing technique',
+    goal_status: 'in_progress',
+    mastery_level: 40,
     notes: 'Priya understands theory concepts well. Bowing technique needs more focused practice — suggest extra 15 min daily.',
     updated_by: 'admin-001',
     created_at: '2026-01-15T00:00:00Z',
@@ -126,6 +138,12 @@ const SEED_PROGRESS: ProgressRecord[] = [
     practical_grade: 'Beginner',
     theory_status: 'good',
     practical_status: 'good',
+    attendance: '2/2',
+    homework_completion: 100,
+    practice_score: 90,
+    weekly_goal: 'Learn basic chords',
+    goal_status: 'achieved',
+    mastery_level: 80,
     notes: 'Ravi is enthusiastic and picking up chords quickly for a new student. Great attitude in class.',
     updated_by: 'admin-001',
     created_at: '2026-02-01T00:00:00Z',
@@ -198,9 +216,12 @@ interface QueryBuilder {
   order: (column: string, options?: { ascending?: boolean }) => QueryBuilder;
   limit: (count: number) => QueryBuilder;
   maybeSingle: () => Promise<{ data: any; error: any }>;
-  insert: (record: any) => Promise<{ data: any; error: any }>;
-  delete: () => Promise<{ data: any; error: any }>;
-  then: (resolve: (value: { data: any; error: any }) => void) => void;
+  insert: (record: any) => QueryBuilder;
+  delete: () => QueryBuilder;
+  then: <TResult1 = { data: any; error: any }, TResult2 = never>(
+    onfulfilled?: ((value: { data: any; error: any }) => TResult1 | PromiseLike<TResult1>) | undefined | null,
+    onrejected?: ((reason: any) => TResult2 | PromiseLike<TResult2>) | undefined | null
+  ) => Promise<TResult1 | TResult2>;
 }
 
 function createQueryBuilder(tableName: TableName): QueryBuilder {
@@ -210,6 +231,8 @@ function createQueryBuilder(tableName: TableName): QueryBuilder {
   let orderAsc = true;
   let limitCount: number | null = null;
   let isSingle = false;
+  let isDelete = false;
+  let insertData: any = null;
 
   const builder: QueryBuilder = {
     select(columns = '*') {
@@ -235,15 +258,81 @@ function createQueryBuilder(tableName: TableName): QueryBuilder {
 
     async maybeSingle() {
       isSingle = true;
-      const { data } = await execute();
-      return { data: data?.[0] ?? null, error: null };
+      const res = await execute();
+      return { data: res.data?.[0] ?? null, error: res.error };
     },
 
-    async insert(record: any) {
-      try {
+    insert(record: any) {
+      console.log('[LOCAL_DB] INSERT marked for table:', tableName);
+      insertData = record;
+      return builder;
+    },
+
+    delete() {
+      console.log('[LOCAL_DB] DELETE marked for table:', tableName);
+      isDelete = true;
+      return builder;
+    },
+
+    then(onfulfilled, onrejected) {
+      console.log('[LOCAL_DB] then() called for table:', tableName, { isDelete, filters });
+      return execute().then(onfulfilled, onrejected);
+    },
+  };
+
+  async function execute(): Promise<{ data: any; error: any }> {
+    console.log('[LOCAL_DB] execute() started', { tableName, isDelete, filters });
+    try {
+      // Simulate network latency
+      await new Promise((resolve) => setTimeout(resolve, 300));
+
+      if (isDelete) {
+        console.log('[LOCAL_DB] Processing DELETE', { tableName, filters });
+        let dataToKeep: any[] = [];
+        let deletedData: any[] = [];
+
+        const currentTable = getTable(tableName);
+        console.log('[LOCAL_DB] Current table size:', currentTable.length);
+
+        for (const row of currentTable) {
+          let matches = true;
+          for (const f of filters) {
+            if (row[f.column] !== f.value) {
+              matches = false;
+              break;
+            }
+          }
+          if (matches) {
+            deletedData.push(row);
+          } else {
+            dataToKeep.push(row);
+          }
+        }
+
+        console.log('[LOCAL_DB] DELETE complete', { deletedCount: deletedData.length, remainingCount: dataToKeep.length });
+
+        switch (tableName) {
+          case 'profiles':
+            profiles = dataToKeep;
+            persistData(STORAGE_KEYS.PROFILES, profiles);
+            break;
+          case 'students':
+            students = dataToKeep;
+            persistData(STORAGE_KEYS.STUDENTS, students);
+            break;
+          case 'progress_records':
+            progressRecords = dataToKeep;
+            persistData(STORAGE_KEYS.PROGRESS, progressRecords);
+            break;
+        }
+
+        return { data: deletedData, error: null };
+      }
+
+      if (insertData) {
         const newRecord = {
           id: generateId(),
-          ...record,
+          ...insertData,
           created_at: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         };
@@ -264,64 +353,7 @@ function createQueryBuilder(tableName: TableName): QueryBuilder {
         }
 
         return { data: newRecord, error: null };
-      } catch (e: any) {
-        return { data: null, error: { message: e.message } };
       }
-    },
-
-    async delete() {
-      try {
-        await new Promise((resolve) => setTimeout(resolve, 300));
-        let dataToKeep: any[] = [];
-        let deletedData: any[] = [];
-
-        const currentTable = getTable(tableName);
-
-        for (const row of currentTable) {
-          let matches = true;
-          for (const f of filters) {
-            if (row[f.column] !== f.value) {
-              matches = false;
-              break;
-            }
-          }
-          if (matches) {
-            deletedData.push(row);
-          } else {
-            dataToKeep.push(row);
-          }
-        }
-
-        switch (tableName) {
-          case 'profiles':
-            profiles = dataToKeep;
-            persistData(STORAGE_KEYS.PROFILES, profiles);
-            break;
-          case 'students':
-            students = dataToKeep;
-            persistData(STORAGE_KEYS.STUDENTS, students);
-            break;
-          case 'progress_records':
-            progressRecords = dataToKeep;
-            persistData(STORAGE_KEYS.PROGRESS, progressRecords);
-            break;
-        }
-
-        return { data: deletedData, error: null };
-      } catch (e: any) {
-        return { data: null, error: { message: e.message } };
-      }
-    },
-
-    then(resolve) {
-      execute().then(resolve);
-    },
-  };
-
-  async function execute(): Promise<{ data: any; error: any }> {
-    try {
-      // Simulate network latency
-      await new Promise((resolve) => setTimeout(resolve, 300));
 
       let data = [...getTable(tableName)];
 
