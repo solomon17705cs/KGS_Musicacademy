@@ -16,6 +16,8 @@ export default function Index() {
       router.replace('/login');
     } else if (profile.role === 'admin') {
       router.replace('/(admin)/dashboard');
+    } else if (profile.role === 'staff') {
+      router.replace('/(staff)/dashboard');
     } else {
       router.replace('/(tabs)/progress');
     }

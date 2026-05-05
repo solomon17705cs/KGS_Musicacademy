@@ -18,7 +18,7 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'student' | 'parent'>('student');
+  const [role, setRole] = useState<'student'>('student');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { signUp } = useAuth();
@@ -114,31 +114,15 @@ export default function SignupScreen() {
               <TouchableOpacity
                 style={[
                   styles.roleButton,
-                  role === 'student' && styles.roleButtonActive,
+                  styles.roleButtonActive,
                 ]}
-                onPress={() => setRole('student')}
                 disabled={loading}>
                 <Text
                   style={[
                     styles.roleButtonText,
-                    role === 'student' && styles.roleButtonTextActive,
+                    styles.roleButtonTextActive,
                   ]}>
                   Student
-                </Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[
-                  styles.roleButton,
-                  role === 'parent' && styles.roleButtonActive,
-                ]}
-                onPress={() => setRole('parent')}
-                disabled={loading}>
-                <Text
-                  style={[
-                    styles.roleButtonText,
-                    role === 'parent' && styles.roleButtonTextActive,
-                  ]}>
-                  Parent
                 </Text>
               </TouchableOpacity>
             </View>

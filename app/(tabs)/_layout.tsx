@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { User, Music2 } from 'lucide-react-native';
+import { User, Music2, Bell } from 'lucide-react-native';
 import { Platform } from 'react-native';
 
 export default function TabLayout() {
@@ -7,25 +7,30 @@ export default function TabLayout() {
     <Tabs
       screenOptions={{
         headerShown: false,
-        tabBarActiveTintColor: '#1e40af',
-        tabBarInactiveTintColor: '#64748b',
+        tabBarShowLabel: true,
+        tabBarActiveTintColor: '#fff',
+        tabBarInactiveTintColor: 'rgba(255,255,255,0.4)',
         tabBarStyle: {
-          backgroundColor: '#fff',
-          borderTopWidth: 1,
-          borderTopColor: '#e2e8f0',
-          height: Platform.OS === 'ios' ? 90 : 85,
-          paddingBottom: Platform.OS === 'ios' ? 28 : 20,
+          backgroundColor: '#0f172a',
+          position: 'absolute',
+          bottom: 24,
+          left: 24,
+          right: 24,
+          height: 80,
+          borderRadius: 40,
+          borderTopWidth: 0,
+          paddingBottom: Platform.OS === 'ios' ? 24 : 12,
           paddingTop: 12,
-          elevation: 8,
+          elevation: 10,
           shadowColor: '#000',
-          shadowOffset: { width: 0, height: -2 },
-          shadowOpacity: 0.05,
-          shadowRadius: 10,
+          shadowOffset: { width: 0, height: 10 },
+          shadowOpacity: 0.2,
+          shadowRadius: 20,
         },
         tabBarLabelStyle: {
-          fontSize: 12,
-          fontWeight: '600',
-          marginTop: -4,
+          fontSize: 11,
+          fontWeight: '700',
+          marginTop: -2,
         },
       }}>
       <Tabs.Screen
@@ -38,10 +43,24 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+          tabBarIcon: ({ size, color }) => <Bell size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ size, color }) => <User size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="support"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
         }}
       />
     </Tabs>
