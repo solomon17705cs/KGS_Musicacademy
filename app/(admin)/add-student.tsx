@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import {
     View,
     Text,
@@ -9,106 +9,129 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
+    Modal,
 } from 'react-native';
+import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter, useRootNavigationState } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
-import { Profile, CompletedGrade } from '@/types/database';
-import { ArrowLeft, UserPlus, Calendar, Music, GraduationCap, Award, Plus, Trash2, Users, Search } from 'lucide-react-native';
+import { studentService } from '@/lib/firestore';
+import { ArrowLeft, UserPlus, Calendar, Music, Mail, Phone, MapPin, Clock } from 'lucide-react-native';
+
+const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const BATCH_OPTIONS = ['Batch 1', 'Batch 2', 'Batch 3'];
+
+function formatDDMMYYYY(text: string): string {
+    const cleaned = text.replace(/[^0-9]/g, '');
+    const maxLen = 8;
+    const trimmed = cleaned.slice(0, maxLen);
+
+    let result = '';
+    for (let i = 0; i < trimmed.length; i++) {
+        if (i === 2 || i === 4) result += '-';
+        result += trimmed[i];
+    }
+    return result;
+}
+
+function parseDDMMYYYY(text: string): Date | null {
+    const parts = text.split('-');
+    if (parts.length !== 3) return null;
+    const [d, m, y] = parts.map(Number);
+    if (isNaN(d) || isNaN(m) || isNaN(y)) return null;
+    const date = new Date(y, m - 1, d);
+    if (date.getFullYear() !== y || date.getMonth() !== m - 1 || date.getDate() !== d) return null;
+    return date;
+}
+
+function toDDMMYYYY(date: Date): string {
+    const d = String(date.getDate()).padStart(2, '0');
+    const m = String(date.getMonth() + 1).padStart(2, '0');
+    const y = date.getFullYear();
+    return `${d}-${m}-${y}`;
+}
 
 export default function AddStudentScreen() {
     const { profile, loading: authLoading } = useAuth();
     const router = useRouter();
     const rootNavigationState = useRootNavigationState();
 
-    const getTodayDDMMYYYY = () => {
-        const today = new Date();
-        const d = String(today.getDate()).padStart(2, '0');
-        const m = String(today.getMonth() + 1).padStart(2, '0');
-        const y = today.getFullYear();
-        return `${d}-${m}-${y}`;
+    const [showEnrollmentPicker, setShowEnrollmentPicker] = useState(false);
+    const [showDobPicker, setShowDobPicker] = useState(false);
+
+    const webEnrollmentRef = useRef<HTMLInputElement>(null);
+    const webDobRef = useRef<HTMLInputElement>(null);
+
+    const openWebPicker = (type: 'enrollment' | 'dob') => {
+        if (Platform.OS === 'web') {
+            const ref = type === 'enrollment' ? webEnrollmentRef : webDobRef;
+            ref.current?.showPicker();
+        } else {
+            if (type === 'enrollment') setShowEnrollmentPicker(true);
+            else setShowDobPicker(true);
+        }
+    };
+
+    const handleWebDateChange = (type: 'enrollment' | 'dob', value: string) => {
+        if (!value) return;
+        const parts = value.split('-');
+        if (parts.length === 3) {
+            const formatted = `${parts[2]}-${parts[1]}-${parts[0]}`;
+            if (type === 'enrollment') {
+                setEnrollmentDate(formatted);
+            } else {
+                setDob(formatted);
+            }
+        }
+    };
+
+    const [fullName, setFullName] = useState('');
+    const [gender, setGender] = useState<'male' | 'female' | null>(null);
+    const [instrument, setInstrument] = useState('');
+    const [enrollmentDate, setEnrollmentDate] = useState(toDDMMYYYY(new Date()));
+    const [dob, setDob] = useState('');
+    const [initialGrade, setInitialGrade] = useState('');
+    const [classDays, setClassDays] = useState<string[]>([]);
+    const [classTiming, setClassTiming] = useState<string | null>(null);
+
+    const [parentName, setParentName] = useState('');
+    const [parentEmail, setParentEmail] = useState('');
+    const [parentPhone, setParentPhone] = useState('');
+    const [parentAddress, setParentAddress] = useState('');
+
+    const [loading, setLoading] = useState(false);
+    const [error, setError] = useState('');
+
+    const toggleDay = (day: string) => {
+        if (classDays.includes(day)) {
+            setClassDays(classDays.filter(d => d !== day));
+        } else if (classDays.length < 3) {
+            setClassDays([...classDays, day]);
+        }
     };
 
     const formatDateForDB = (dateStr: string) => {
         if (!dateStr) return null;
         const parts = dateStr.split('-');
         if (parts.length !== 3) return dateStr;
-        // Check if it's already YYYY-MM-DD
         if (parts[0].length === 4) return dateStr;
         const [d, m, y] = parts;
         return `${y}-${m}-${d}`;
     };
 
-    const [fullName, setFullName] = useState('');
-    const [instrument, setInstrument] = useState('');
-    const [enrollmentDate, setEnrollmentDate] = useState(getTodayDDMMYYYY());
-    const [initialGrade, setInitialGrade] = useState('');
-
-    // Dynamic list for completed grades
-    const [completedGrades, setCompletedGrades] = useState<CompletedGrade[]>([]);
-
-    const addGradeField = () => {
-        setCompletedGrades([
-            ...completedGrades,
-            { grade: '', date: '', mark: 'Pass', type: 'practical' }
-        ]);
-    };
-
-    const removeGradeField = (index: number) => {
-        const updated = completedGrades.filter((_, i) => i !== index);
-        setCompletedGrades(updated);
-    };
-
-    const updateGradeField = (index: number, field: keyof CompletedGrade, value: string) => {
-        const updated = [...completedGrades];
-        updated[index] = { ...updated[index], [field]: value };
-        setCompletedGrades(updated);
-    };
-
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
-    const [parents, setParents] = useState<Profile[]>([]);
-    const [selectedParentId, setSelectedParentId] = useState<string | null>(null);
-    const [loadingParents, setLoadingParents] = useState(true);
-    const [parentSearchQuery, setParentSearchQuery] = useState('');
-
-    useEffect(() => {
-        loadParents();
-    }, []);
-
-    async function loadParents() {
-        try {
-            const { data, error } = await supabase
-                .from('profiles')
-                .select('*')
-                .eq('role', 'parent');
-
-            if (error) throw error;
-            setParents(data || []);
-        } catch (err) {
-            console.error('Error loading parents:', err);
-        } finally {
-            setLoadingParents(false);
-        }
-    }
-
-    useEffect(() => {
-        if (authLoading || !rootNavigationState?.key) return;
-        if (profile?.role !== 'admin') {
-            router.replace('/login');
-        }
-    }, [profile, authLoading, rootNavigationState?.key]);
-
     async function handleAddStudent() {
-        if (!fullName || !instrument || !enrollmentDate) {
-            setError('Please fill in required fields (Name, Instrument, Joining Date)');
+        if (!fullName || !instrument || !enrollmentDate || !parentEmail) {
+            setError('Please fill in required fields (Name, Instrument, Date, Parent Email)');
             return;
         }
 
-        // Basic validation for DD-MM-YYYY
         const dateRegex = /^\d{2}-\d{2}-\d{4}$/;
         if (!dateRegex.test(enrollmentDate)) {
             setError('Please use DD-MM-YYYY format for Joining Date');
+            return;
+        }
+
+        if (dob && !dateRegex.test(dob)) {
+            setError('Please use DD-MM-YYYY format for Date of Birth');
             return;
         }
 
@@ -116,22 +139,25 @@ export default function AddStudentScreen() {
         setError('');
 
         try {
-            const { data, error: insertError } = await supabase
-                .from('students')
-                .insert({
-                    full_name: fullName,
-                    instrument,
-                    enrollment_date: formatDateForDB(enrollmentDate),
-                    initial_grade: initialGrade || null,
-                    completed_grades: completedGrades.map(g => ({
-                        ...g,
-                        date: formatDateForDB(g.date)
-                    })),
-                    parent_id: selectedParentId,
-                    updated_at: new Date().toISOString(),
-                });
-
-            if (insertError) throw insertError;
+            await studentService.createStudent({
+                user_id: null,
+                parent_email: parentEmail.toLowerCase().trim(),
+                parent_name: parentName.trim() || null,
+                parent_phone: parentPhone.trim() || null,
+                parent_address: parentAddress.trim() || null,
+                full_name: fullName,
+                gender: gender || null,
+                date_of_birth: dob ? formatDateForDB(dob) : null,
+                enrollment_date: formatDateForDB(enrollmentDate) || '',
+                instrument,
+                initial_grade: initialGrade || null,
+                class_days: classDays,
+                class_timing: classTiming || null,
+                completed_grades: [],
+                streak: 0,
+                points: 0,
+                fee_status: 'pending',
+            });
 
             router.back();
         } catch (err: any) {
@@ -167,228 +193,218 @@ export default function AddStudentScreen() {
                         </View>
                     ) : null}
 
-                    <View style={styles.inputGroup}>
-                        <View style={styles.labelContainer}>
-                            <UserPlus size={18} color="#64748b" />
-                            <Text style={styles.label}>Full Name *</Text>
-                        </View>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Student Name"
-                            value={fullName}
-                            onChangeText={setFullName}
-                            editable={!loading}
-                        />
+                    <View style={styles.infoBox}>
+                        <Text style={styles.infoBoxText}>
+                            Parent login credentials will be shared with this email. All children linked to this email will appear under one account.
+                        </Text>
                     </View>
 
-                    <View style={styles.inputGroup}>
-                        <View style={styles.labelContainer}>
-                            <Music size={18} color="#64748b" />
-                            <Text style={styles.label}>Instrument *</Text>
-                        </View>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="e.g. Piano, Violin, Guitar"
-                            value={instrument}
-                            onChangeText={setInstrument}
-                            editable={!loading}
-                        />
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <View style={styles.labelContainer}>
-                            <Calendar size={18} color="#64748b" />
-                            <Text style={styles.label}>Date of Joining (DD-MM-YYYY) *</Text>
-                        </View>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="DD-MM-YYYY"
-                            value={enrollmentDate}
-                            onChangeText={setEnrollmentDate}
-                            editable={!loading}
-                        />
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <View style={styles.labelContainer}>
-                            <GraduationCap size={18} color="#64748b" />
-                            <Text style={styles.label}>Grade / Level while Joining</Text>
-                        </View>
-                        <TextInput
-                            style={styles.input}
-                            placeholder="Last Completed Grade"
-                            value={initialGrade}
-                            onChangeText={setInitialGrade}
-                            editable={!loading}
-                        />
-                    </View>
-
-                    <View style={styles.sectionHeader}>
-                        <Users size={20} color="#1e40af" />
-                        <Text style={styles.sectionTitle}>Link Parent Account</Text>
-                    </View>
-
-                    <View style={styles.inputGroup}>
-                        <Text style={styles.smallLabel}>Search and assign a parent account (Optional)</Text>
-                        {loadingParents ? (
-                            <ActivityIndicator size="small" color="#1e40af" style={{ marginTop: 12 }} />
-                        ) : (
-                            <View style={styles.parentSelectorContainer}>
-                                {parents.length === 0 ? (
-                                    <Text style={styles.emptyText}>No parent accounts found. Parents must sign up first.</Text>
-                                ) : (
-                                    <>
-                                        {/* Search Bar */}
-                                        <View style={styles.searchBarContainer}>
-                                            <Search size={18} color="#64748b" />
-                                            <TextInput
-                                                style={styles.searchBarInput}
-                                                placeholder="Search parent name..."
-                                                value={parentSearchQuery}
-                                                onChangeText={setParentSearchQuery}
-                                            />
-                                        </View>
-
-                                        {/* Result Area */}
-                                        <View style={styles.parentsResultContainer}>
-                                            <ScrollView
-                                                style={styles.parentsVerticalList}
-                                                nestedScrollEnabled={true}
-                                                contentContainerStyle={{ gap: 8 }}>
-
-                                                {/* Clear Selection Option */}
-                                                <TouchableOpacity
-                                                    style={[styles.parentResultItem, selectedParentId === null && styles.parentResultItemActive]}
-                                                    onPress={() => {
-                                                        setSelectedParentId(null);
-                                                        setParentSearchQuery('');
-                                                    }}>
-                                                    <View style={[styles.statusDot, selectedParentId === null && styles.statusDotActive]} />
-                                                    <Text style={[styles.parentResultText, selectedParentId === null && styles.parentResultTextActive]}>
-                                                        None (No parent assigned)
-                                                    </Text>
-                                                </TouchableOpacity>
-
-                                                {/* Filtered Parents */}
-                                                {(parentSearchQuery.length > 0 ? parents.filter(p => p.full_name.toLowerCase().includes(parentSearchQuery.toLowerCase())) : parents.slice(0, 5)).map((parent) => (
-                                                    <TouchableOpacity
-                                                        key={parent.id}
-                                                        style={[styles.parentResultItem, selectedParentId === parent.id && styles.parentResultItemActive]}
-                                                        onPress={() => {
-                                                            setSelectedParentId(parent.id);
-                                                            setParentSearchQuery('');
-                                                        }}>
-                                                        <View style={[styles.statusDot, selectedParentId === parent.id && styles.statusDotActive]} />
-                                                        <View>
-                                                            <Text style={[styles.parentResultText, selectedParentId === parent.id && styles.parentResultTextActive]}>
-                                                                {parent.full_name}
-                                                            </Text>
-                                                            <Text style={styles.parentResultEmail}>{parent.email}</Text>
-                                                        </View>
-                                                    </TouchableOpacity>
-                                                ))}
-
-                                                {parentSearchQuery.length > 0 && parents.filter(p => p.full_name.toLowerCase().includes(parentSearchQuery.toLowerCase())).length === 0 && (
-                                                    <Text style={styles.noResultsText}>No parents match "{parentSearchQuery}"</Text>
-                                                )}
-
-                                                {parentSearchQuery.length === 0 && parents.length > 5 && (
-                                                    <Text style={styles.searchHintText}>Type to search from {parents.length} parents...</Text>
-                                                )}
-                                            </ScrollView>
-                                        </View>
-
-                                        {/* Selected Parent Preview (when search is collapsed) */}
-                                        {selectedParentId && !parentSearchQuery && (
-                                            <View style={styles.selectedParentBox}>
-                                                <Text style={styles.selectedLabel}>Selected Parent:</Text>
-                                                <Text style={styles.selectedName}>
-                                                    {parents.find(p => p.id === selectedParentId)?.full_name}
-                                                </Text>
-                                            </View>
-                                        )}
-                                    </>
-                                )}
-                            </View>
-                        )}
-                    </View>
-
-                    <View style={styles.sectionHeader}>
-                        <Award size={20} color="#1e40af" />
-                        <Text style={styles.sectionTitle}>Completed Grades</Text>
-                    </View>
-
-                    {completedGrades.map((item, index) => (
-                        <View key={index} style={styles.gradeCard}>
-                            <View style={styles.gradeCardHeader}>
-                                <Text style={styles.gradeCardTitle}>Grade Entry #{index + 1}</Text>
-                                <TouchableOpacity onPress={() => removeGradeField(index)}>
-                                    <Trash2 size={18} color="#ef4444" />
-                                </TouchableOpacity>
-                            </View>
-
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.smallLabel}>Grade</Text>
-                                <TextInput
-                                    style={styles.input}
-                                    placeholder="Which Grade"
-                                    value={item.grade}
-                                    onChangeText={(val) => updateGradeField(index, 'grade', val)}
-                                    editable={!loading}
-                                />
-                            </View>
-
-                            <View style={styles.inputGroup}>
-                                <Text style={styles.smallLabel}>Examination Type</Text>
-                                <View style={styles.selectorRow}>
-                                    {['theory', 'practical'].map((typ) => (
-                                        <TouchableOpacity
-                                            key={typ}
-                                            style={[
-                                                styles.selectorButton,
-                                                item.type === typ && styles.selectorButtonActive,
-                                            ]}
-                                            onPress={() => updateGradeField(index, 'type', typ)}>
-                                            <Text
-                                                style={[
-                                                    styles.selectorButtonText,
-                                                    item.type === typ && styles.selectorButtonTextActive,
-                                                ]}>
-                                                {typ.charAt(0).toUpperCase() + typ.slice(1)}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    ))}
+                    <View style={styles.row}>
+                        <View style={styles.column}>
+                            <View style={styles.card}>
+                                <View style={styles.cardHeader}>
+                                    <UserPlus size={20} color="#1e40af" />
+                                    <Text style={styles.cardTitle}>Student Details</Text>
                                 </View>
-                            </View>
 
-                            <View style={styles.row}>
-                                <View style={[styles.inputGroup, { flex: 1.2 }]}>
-                                    <Text style={styles.smallLabel}>Date (Month Year)</Text>
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Full Name *</Text>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="e.g. Dec 2024"
-                                        value={item.date}
-                                        onChangeText={(val) => updateGradeField(index, 'date', val)}
+                                        placeholder="Student Name"
+                                        value={fullName}
+                                        onChangeText={setFullName}
                                         editable={!loading}
                                     />
                                 </View>
-                                <View style={[styles.inputGroup, { flex: 2.5 }]}>
-                                    <Text style={styles.smallLabel}>Result</Text>
-                                    <View style={styles.marksSelectorRow}>
-                                        {['Distinction', 'Merit', 'Pass', 'Fail'].map((m) => (
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Gender</Text>
+                                    <View style={styles.genderRow}>
+                                        {(['male', 'female'] as const).map(g => (
                                             <TouchableOpacity
-                                                key={m}
+                                                key={g}
+                                                style={[styles.genderBtn, gender === g && styles.genderBtnActive]}
+                                                onPress={() => setGender(g)}
+                                                disabled={loading}>
+                                                <Text style={[styles.genderBtnText, gender === g && styles.genderBtnTextActive]}>
+                                                    {g.charAt(0).toUpperCase() + g.slice(1)}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Instrument *</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="e.g. Piano, Violin"
+                                        value={instrument}
+                                        onChangeText={setInstrument}
+                                        editable={!loading}
+                                    />
+                                </View>
+
+                                <View style={styles.row}>
+                                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                                        <Text style={styles.label}>Joining Date *</Text>
+                                        <View style={styles.dateInputRow}>
+                                            <TextInput
+                                                style={[styles.input, styles.dateInput]}
+                                                placeholder="DD-MM-YYYY"
+                                                value={enrollmentDate}
+                                                onChangeText={(text) => setEnrollmentDate(formatDDMMYYYY(text))}
+                                                keyboardType="numeric"
+                                                maxLength={10}
+                                                editable={!loading}
+                                            />
+                                            <TouchableOpacity
+                                                style={styles.calendarButton}
+                                                onPress={() => openWebPicker('enrollment')}
+                                                disabled={loading}>
+                                                <Calendar size={18} color="#1e40af" />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                    <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                                        <Text style={styles.label}>Date of Birth</Text>
+                                        <View style={styles.dateInputRow}>
+                                            <TextInput
+                                                style={[styles.input, styles.dateInput]}
+                                                placeholder="DD-MM-YYYY"
+                                                value={dob}
+                                                onChangeText={(text) => setDob(formatDDMMYYYY(text))}
+                                                keyboardType="numeric"
+                                                maxLength={10}
+                                                editable={!loading}
+                                            />
+                                            <TouchableOpacity
+                                                style={styles.calendarButton}
+                                                onPress={() => openWebPicker('dob')}
+                                                disabled={loading}>
+                                                <Calendar size={18} color="#1e40af" />
+                                            </TouchableOpacity>
+                                        </View>
+                                    </View>
+                                </View>
+
+                                {Platform.OS === 'web' && (
+                                    <input
+                                        ref={webEnrollmentRef as any}
+                                        type="date"
+                                        style={{ position: 'absolute', top: '20px', left: '30%', opacity: 0, width: '200px', height: '30px', zIndex: -1 }}
+                                        onChange={(e) => handleWebDateChange('enrollment', e.target.value)}
+                                    />
+                                )}
+
+                                {Platform.OS === 'web' && (
+                                    <input
+                                        ref={webDobRef as any}
+                                        type="date"
+                                        style={{ position: 'absolute', top: '20px', left: '70%', opacity: 0, width: '200px', height: '30px', zIndex: -1 }}
+                                        onChange={(e) => handleWebDateChange('dob', e.target.value)}
+                                    />
+                                )}
+
+                                {Platform.OS !== 'web' && showEnrollmentPicker && (
+                                    <Modal visible={showEnrollmentPicker} transparent animationType="fade">
+                                        <View style={styles.modalOverlay}>
+                                            <View style={styles.modalContent}>
+                                                <Text style={styles.modalTitle}>Select Joining Date</Text>
+                                                <DateTimePicker
+                                                    value={parseDDMMYYYY(enrollmentDate) || new Date()}
+                                                    mode="date"
+                                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                    onChange={(_, selectedDate) => {
+                                                        if (selectedDate) {
+                                                            setEnrollmentDate(toDDMMYYYY(selectedDate));
+                                                        }
+                                                    }}
+                                                />
+                                                <TouchableOpacity style={styles.modalButton} onPress={() => setShowEnrollmentPicker(false)}>
+                                                    <Text style={styles.modalButtonText}>Done</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    </Modal>
+                                )}
+
+                                {Platform.OS !== 'web' && showDobPicker && (
+                                    <Modal visible={showDobPicker} transparent animationType="fade">
+                                        <View style={styles.modalOverlay}>
+                                            <View style={styles.modalContent}>
+                                                <Text style={styles.modalTitle}>Select Date of Birth</Text>
+                                                <DateTimePicker
+                                                    value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
+                                                    mode="date"
+                                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                    onChange={(_, selectedDate) => {
+                                                        if (selectedDate) {
+                                                            setDob(toDDMMYYYY(selectedDate));
+                                                        }
+                                                    }}
+                                                />
+                                                <TouchableOpacity style={styles.modalButton} onPress={() => setShowDobPicker(false)}>
+                                                    <Text style={styles.modalButtonText}>Done</Text>
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    </Modal>
+                                )}
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Initial Grade</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="e.g. Grade 1"
+                                        value={initialGrade}
+                                        onChangeText={setInitialGrade}
+                                        editable={!loading}
+                                    />
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Class Days (max 3)</Text>
+                                    <View style={styles.daySelector}>
+                                        {DAYS_OF_WEEK.map(day => (
+                                            <TouchableOpacity
+                                                key={day}
                                                 style={[
-                                                    styles.markSegment,
-                                                    item.mark === m && styles.markSegmentActive,
+                                                    styles.dayButton,
+                                                    classDays.includes(day) && styles.dayButtonActive,
                                                 ]}
-                                                onPress={() => updateGradeField(index, 'mark', m)}>
-                                                <Text
-                                                    style={[
-                                                        styles.markSegmentText,
-                                                        item.mark === m && styles.markSegmentTextActive,
-                                                    ]}>
-                                                    {m}
+                                                onPress={() => toggleDay(day)}
+                                                disabled={loading && !classDays.includes(day)}>
+                                                <Text style={[
+                                                    styles.dayButtonText,
+                                                    classDays.includes(day) && styles.dayButtonTextActive,
+                                                ]}>
+                                                    {day}
+                                                </Text>
+                                            </TouchableOpacity>
+                                        ))}
+                                    </View>
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Class Timing</Text>
+                                    <View style={styles.timingSelector}>
+                                        {BATCH_OPTIONS.map(batch => (
+                                            <TouchableOpacity
+                                                key={batch}
+                                                style={[
+                                                    styles.timingButton,
+                                                    classTiming === batch && styles.timingButtonActive,
+                                                ]}
+                                                onPress={() => setClassTiming(batch)}
+                                                disabled={loading}>
+                                                <Clock size={14} color={classTiming === batch ? '#fff' : '#64748b'} />
+                                                <Text style={[
+                                                    styles.timingButtonText,
+                                                    classTiming === batch && styles.timingButtonTextActive,
+                                                ]}>
+                                                    {batch}
                                                 </Text>
                                             </TouchableOpacity>
                                         ))}
@@ -396,12 +412,69 @@ export default function AddStudentScreen() {
                                 </View>
                             </View>
                         </View>
-                    ))}
 
-                    <TouchableOpacity style={styles.addGradeButton} onPress={addGradeField}>
-                        <Plus size={18} color="#1e40af" />
-                        <Text style={styles.addGradeButtonText}>Add Grade Achievement</Text>
-                    </TouchableOpacity>
+                        <View style={styles.column}>
+                            <View style={styles.card}>
+                                <View style={styles.cardHeader}>
+                                    <Mail size={20} color="#1e40af" />
+                                    <Text style={styles.cardTitle}>Parent Details</Text>
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Parent Email *</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="parent@email.com"
+                                        value={parentEmail}
+                                        onChangeText={setParentEmail}
+                                        keyboardType="email-address"
+                                        autoCapitalize="none"
+                                        editable={!loading}
+                                    />
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Parent Name</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="e.g. Priya Sharma"
+                                        value={parentName}
+                                        onChangeText={setParentName}
+                                        editable={!loading}
+                                    />
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Parent Phone</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="+91 98765 43210"
+                                        value={parentPhone}
+                                        onChangeText={setParentPhone}
+                                        keyboardType="phone-pad"
+                                        editable={!loading}
+                                    />
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Parent Address</Text>
+                                    <View style={styles.addressContainer}>
+                                        <MapPin size={16} color="#64748b" style={styles.addressIcon} />
+                                        <TextInput
+                                            style={[styles.input, styles.addressInput]}
+                                            placeholder="Enter full address"
+                                            value={parentAddress}
+                                            onChangeText={setParentAddress}
+                                            multiline
+                                            numberOfLines={3}
+                                            textAlignVertical="top"
+                                            editable={!loading}
+                                        />
+                                    </View>
+                                </View>
+                            </View>
+                        </View>
+                    </View>
 
                     <TouchableOpacity
                         style={[styles.submitButton, loading && styles.buttonDisabled]}
@@ -450,47 +523,231 @@ const styles = StyleSheet.create({
         flex: 1,
     },
     scrollContent: {
-        padding: 24,
+        padding: 20,
+        gap: 16,
     },
     errorContainer: {
         backgroundColor: '#fee2e2',
         padding: 12,
         borderRadius: 8,
-        marginBottom: 20,
     },
     errorText: {
         color: '#dc2626',
         fontSize: 14,
     },
-    inputGroup: {
-        marginBottom: 24,
-    },
-    labelContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 8,
-        gap: 8,
-    },
-    label: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#334155',
-    },
-    input: {
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
+    infoBox: {
+        backgroundColor: '#eff6ff',
         borderRadius: 12,
         padding: 14,
+        borderLeftWidth: 4,
+        borderLeftColor: '#1e40af',
+    },
+    infoBoxText: {
+        fontSize: 13,
+        color: '#334155',
+        lineHeight: 20,
+    },
+    row: {
+        flexDirection: 'row',
+        gap: 16,
+    },
+    column: {
+        flex: 1,
+    },
+    card: {
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 16,
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 1 },
+        shadowOpacity: 0.05,
+        shadowRadius: 4,
+        elevation: 1,
+    },
+    cardHeader: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 8,
+        marginBottom: 16,
+        paddingBottom: 12,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    cardTitle: {
         fontSize: 16,
+        fontWeight: '700',
+        color: '#1e40af',
+    },
+    inputGroup: {
+        marginBottom: 14,
+    },
+    label: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#64748b',
+        marginBottom: 6,
+    },
+    input: {
+        backgroundColor: '#f8fafc',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 10,
+        padding: 12,
+        fontSize: 14,
         color: '#1e293b',
+    },
+    genderRow: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    genderBtn: {
+        flex: 1,
+        paddingVertical: 10,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        backgroundColor: '#f8fafc',
+        alignItems: 'center',
+    },
+    genderBtnActive: {
+        backgroundColor: '#1e40af',
+        borderColor: '#1e40af',
+    },
+    genderBtnText: {
+        fontSize: 14,
+        fontWeight: '600',
+        color: '#64748b',
+    },
+    genderBtnTextActive: {
+        color: '#fff',
+    },
+    dateInputRow: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        gap: 6,
+    },
+    dateInput: {
+        flex: 1,
+    },
+    calendarButton: {
+        width: 40,
+        height: 40,
+        borderRadius: 10,
+        backgroundColor: '#eff6ff',
+        alignItems: 'center',
+        justifyContent: 'center',
+    },
+    pickerDone: {
+        textAlign: 'center',
+        color: '#1e40af',
+        fontWeight: '700',
+        fontSize: 14,
+    },
+    modalOverlay: {
+        flex: 1,
+        backgroundColor: 'rgba(0,0,0,0.5)',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: 24,
+    },
+    modalContent: {
+        backgroundColor: '#fff',
+        borderRadius: 16,
+        padding: 24,
+        width: '100%',
+        maxWidth: 340,
+        alignItems: 'center',
+    },
+    modalTitle: {
+        fontSize: 18,
+        fontWeight: '700',
+        color: '#1e293b',
+        marginBottom: 16,
+    },
+    modalButton: {
+        backgroundColor: '#1e40af',
+        borderRadius: 10,
+        paddingVertical: 12,
+        paddingHorizontal: 32,
+        marginTop: 16,
+        width: '100%',
+        alignItems: 'center',
+    },
+    modalButtonText: {
+        color: '#fff',
+        fontSize: 16,
+        fontWeight: '700',
+    },
+    daySelector: {
+        flexDirection: 'row',
+        flexWrap: 'wrap',
+        gap: 6,
+    },
+    dayButton: {
+        paddingHorizontal: 12,
+        paddingVertical: 8,
+        borderRadius: 8,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        backgroundColor: '#f8fafc',
+    },
+    dayButtonActive: {
+        backgroundColor: '#1e40af',
+        borderColor: '#1e40af',
+    },
+    dayButtonText: {
+        fontSize: 13,
+        fontWeight: '600',
+        color: '#64748b',
+    },
+    dayButtonTextActive: {
+        color: '#fff',
+    },
+    timingSelector: {
+        flexDirection: 'row',
+        gap: 8,
+    },
+    timingButton: {
+        flex: 1,
+        flexDirection: 'row',
+        alignItems: 'center',
+        justifyContent: 'center',
+        gap: 6,
+        paddingVertical: 10,
+        borderRadius: 10,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        backgroundColor: '#f8fafc',
+    },
+    timingButtonActive: {
+        backgroundColor: '#1e40af',
+        borderColor: '#1e40af',
+    },
+    timingButtonText: {
+        fontSize: 12,
+        fontWeight: '600',
+        color: '#64748b',
+    },
+    timingButtonTextActive: {
+        color: '#fff',
+    },
+    addressContainer: {
+        flexDirection: 'row',
+        alignItems: 'flex-start',
+        gap: 8,
+    },
+    addressIcon: {
+        marginTop: 12,
+    },
+    addressInput: {
+        flex: 1,
+        minHeight: 80,
     },
     submitButton: {
         backgroundColor: '#1e40af',
         borderRadius: 12,
-        padding: 18,
+        padding: 16,
         alignItems: 'center',
-        marginTop: 32,
         shadowColor: '#1e40af',
         shadowOffset: { width: 0, height: 4 },
         shadowOpacity: 0.2,
@@ -504,255 +761,5 @@ const styles = StyleSheet.create({
         color: '#fff',
         fontSize: 16,
         fontWeight: '700',
-    },
-    sectionHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        gap: 10,
-        marginTop: 12,
-        marginBottom: 16,
-        borderTopWidth: 1,
-        borderTopColor: '#e2e8f0',
-        paddingTop: 24,
-    },
-    sectionTitle: {
-        fontSize: 18,
-        fontWeight: '700',
-        color: '#1e293b',
-    },
-    gradeCard: {
-        backgroundColor: '#fff',
-        borderRadius: 12,
-        padding: 16,
-        marginBottom: 16,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-    },
-    gradeCardHeader: {
-        flexDirection: 'row',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    gradeCardTitle: {
-        fontSize: 14,
-        fontWeight: '700',
-        color: '#1e40af',
-        textTransform: 'uppercase',
-        letterSpacing: 0.5,
-    },
-    smallLabel: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#64748b',
-        marginBottom: 6,
-    },
-    row: {
-        flexDirection: 'row',
-        gap: 12,
-    },
-    addGradeButton: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        justifyContent: 'center',
-        gap: 8,
-        padding: 16,
-        borderRadius: 12,
-        borderWidth: 2,
-        borderColor: '#1e40af',
-        borderStyle: 'dashed',
-        marginTop: 8,
-    },
-    addGradeButtonText: {
-        color: '#1e40af',
-        fontSize: 15,
-        fontWeight: '700',
-    },
-    selectorRow: {
-        flexDirection: 'row',
-        gap: 10,
-    },
-    selectorButton: {
-        flex: 1,
-        backgroundColor: '#f8fafc',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        borderRadius: 8,
-        paddingVertical: 10,
-        alignItems: 'center',
-    },
-    selectorButtonActive: {
-        backgroundColor: '#dbeafe',
-        borderColor: '#1e40af',
-    },
-    selectorButtonText: {
-        fontSize: 14,
-        color: '#64748b',
-        fontWeight: '600',
-    },
-    selectorButtonTextActive: {
-        color: '#1e40af',
-        fontWeight: '700',
-    },
-    marksSelectorRow: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        gap: 6,
-    },
-    markSegment: {
-        paddingHorizontal: 10,
-        paddingVertical: 6,
-        borderRadius: 6,
-        backgroundColor: '#f1f5f9',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-    },
-    markSegmentActive: {
-        backgroundColor: '#1e40af',
-        borderColor: '#1e40af',
-    },
-    markSegmentText: {
-        fontSize: 12,
-        fontWeight: '600',
-        color: '#64748b',
-    },
-    markSegmentTextActive: {
-        color: '#fff',
-    },
-    selectedMarkHint: {
-        fontSize: 11,
-        color: '#64748b',
-        marginTop: 6,
-    },
-    boldText: {
-        fontWeight: '700',
-        color: '#1e293b',
-    },
-    parentSelectorContainer: {
-        marginTop: 8,
-    },
-    searchBarContainer: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        borderRadius: 10,
-        paddingHorizontal: 12,
-        height: 44,
-        gap: 10,
-    },
-    searchBarInput: {
-        flex: 1,
-        fontSize: 15,
-        color: '#1e293b',
-    },
-    parentsResultContainer: {
-        marginTop: 12,
-        maxHeight: 200,
-        backgroundColor: '#fff',
-        borderRadius: 10,
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        overflow: 'hidden',
-    },
-    parentsVerticalList: {
-        padding: 10,
-    },
-    parentResultItem: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        padding: 12,
-        borderRadius: 8,
-        backgroundColor: '#f8fafc',
-        gap: 12,
-    },
-    parentResultItemActive: {
-        backgroundColor: '#dbeafe',
-        borderColor: '#1e40af',
-        borderWidth: 1,
-    },
-    statusDot: {
-        width: 8,
-        height: 8,
-        borderRadius: 4,
-        backgroundColor: '#cbd5e1',
-    },
-    statusDotActive: {
-        backgroundColor: '#1e40af',
-    },
-    parentResultText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#334155',
-    },
-    parentResultTextActive: {
-        color: '#1e40af',
-        fontWeight: '700',
-    },
-    parentResultEmail: {
-        fontSize: 12,
-        color: '#64748b',
-        marginTop: 1,
-    },
-    noResultsText: {
-        padding: 20,
-        textAlign: 'center',
-        color: '#64748b',
-        fontSize: 14,
-        fontStyle: 'italic',
-    },
-    searchHintText: {
-        padding: 10,
-        textAlign: 'center',
-        color: '#94a3b8',
-        fontSize: 12,
-    },
-    selectedParentBox: {
-        marginTop: 12,
-        padding: 12,
-        backgroundColor: '#eff6ff',
-        borderRadius: 10,
-        borderLeftWidth: 4,
-        borderLeftColor: '#1e40af',
-    },
-    selectedLabel: {
-        fontSize: 11,
-        color: '#1e40af',
-        fontWeight: '700',
-        textTransform: 'uppercase',
-    },
-    selectedName: {
-        fontSize: 15,
-        fontWeight: '700',
-        color: '#1e293b',
-        marginTop: 2,
-    },
-    parentChip: {
-        paddingHorizontal: 16,
-        paddingVertical: 10,
-        borderRadius: 20,
-        backgroundColor: '#fff',
-        borderWidth: 1,
-        borderColor: '#e2e8f0',
-        marginRight: 10,
-    },
-    parentChipActive: {
-        backgroundColor: '#1e40af',
-        borderColor: '#1e40af',
-    },
-    parentChipText: {
-        fontSize: 14,
-        fontWeight: '600',
-        color: '#64748b',
-    },
-    parentChipTextActive: {
-        color: '#fff',
-    },
-    emptyText: {
-        fontSize: 14,
-        color: '#64748b',
-        fontStyle: 'italic',
-        marginTop: 8,
     },
 });

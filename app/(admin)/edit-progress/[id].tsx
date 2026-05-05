@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import {
   View,
   Text,
@@ -10,13 +10,19 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
+  TouchableWithoutFeedback,
+  Modal,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useRootNavigationState } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
+import { studentService, progressService, profileService } from '@/lib/firestore';
+import { sendProgressNotification } from '@/lib/notifications';
+import { generateProgressReport } from '@/lib/ai';
 import { Student, ProgressRecord, ProgressStatus } from '@/types/database';
-import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock } from 'lucide-react-native';
-import { notifyUser } from '@/lib/notifications';
+import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock, Award, Trophy, Sparkles, ChevronDown, FileText, Edit2 } from 'lucide-react-native';
+
+const GRADE_OPTIONS = ['Basic', 'Initial', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
+const THEORY_OPTIONS = ['Basic', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
 
 export default function EditProgressScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
@@ -28,8 +34,7 @@ export default function EditProgressScreen() {
   const [theoryGrade, setTheoryGrade] = useState('');
   const [practicalGrade, setPracticalGrade] = useState('');
   const [theoryStatus, setTheoryStatus] = useState<ProgressStatus>('good');
-  const [practicalStatus, setPracticalStatus] =
-    useState<ProgressStatus>('good');
+  const [practicalStatus, setPracticalStatus] = useState<ProgressStatus>('good');
   const [notes, setNotes] = useState('');
   const [attendance, setAttendance] = useState('2/2');
   const [homeworkCompletion, setHomeworkCompletion] = useState('100');
@@ -41,6 +46,16 @@ export default function EditProgressScreen() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
 
+  const [newGradeName, setNewGradeName] = useState('');
+  const [newGradeMark, setNewGradeMark] = useState('');
+  const [selectedGradeType, setSelectedGradeType] = useState<'theory' | 'practical'>('practical');
+  const [recordingGrade, setRecordingGrade] = useState(false);
+  const [polishing, setPolishing] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState<'theory' | 'practical' | null>(null);
+  const [dropdownRect, setDropdownRect] = useState<{ x: number; y: number; width: number } | null>(null);
+  const theoryContainerRef = useRef<View>(null);
+  const practicalContainerRef = useRef<View>(null);
+
   const statusOptions: ProgressStatus[] = [
     'excellent',
     'good',
@@ -49,7 +64,6 @@ export default function EditProgressScreen() {
   ];
 
   useEffect(() => {
-    // Wait until auth state is resolved and navigation is ready before checking role
     if (authLoading || !rootNavigationState?.key) return;
 
     if (profile?.role !== 'admin') {
@@ -61,26 +75,10 @@ export default function EditProgressScreen() {
 
   async function loadStudentData() {
     try {
-      const { data: studentData, error: studentError } = await supabase
-        .from('students')
-        .select('*')
-        .eq('id', id)
-        .maybeSingle();
-
-      if (studentError) throw studentError;
+      const studentData = await studentService.getStudent(id as string);
       setStudent(studentData);
 
-      const { data: progressData, error: progressError } = await supabase
-        .from('progress_records')
-        .select('*')
-        .eq('student_id', id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-
-      if (progressError && progressError.code !== 'PGRST116') {
-        throw progressError;
-      }
+      const progressData = await progressService.getLatestProgress(id as string);
 
       if (progressData) {
         setTheoryGrade(progressData.theory_grade);
@@ -103,14 +101,14 @@ export default function EditProgressScreen() {
   }
 
   async function handleSave() {
-    if (!profile) return;
+    if (!profile || !student) return;
 
     setSaving(true);
     setError('');
 
     try {
-      const { error } = await supabase.from('progress_records').insert({
-        student_id: id,
+      await progressService.createProgressRecord({
+        student_id: id as string,
         theory_grade: theoryGrade,
         practical_grade: practicalGrade,
         theory_status: theoryStatus,
@@ -125,93 +123,134 @@ export default function EditProgressScreen() {
         updated_by: profile.id,
       });
 
-      if (error) throw error;
+      let newStreak = student.streak || 0;
+      let pointsToAdd = 10;
 
-      // Trigger notifications for student and parent
-      if (student) {
-        const title = 'New Progress Update 🎵';
-        const body = `Your instructor ${profile.full_name} has updated progress for ${student.instrument}. Check it out!`;
+      if (attendance === '2/2') pointsToAdd += 20;
+      else if (attendance === '1/2') pointsToAdd += 10;
 
-        // Notify Student if they have a user account
-        if (student.user_id) {
-          await notifyUser(student.user_id, title, body);
-        }
+      const hwPerc = parseInt(homeworkCompletion) || 0;
+      pointsToAdd += Math.floor(hwPerc / 2);
 
-        // Notify Parent if linked
-        if (student.parent_id) {
-          await notifyUser(
-            student.parent_id,
-            'Student Progress Update',
-            `Update for ${student.full_name}: ${body}`
-          );
-        }
+      const pracScore = parseInt(practiceScore) || 0;
+      pointsToAdd += Math.floor(pracScore / 2);
+
+      if (goalStatus === 'achieved') pointsToAdd += 50;
+
+      const now = new Date();
+      const lastUpdate = new Date(student.updated_at || 0);
+      const diffDays = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 3600 * 24));
+
+      if (diffDays <= 8) {
+        newStreak += 1;
+      } else {
+        newStreak = 1;
       }
+
+      await studentService.updateStudent(id as string, {
+        streak: newStreak,
+        points: (student.points || 0) + pointsToAdd,
+      });
+
+      await sendProgressNotification(
+        student,
+        profile.full_name,
+        student.instrument
+      );
 
       router.back();
     } catch (err: any) {
       setError(err.message || 'Failed to save progress');
+    } finally {
       setSaving(false);
     }
+  }
+
+  async function handleAIPolish() {
+    if (!notes.trim() || polishing) return;
+
+    setPolishing(true);
+    setError('');
+
+    try {
+      const statusToRating: Record<ProgressStatus, number> = {
+        excellent: 5,
+        good: 4,
+        needs_improvement: 3,
+        struggling: 2,
+      };
+
+      const theoryRating = statusToRating[theoryStatus] || 3;
+      const practicalRating = statusToRating[practicalStatus] || 3;
+      const overallRating = Math.round((theoryRating + practicalRating) / 2);
+
+      const topicsCovered = `Theory: ${theoryGrade || 'not specified'}, Practical: ${practicalGrade || 'not specified'}`;
+
+      const today = new Date().toLocaleDateString('en-IN', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+      });
+
+      const report = await generateProgressReport({
+        studentName: student?.full_name || 'Your child',
+        gender: student?.gender || null,
+        date: today,
+        topicsCovered,
+        rating: overallRating,
+        teacherNotes: notes.trim(),
+      });
+
+      setNotes(report);
+      Alert.alert('AI Report Ready', 'Your progress report has been generated and is ready to review.');
+    } catch (err: any) {
+      Alert.alert('AI Error', err.message || 'Failed to generate report. Please try again.');
+    } finally {
+      setPolishing(false);
+    }
+  }
+
+  function insertTemplate() {
+    const template = `Strengths: What went well today (e.g., good rhythm, improved posture)
+Areas to focus: What needs improvement (e.g., struggles with tempo, needs more practice)
+Topics covered: What we learned (e.g., C major scale, sight reading)
+Home practice: What to practice this week (e.g., scales 10 min daily)`;
+    setNotes(template);
   }
 
   async function performDelete() {
-    console.log('[DEBUG] performDelete executing for:', id);
     try {
       setSaving(true);
-      // Delete progress records first
-      console.log('[DEBUG] Deleting progress records for student:', id);
-      await supabase
-        .from('progress_records')
-        .delete()
-        .eq('student_id', id);
 
-      // Delete student
-      console.log('[DEBUG] Deleting student record:', id);
-      const { error } = await supabase
-        .from('students')
-        .delete()
-        .eq('id', id);
-
-      if (error) {
-        console.error('[DEBUG] Deletion error:', error);
-        throw error;
+      const progressRecords = await progressService.getProgressRecords(id as string);
+      for (const record of progressRecords) {
+        await progressService.deleteProgressRecord(record.id);
       }
 
-      console.log('[DEBUG] Deletion successful, navigating back');
+      await studentService.deleteStudent(id as string);
+
       router.replace('/(admin)/dashboard');
     } catch (err: any) {
-      console.error('[DEBUG] Deletion catch block:', err);
+      console.error('Delete failed:', err);
       setSaving(false);
-      Alert.alert('Error', err.message || 'Failed to delete student');
+      Alert.alert('Error', 'Failed to delete student');
     }
   }
 
-  async function handleDelete() {
-    console.log('[DEBUG] handleDelete button pressed', { id, studentName: student?.full_name });
-    if (!student) return;
-
-    const message = `Are you sure you want to delete ${student.full_name}? This will also remove all their progress records.`;
+  const handleDelete = () => {
+    const message = `Delete ${student?.full_name}? This cannot be undone.`;
 
     if (Platform.OS === 'web') {
-      if (typeof window !== 'undefined' && window.confirm(message)) {
-        await performDelete();
+      if (confirm(message)) {
+        performDelete();
       }
-      return;
-    }
-
-    Alert.alert(
-      'Delete Student',
-      message,
-      [
+    } else {
+      Alert.alert('Confirm Delete', message, [
         { text: 'Cancel', style: 'cancel' },
-        {
-          text: 'Delete',
-          style: 'destructive',
-          onPress: performDelete,
-        },
-      ]
-    );
-  }
+        { text: 'Delete', style: 'destructive', onPress: performDelete }
+      ]);
+    }
+  };
 
   function getStatusLabel(status: ProgressStatus) {
     return status
@@ -233,6 +272,16 @@ export default function EditProgressScreen() {
     }
   }
 
+  function measureAndShow(type: 'theory' | 'practical') {
+    const ref = type === 'theory' ? theoryContainerRef : practicalContainerRef;
+    ref.current?.measureInWindow((x, y, width, height) => {
+      setDropdownRect({ x, y: y + height + 4, width });
+      setActiveDropdown(type);
+    });
+  }
+
+  const currentDropdownValue = activeDropdown === 'theory' ? theoryGrade : practicalGrade;
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -250,9 +299,10 @@ export default function EditProgressScreen() {
   }
 
   return (
-    <KeyboardAvoidingView
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      style={styles.container}>
+    <View style={{ flex: 1 }}>
+      <KeyboardAvoidingView
+        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        style={styles.container}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -264,6 +314,12 @@ export default function EditProgressScreen() {
           <Text style={styles.headerSubtitle}>{student.instrument}</Text>
         </View>
         <TouchableOpacity
+          style={styles.editButton}
+          onPress={() => router.push(`/(admin)/edit-student/${student?.id}`)}
+          disabled={saving}>
+          <Edit2 size={24} color="#1e40af" />
+        </TouchableOpacity>
+        <TouchableOpacity
           style={styles.deleteButton}
           onPress={handleDelete}
           disabled={saving}>
@@ -271,244 +327,432 @@ export default function EditProgressScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
-        {error ? (
-          <View style={styles.errorContainer}>
-            <Text style={styles.errorText}>{error}</Text>
+      <TouchableWithoutFeedback onPress={() => setActiveDropdown(null)}>
+        <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
+          {error ? (
+            <View style={styles.errorContainer}>
+              <Text style={styles.errorText}>{error}</Text>
+            </View>
+          ) : null}
+
+          <View style={styles.section}>
+            <View style={styles.row}>
+              <View style={{ flex: 1, marginRight: 8 }}>
+                <Text style={styles.subSectionTitle}>Theory</Text>
+
+                <View style={styles.inputGroup} ref={theoryContainerRef}>
+                  <Text style={styles.label}>Grade Level</Text>
+                  <View style={styles.gradeSelectorContainer}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g., Grade 3"
+                      value={theoryGrade}
+                      onChangeText={(text) => {
+                        setTheoryGrade(text);
+                        if (activeDropdown) setActiveDropdown(null);
+                      }}
+                      editable={!saving}
+                    />
+                    <TouchableOpacity
+                      style={styles.dropdownToggle}
+                      onPress={() => {
+                        if (activeDropdown === 'theory') {
+                          setActiveDropdown(null);
+                        } else {
+                          measureAndShow('theory');
+                        }
+                      }}
+                      disabled={saving}>
+                      <ChevronDown size={18} color={activeDropdown === 'theory' ? '#1e40af' : '#64748b'} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Status</Text>
+                  <View style={styles.statusOptions}>
+                    {statusOptions.map((status) => (
+                      <TouchableOpacity
+                        key={status}
+                        style={[
+                          styles.statusButton,
+                          theoryStatus === status && {
+                            backgroundColor: getStatusColor(status) + '20',
+                            borderColor: getStatusColor(status),
+                          },
+                        ]}
+                        onPress={() => setTheoryStatus(status)}
+                        disabled={saving}>
+                        <View
+                          style={[
+                            styles.statusIndicator,
+                            { backgroundColor: getStatusColor(status) },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.statusButtonText,
+                            theoryStatus === status && {
+                              color: getStatusColor(status),
+                              fontWeight: '700',
+                            },
+                          ]}>
+                          {getStatusLabel(status)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+
+              <View style={{ flex: 1 }}>
+                <Text style={styles.subSectionTitle}>Practical</Text>
+
+                <View style={styles.inputGroup} ref={practicalContainerRef}>
+                  <Text style={styles.label}>Grade Level</Text>
+                  <View style={styles.gradeSelectorContainer}>
+                    <TextInput
+                      style={styles.input}
+                      placeholder="e.g., Grade 3"
+                      value={practicalGrade}
+                      onChangeText={(text) => {
+                        setPracticalGrade(text);
+                        if (activeDropdown) setActiveDropdown(null);
+                      }}
+                      editable={!saving}
+                    />
+                    <TouchableOpacity
+                      style={styles.dropdownToggle}
+                      onPress={() => {
+                        if (activeDropdown === 'practical') {
+                          setActiveDropdown(null);
+                        } else {
+                          measureAndShow('practical');
+                        }
+                      }}
+                      disabled={saving}>
+                      <ChevronDown size={18} color={activeDropdown === 'practical' ? '#1e40af' : '#64748b'} />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Status</Text>
+                  <View style={styles.statusOptions}>
+                    {statusOptions.map((status) => (
+                      <TouchableOpacity
+                        key={status}
+                        style={[
+                          styles.statusButton,
+                          practicalStatus === status && {
+                            backgroundColor: getStatusColor(status) + '20',
+                            borderColor: getStatusColor(status),
+                          },
+                        ]}
+                        onPress={() => setPracticalStatus(status)}
+                        disabled={saving}>
+                        <View
+                          style={[
+                            styles.statusIndicator,
+                            { backgroundColor: getStatusColor(status) },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.statusButtonText,
+                            practicalStatus === status && {
+                              color: getStatusColor(status),
+                              fontWeight: '700',
+                            },
+                          ]}>
+                          {getStatusLabel(status)}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                </View>
+              </View>
+            </View>
           </View>
-        ) : null}
 
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Theory Progress</Text>
+          <View style={styles.combinedSection}>
+            <View style={styles.combinedColumn}>
+              <Text style={styles.combinedTitle}>Weekly Sessions</Text>
 
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Grade Level</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., Grade 3, Beginner, Advanced"
-              value={theoryGrade}
-              onChangeText={setTheoryGrade}
-              editable={!saving}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Status</Text>
-            <View style={styles.statusOptions}>
-              {statusOptions.map((status) => (
-                <TouchableOpacity
-                  key={status}
-                  style={[
-                    styles.statusButton,
-                    theoryStatus === status && {
-                      backgroundColor: getStatusColor(status) + '20',
-                      borderColor: getStatusColor(status),
-                    },
-                  ]}
-                  onPress={() => setTheoryStatus(status)}
-                  disabled={saving}>
-                  <View
-                    style={[
-                      styles.statusIndicator,
-                      { backgroundColor: getStatusColor(status) },
-                    ]}
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Attendance</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g., 2/2"
+                    value={attendance}
+                    onChangeText={setAttendance}
+                    editable={!saving}
                   />
-                  <Text
-                    style={[
-                      styles.statusButtonText,
-                      theoryStatus === status && {
-                        color: getStatusColor(status),
-                        fontWeight: '700',
-                      },
-                    ]}>
-                    {getStatusLabel(status)}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Practical Progress</Text>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Grade Level</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., Grade 3, Beginner, Advanced"
-              value={practicalGrade}
-              onChangeText={setPracticalGrade}
-              editable={!saving}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Status</Text>
-            <View style={styles.statusOptions}>
-              {statusOptions.map((status) => (
-                <TouchableOpacity
-                  key={status}
-                  style={[
-                    styles.statusButton,
-                    practicalStatus === status && {
-                      backgroundColor: getStatusColor(status) + '20',
-                      borderColor: getStatusColor(status),
-                    },
-                  ]}
-                  onPress={() => setPracticalStatus(status)}
-                  disabled={saving}>
-                  <View
-                    style={[
-                      styles.statusIndicator,
-                      { backgroundColor: getStatusColor(status) },
-                    ]}
+                </View>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.label}>Homework %</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="0-100"
+                    value={homeworkCompletion}
+                    onChangeText={setHomeworkCompletion}
+                    keyboardType="numeric"
+                    editable={!saving}
                   />
-                  <Text
+                </View>
+              </View>
+
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
+                  <Text style={styles.label}>Practice Score</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="0-100"
+                    value={practiceScore}
+                    onChangeText={setPracticeScore}
+                    keyboardType="numeric"
+                    editable={!saving}
+                  />
+                </View>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.label}>Mastery %</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="0-100"
+                    value={masteryLevel}
+                    onChangeText={setMasteryLevel}
+                    keyboardType="numeric"
+                    editable={!saving}
+                  />
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.combinedDivider} />
+
+            <View style={styles.combinedColumn}>
+              <View style={styles.sectionHeaderRow}>
+                <Target size={18} color="#1e40af" />
+                <Text style={[styles.combinedTitle, { marginLeft: 6 }]}>Weekly Goal</Text>
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Goal Task</Text>
+                <TextInput
+                  style={styles.input}
+                  placeholder="e.g., Master C Major Scale"
+                  value={weeklyGoal}
+                  onChangeText={setWeeklyGoal}
+                  editable={!saving}
+                />
+              </View>
+
+              <View style={styles.inputGroup}>
+                <Text style={styles.label}>Status</Text>
+                <View style={styles.row}>
+                  <TouchableOpacity
                     style={[
-                      styles.statusButtonText,
-                      practicalStatus === status && {
-                        color: getStatusColor(status),
-                        fontWeight: '700',
-                      },
-                    ]}>
-                    {getStatusLabel(status)}
-                  </Text>
+                      styles.choiceButton,
+                      goalStatus === 'in_progress' && styles.choiceButtonActive,
+                    ]}
+                    onPress={() => setGoalStatus('in_progress')}
+                    disabled={saving}>
+                    <Clock size={16} color={goalStatus === 'in_progress' ? '#f97316' : '#64748b'} />
+                    <Text style={[styles.choiceButtonText, goalStatus === 'in_progress' && styles.choiceButtonTextActive]}>In Progress</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.choiceButton,
+                      { marginLeft: 8 },
+                      goalStatus === 'achieved' && styles.choiceButtonActiveAchieved,
+                    ]}
+                    onPress={() => setGoalStatus('achieved')}
+                    disabled={saving}>
+                    <CheckCircle2 size={16} color={goalStatus === 'achieved' ? '#16a34a' : '#64748b'} />
+                    <Text style={[styles.choiceButtonText, goalStatus === 'achieved' && styles.choiceButtonTextActiveAchieved]}>Achieved</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.combinedDivider} />
+
+            <View style={styles.combinedColumn}>
+              <View style={styles.sectionHeaderRow}>
+                <Award size={18} color="#1e40af" />
+                <Text style={[styles.combinedTitle, { marginLeft: 6 }]}>Grade Achievement</Text>
+              </View>
+
+              <View style={styles.gradeEntryRow}>
+                <View style={{ flex: 2 }}>
+                  <Text style={styles.label}>Grade</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. Grade 2"
+                    value={newGradeName}
+                    onChangeText={setNewGradeName}
+                  />
+                </View>
+                <View style={{ flex: 1, marginLeft: 8 }}>
+                  <Text style={styles.label}>Mark</Text>
+                  <TextInput
+                    style={styles.input}
+                    placeholder="e.g. 85%"
+                    value={newGradeMark}
+                    onChangeText={setNewGradeMark}
+                  />
+                </View>
+              </View>
+
+              <Text style={styles.label}>Type</Text>
+              <View style={styles.tabContainer}>
+                <TouchableOpacity
+                  style={[styles.tab, selectedGradeType === 'theory' && styles.activeTab]}
+                  onPress={() => setSelectedGradeType('theory')}>
+                  <Text style={[styles.tabText, selectedGradeType === 'theory' && styles.activeTabText]}>Theory</Text>
                 </TouchableOpacity>
-              ))}
+                <TouchableOpacity
+                  style={[styles.tab, selectedGradeType === 'practical' && styles.activeTab]}
+                  onPress={() => setSelectedGradeType('practical')}>
+                  <Text style={[styles.tabText, selectedGradeType === 'practical' && styles.activeTabText]}>Practical</Text>
+                </TouchableOpacity>
+              </View>
+
+              <TouchableOpacity
+                style={[
+                  styles.recordGradeButton,
+                  (!newGradeName || recordingGrade) && { opacity: 0.6 }
+                ]}
+                onPress={async () => {
+                  if (!newGradeName || !student) return;
+                  setRecordingGrade(true);
+                  try {
+                    const newAchievement = {
+                      grade: newGradeName,
+                      date: new Date().toISOString().split('T')[0],
+                      mark: newGradeMark || 'N/A',
+                      type: selectedGradeType
+                    };
+
+                    const currentGrades = student.completed_grades || [];
+                    const updatedGrades = [...currentGrades, newAchievement];
+
+                    await studentService.updateStudent(id as string, {
+                      completed_grades: updatedGrades,
+                      points: (student.points || 0) + 500
+                    });
+
+                    setStudent({ ...student, completed_grades: updatedGrades, points: (student.points || 0) + 500 });
+                    setNewGradeName('');
+                    setNewGradeMark('');
+                    Alert.alert('Congratulations!', `${student.full_name} has successfully completed ${newGradeName}. 500 points added.`);
+                  } catch (err: any) {
+                    Alert.alert('Error', 'Failed to record grade achievement');
+                  } finally {
+                    setRecordingGrade(false);
+                  }
+                }}
+                disabled={!newGradeName || recordingGrade}>
+                {recordingGrade ? (
+                  <ActivityIndicator size="small" color="#fff" />
+                ) : (
+                  <>
+                    <Trophy size={16} color="#fff" />
+                    <Text style={styles.recordGradeText}>Record Grade</Text>
+                  </>
+                )}
+              </TouchableOpacity>
             </View>
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Weekly Session Summary</Text>
-
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Attendance</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 2/2"
-                value={attendance}
-                onChangeText={setAttendance}
-                editable={!saving}
-              />
-            </View>
-            <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-              <Text style={styles.label}>Homework %</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="0-100"
-                value={homeworkCompletion}
-                onChangeText={setHomeworkCompletion}
-                keyboardType="numeric"
-                editable={!saving}
-              />
-            </View>
-          </View>
-
-          <View style={styles.row}>
-            <View style={[styles.inputGroup, { flex: 1 }]}>
-              <Text style={styles.label}>Practice Score (0-100)</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="e.g., 85"
-                value={practiceScore}
-                onChangeText={setPracticeScore}
-                keyboardType="numeric"
-                editable={!saving}
-              />
-            </View>
-            <View style={[styles.inputGroup, { flex: 1, marginLeft: 12 }]}>
-              <Text style={styles.label}>Skill Mastery %</Text>
-              <TextInput
-                style={styles.input}
-                placeholder="0-100"
-                value={masteryLevel}
-                onChangeText={setMasteryLevel}
-                keyboardType="numeric"
-                editable={!saving}
-              />
-            </View>
-          </View>
-        </View>
 
         <View style={styles.section}>
           <View style={styles.sectionHeaderRow}>
-            <Target size={20} color="#1e40af" />
-            <Text style={[styles.sectionTitle, { marginBottom: 0, marginLeft: 8 }]}>Weekly Goal</Text>
-          </View>
-
-          <View style={[styles.inputGroup, { marginTop: 16 }]}>
-            <Text style={styles.label}>Goal Task</Text>
-            <TextInput
-              style={styles.input}
-              placeholder="e.g., Master the C Major Scale"
-              value={weeklyGoal}
-              onChangeText={setWeeklyGoal}
-              editable={!saving}
-            />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>Status</Text>
-            <View style={styles.row}>
+            <Text style={styles.sectionTitle}>Instructor Notes</Text>
+            <View style={styles.noteActions}>
               <TouchableOpacity
-                style={[
-                  styles.choiceButton,
-                  goalStatus === 'in_progress' && styles.choiceButtonActive,
-                ]}
-                onPress={() => setGoalStatus('in_progress')}
-                disabled={saving}>
-                <Clock size={18} color={goalStatus === 'in_progress' ? '#f97316' : '#64748b'} />
-                <Text style={[styles.choiceButtonText, goalStatus === 'in_progress' && styles.choiceButtonTextActive]}>In Progress</Text>
+                style={[styles.noteBtn, { backgroundColor: '#f1f5f9' }]}
+                onPress={insertTemplate}>
+                <FileText size={14} color="#64748b" />
+                <Text style={styles.noteBtnText}>Template</Text>
               </TouchableOpacity>
               <TouchableOpacity
-                style={[
-                  styles.choiceButton,
-                  { marginLeft: 12 },
-                  goalStatus === 'achieved' && styles.choiceButtonActiveAchieved,
-                ]}
-                onPress={() => setGoalStatus('achieved')}
-                disabled={saving}>
-                <CheckCircle2 size={18} color={goalStatus === 'achieved' ? '#16a34a' : '#64748b'} />
-                <Text style={[styles.choiceButtonText, goalStatus === 'achieved' && styles.choiceButtonTextActiveAchieved]}>Achieved</Text>
+                style={[styles.noteBtn, !notes.trim() && { opacity: 0.5 }]}
+                onPress={handleAIPolish}
+                disabled={polishing || !notes.trim()}>
+                {polishing ? (
+                  <ActivityIndicator size="small" color="#1e40af" />
+                ) : (
+                  <>
+                    <Sparkles size={14} color="#1e40af" />
+                    <Text style={styles.noteBtnText}>AI Polish</Text>
+                  </>
+                )}
               </TouchableOpacity>
             </View>
           </View>
-        </View>
-
-        <View style={styles.section}>
-          <Text style={styles.sectionTitle}>Instructor Notes</Text>
           <TextInput
             style={styles.textArea}
-            placeholder="Add notes about the student's progress, strengths, areas for improvement..."
+            placeholder="Enter brief notes or tap 'Template' for a guide, then tap 'AI Polish'..."
             value={notes}
             onChangeText={setNotes}
             multiline
             numberOfLines={6}
             textAlignVertical="top"
-            editable={!saving}
+            editable={!saving && !polishing}
           />
         </View>
 
-        <TouchableOpacity
-          style={[styles.saveButton, saving && styles.saveButtonDisabled]}
-          onPress={handleSave}
-          disabled={saving}>
-          {saving ? (
-            <ActivityIndicator color="#fff" />
-          ) : (
-            <>
-              <Save size={20} color="#fff" />
-              <Text style={styles.saveButtonText}>Save Progress</Text>
-            </>
-          )}
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={[styles.saveButton, saving && styles.saveButtonDisabled]}
+            onPress={handleSave}
+            disabled={saving}>
+            {saving ? (
+              <ActivityIndicator color="#fff" />
+            ) : (
+              <>
+                <Save size={20} color="#fff" />
+                <Text style={styles.saveButtonText}>Save Progress</Text>
+              </>
+            )}
+          </TouchableOpacity>
 
-        <View style={styles.bottomPadding} />
-      </ScrollView>
+          <View style={styles.bottomPadding} />
+        </ScrollView>
+      </TouchableWithoutFeedback>
+
+      {activeDropdown && dropdownRect && (
+        <View style={[
+          styles.floatingDropdown,
+          { top: dropdownRect.y, left: dropdownRect.x, width: dropdownRect.width },
+        ]}>
+          <ScrollView style={styles.floatingDropdownScroll} showsVerticalScrollIndicator={false}>
+            {(activeDropdown === 'theory' ? THEORY_OPTIONS : GRADE_OPTIONS).map((option) => (
+              <TouchableOpacity
+                key={option}
+                style={[
+                  styles.floatingDropdownOption,
+                  currentDropdownValue === option && styles.floatingDropdownOptionSelected,
+                ]}
+                onPress={() => {
+                  if (activeDropdown === 'theory') {
+                    setTheoryGrade(option);
+                  } else {
+                    setPracticalGrade(option);
+                  }
+                  setActiveDropdown(null);
+                }}>
+                <Text style={[
+                  styles.floatingDropdownOptionText,
+                  currentDropdownValue === option && styles.floatingDropdownOptionTextSelected,
+                ]}>{option}</Text>
+              </TouchableOpacity>
+            ))}
+          </ScrollView>
+        </View>
+      )}
     </KeyboardAvoidingView>
+    </View>
   );
 }
 
@@ -539,6 +783,14 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  editButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#eff6ff',
     alignItems: 'center',
     justifyContent: 'center',
   },
@@ -581,24 +833,74 @@ const styles = StyleSheet.create({
     color: '#1e293b',
     marginBottom: 16,
   },
+  subSectionTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e40af',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  combinedSection: {
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    padding: 16,
+    marginBottom: 16,
+    flexDirection: 'row',
+    gap: 12,
+  },
+  combinedColumn: {
+    flex: 1,
+  },
+  combinedDivider: {
+    width: 1,
+    backgroundColor: '#e2e8f0',
+    alignSelf: 'stretch',
+  },
+  combinedTitle: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#1e293b',
+    marginBottom: 12,
+  },
   sectionHeaderRow: {
     flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  noteActions: {
+    flexDirection: 'row',
+    gap: 8,
+  },
+  noteBtn: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 8,
+    gap: 4,
+    backgroundColor: '#dbeafe',
+  },
+  noteBtnText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1e40af',
   },
   row: {
     flexDirection: 'row',
     alignItems: 'center',
+    gap: 12,
   },
   inputGroup: {
-    marginBottom: 20,
+    marginBottom: 12,
   },
   choiceButton: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    gap: 8,
-    padding: 14,
+    gap: 6,
+    padding: 10,
     borderRadius: 8,
     borderWidth: 1,
     borderColor: '#e2e8f0',
@@ -630,36 +932,116 @@ const styles = StyleSheet.create({
     marginBottom: 8,
   },
   input: {
-    backgroundColor: '#f8fafc',
+    flex: 1,
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 8,
-    padding: 14,
-    fontSize: 16,
+    borderRadius: 10,
+    padding: 10,
+    fontSize: 14,
     color: '#1e293b',
+  },
+  gradeSelectorContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 10,
+    backgroundColor: '#fff',
+    paddingRight: 4,
+  },
+  dropdownToggle: {
+    width: 36,
+    height: 36,
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: 8,
+  },
+  floatingDropdown: {
+    position: 'absolute',
+    backgroundColor: '#fff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    zIndex: 1000,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 8,
+  },
+  floatingDropdownScroll: {
+    maxHeight: 220,
+  },
+  floatingDropdownOption: {
+    paddingVertical: 12,
+    paddingHorizontal: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+  },
+  floatingDropdownOptionSelected: {
+    backgroundColor: '#eff6ff',
+  },
+  floatingDropdownOptionText: {
+    fontSize: 14,
+    color: '#475569',
+    fontWeight: '500',
+  },
+  floatingDropdownOptionTextSelected: {
+    color: '#1e40af',
+    fontWeight: '700',
+  },
+  tabContainer: {
+    flexDirection: 'row',
+    backgroundColor: '#f1f5f9',
+    borderRadius: 8,
+    padding: 3,
+    marginBottom: 10,
+  },
+  tab: {
+    flex: 1,
+    paddingVertical: 6,
+    alignItems: 'center',
+    borderRadius: 6,
+  },
+  activeTab: {
+    backgroundColor: '#fff',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 1 },
+    shadowOpacity: 0.1,
+    shadowRadius: 2,
+    elevation: 2,
+  },
+  tabText: {
+    fontSize: 14,
+    color: '#64748b',
+    fontWeight: '600',
+  },
+  activeTabText: {
+    color: '#1e40af',
   },
   textArea: {
-    backgroundColor: '#f8fafc',
+    backgroundColor: '#fff',
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 8,
+    borderRadius: 12,
     padding: 14,
     fontSize: 16,
     color: '#1e293b',
-    minHeight: 120,
+    minHeight: 140,
   },
   statusOptions: {
-    gap: 10,
+    gap: 8,
   },
   statusButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 10,
+    gap: 8,
     backgroundColor: '#f8fafc',
     borderWidth: 2,
     borderColor: '#e2e8f0',
     borderRadius: 8,
-    padding: 14,
+    padding: 10,
   },
   statusIndicator: {
     width: 12,
@@ -698,5 +1080,24 @@ const styles = StyleSheet.create({
     backgroundColor: '#fee2e2',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  gradeEntryRow: {
+    flexDirection: 'row',
+    marginBottom: 10,
+  },
+  recordGradeButton: {
+    backgroundColor: '#16a34a',
+    borderRadius: 8,
+    padding: 10,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    marginTop: 6,
+  },
+  recordGradeText: {
+    color: '#fff',
+    fontSize: 15,
+    fontWeight: '700',
   },
 });

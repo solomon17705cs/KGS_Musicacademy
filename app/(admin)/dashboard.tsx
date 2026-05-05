@@ -7,36 +7,37 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   RefreshControl,
-  Image,
+  TextInput,
 } from 'react-native';
 import { useRouter, useRootNavigationState, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { supabase } from '@/lib/supabase';
-import { StudentWithProgress } from '@/types/database';
+import { studentService, progressService, attendanceService } from '@/lib/firestore';
+import { Student, ProgressRecord } from '@/types/database';
 import {
-  Music2,
-  UserPlus,
   Users,
   LogOut,
-  Edit,
   TrendingUp,
   Plus,
   ChevronRight,
   Award,
   Trophy,
+  Bell,
+  Calendar,
+  Search,
+  DollarSign,
 } from 'lucide-react-native';
 
 export default function AdminDashboard() {
   const { profile, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
-  const [students, setStudents] = useState<StudentWithProgress[]>([]);
+  const [students, setStudents] = useState<(Student & { progress?: ProgressRecord; attendancePct?: number })[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [search, setSearch] = useState('');
 
   useEffect(() => {
-    // Wait until auth state is resolved and navigation is ready before checking role
     if (authLoading || !rootNavigationState?.key) return;
 
     if (profile?.role !== 'admin') {
@@ -45,30 +46,29 @@ export default function AdminDashboard() {
     }
   }, [profile, authLoading, rootNavigationState?.key]);
 
-  useFocusEffect(
-    useCallback(() => {
-      if (profile?.role === 'admin') {
-        loadStudents();
-      }
-    }, [profile?.role])
-  );
+  useEffect(() => {
+    if (profile?.role === 'admin') {
+      setLoading(true);
+      loadStudents();
+    }
+  }, [rootNavigationState?.key, profile?.role]);
 
   async function loadStudents() {
     try {
       setError('');
-      const { data, error } = await supabase.from('students').select(`
-          *,
-          progress:progress_records(*)
-        `);
+      const allStudents = await studentService.getAllStudents();
 
-      if (error) throw error;
+      const studentsWithProgress = await Promise.all(
+        allStudents.map(async (student) => {
+          const [progress, summary] = await Promise.all([
+            progressService.getLatestProgress(student.id),
+            attendanceService.getAttendanceSummary(student.id, student.enrollment_date),
+          ]);
+          return { ...student, progress: progress || undefined, attendancePct: summary.percentage };
+        })
+      );
 
-      const studentsWithLatestProgress = data?.map((student: any) => ({
-        ...student,
-        progress: student.progress?.[student.progress.length - 1] || null,
-      }));
-
-      setStudents(studentsWithLatestProgress || []);
+      setStudents(studentsWithProgress);
     } catch (err: any) {
       setError(err.message || 'Failed to load students');
     } finally {
@@ -102,6 +102,10 @@ export default function AdminDashboard() {
     }
   }
 
+  const filteredStudents = students.filter(s =>
+    s.full_name.toLowerCase().includes(search.toLowerCase())
+  );
+
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -114,23 +118,46 @@ export default function AdminDashboard() {
     <View style={styles.container}>
       <View style={styles.header}>
         <View style={styles.headerTop}>
-          <View>
-            <Text style={styles.headerTitle}>KGS Admin Dashboard</Text>
+          <View style={styles.titleArea}>
+            <Text style={styles.headerTitle} numberOfLines={1}>Admin Dashboard</Text>
             <Text style={styles.headerSubtitle}>
               KGS Music Academy Management
             </Text>
           </View>
-          <View style={styles.headerActions}>
+          <TouchableOpacity
+            style={styles.signOutButton}
+            onPress={handleSignOut}>
+            <LogOut size={20} color="#ef4444" />
+          </TouchableOpacity>
+        </View>
+
+        <View style={styles.quickActions}>
+          <View style={styles.actionRow}>
             <TouchableOpacity
-              style={styles.addButton}
+              style={[styles.quickActionBtn, { backgroundColor: '#1e40af' }]}
               onPress={() => router.push('/(admin)/add-student')}>
               <Plus size={20} color="#fff" />
-              <Text style={styles.addButtonText}>Add Student</Text>
+              <Text style={styles.quickActionText}>Add Student</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              style={styles.signOutButton}
-              onPress={handleSignOut}>
-              <LogOut size={20} color="#dc2626" />
+              style={[styles.quickActionBtn, { backgroundColor: '#7c3aed' }]}
+              onPress={() => router.push('/(admin)/notifications')}>
+              <Bell size={20} color="#fff" />
+              <Text style={styles.quickActionText}>Notifications</Text>
+            </TouchableOpacity>
+          </View>
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[styles.quickActionBtn, { backgroundColor: '#0891b2' }]}
+              onPress={() => router.push('/(admin)/attendance')}>
+              <Calendar size={20} color="#fff" />
+              <Text style={styles.quickActionText}>Attendance</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.quickActionBtn, { backgroundColor: '#b45309' }]}
+              onPress={() => router.push('/(admin)/fee-payments')}>
+              <DollarSign size={20} color="#fff" />
+              <Text style={styles.quickActionText}>Fee Payments</Text>
             </TouchableOpacity>
           </View>
         </View>
@@ -157,6 +184,24 @@ export default function AdminDashboard() {
         </View>
       </View>
 
+      {students.length > 0 && (
+        <View style={styles.searchContainer}>
+          <Search size={18} color="#64748b" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name..."
+            value={search}
+            onChangeText={setSearch}
+            placeholderTextColor="#94a3b8"
+          />
+          {search ? (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Text style={styles.clearText}>Clear</Text>
+            </TouchableOpacity>
+          ) : null}
+        </View>
+      )}
+
       <ScrollView
         style={styles.content}
         refreshControl={
@@ -174,33 +219,71 @@ export default function AdminDashboard() {
               Add students to start tracking their progress
             </Text>
           </View>
+        ) : filteredStudents.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No results found</Text>
+            <Text style={styles.emptyText}>No student matches "{search}"</Text>
+          </View>
         ) : (
           <View style={styles.studentsList}>
-            {students.map((student) => (
-              <TouchableOpacity
+            {filteredStudents.map((student, idx) => (
+              <View
                 key={student.id}
-                style={styles.studentCard}
-                onPress={() =>
-                  router.push(`/(admin)/edit-progress/${student.id}`)
-                }>
+                style={styles.studentCardWrapper}>
+                <TouchableOpacity
+                  style={styles.studentCard}
+                  onPress={() =>
+                    router.push(`/(admin)/edit-progress/${student.id}`)
+                  }>
                 <View style={styles.studentHeader}>
                   <View style={styles.studentInfo}>
                     <Text style={styles.studentName}>{student.full_name}</Text>
                     <Text style={styles.studentDetails}>
-                      {student.instrument} • Joined {student.enrollment_date}
+                      {student.instrument} • {student.enrollment_date}
                     </Text>
+                    <View style={styles.feeStatusRow}>
+                      <View style={[
+                        styles.feeStatusBadge,
+                        {
+                          backgroundColor: student.fee_status === 'paid' ? '#f0fdf4' : student.fee_status === 'pending' ? '#fff7ed' : '#fee2e2',
+                        }
+                      ]}>
+                        <Text style={[
+                          styles.feeStatusBadgeText,
+                          {
+                            color: student.fee_status === 'paid' ? '#16a34a' : student.fee_status === 'pending' ? '#f97316' : '#ef4444',
+                          }
+                        ]}>
+                          Fee: {student.fee_status || 'pending'}
+                        </Text>
+                      </View>
+                      {student.attendancePct !== undefined && student.attendancePct > 0 && (
+                        <View style={[
+                          styles.attendanceBadge,
+                          {
+                            backgroundColor: student.attendancePct >= 80 ? '#f0fdf4' : student.attendancePct >= 50 ? '#fff7ed' : '#fee2e2',
+                          }
+                        ]}>
+                          <Text style={[
+                            styles.attendanceBadgeText,
+                            {
+                              color: student.attendancePct >= 80 ? '#16a34a' : student.attendancePct >= 50 ? '#f97316' : '#ef4444',
+                            }
+                          ]}>
+                            {student.attendancePct}%
+                          </Text>
+                        </View>
+                      )}
+                    </View>
                     {student.completed_grades && student.completed_grades.length > 0 && (
                       <View style={styles.achievementsBadge}>
                         <Award size={12} color="#1e40af" />
                         <Text style={styles.achievementsText}>
-                          {student.completed_grades.length} Grades Completed
-                          {student.completed_grades.length > 0 &&
-                            ` (Latest: ${student.completed_grades[student.completed_grades.length - 1].grade})`}
+                          {student.completed_grades.length} Grades
                         </Text>
                       </View>
                     )}
                   </View>
-                  <ChevronRight size={20} color="#64748b" />
                 </View>
 
                 {student.progress ? (
@@ -256,18 +339,26 @@ export default function AdminDashboard() {
                     <TrendingUp size={12} color="#64748b" />
                     <Text style={styles.updateText}>
                       Updated{' '}
-                      {new Date(
-                        student.progress.updated_at
-                      ).toLocaleDateString()}
+                      {(() => {
+                        const d = new Date(student.progress!.updated_at);
+                        if (isNaN(d.getTime())) return 'today';
+                        const today = new Date();
+                        const yesterday = new Date();
+                        yesterday.setDate(yesterday.getDate() - 1);
+                        if (d.toDateString() === today.toDateString()) return 'today';
+                        if (d.toDateString() === yesterday.toDateString()) return 'yesterday';
+                        return d.toLocaleDateString();
+                      })()}
                     </Text>
                   </View>
                 )}
-              </TouchableOpacity>
+                </TouchableOpacity>
+              </View>
             ))}
           </View>
         )}
       </ScrollView>
-    </View>
+    </View >
   );
 }
 
@@ -292,47 +383,54 @@ const styles = StyleSheet.create({
   headerTop: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: 24,
+    alignItems: 'center',
+    marginBottom: 20,
+  },
+  titleArea: {
+    flex: 1,
+    marginRight: 16,
   },
   headerTitle: {
-    fontSize: 28,
-    fontWeight: '700',
+    fontSize: 26,
+    fontWeight: '800',
     color: '#1e293b',
   },
   headerSubtitle: {
-    fontSize: 14,
+    fontSize: 13,
     color: '#64748b',
-    marginTop: 4,
+    marginTop: 2,
   },
-  headerActions: {
+  quickActions: {
+    gap: 10,
+    marginBottom: 16,
+  },
+  actionRow: {
     flexDirection: 'row',
-    alignItems: 'center',
     gap: 12,
   },
-  addButton: {
+  quickActionBtn: {
+    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
-    backgroundColor: '#1e40af',
-    paddingHorizontal: 16,
-    paddingVertical: 10,
-    borderRadius: 12,
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
     gap: 8,
-    shadowColor: '#1e40af',
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  addButtonText: {
+  quickActionText: {
     color: '#fff',
-    fontSize: 14,
+    fontSize: 15,
     fontWeight: '700',
   },
   signOutButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     backgroundColor: '#fee2e2',
     alignItems: 'center',
     justifyContent: 'center',
@@ -363,6 +461,30 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
   },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1e293b',
+  },
+  clearText: {
+    fontSize: 13,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
   errorContainer: {
     backgroundColor: '#fee2e2',
     borderRadius: 12,
@@ -390,13 +512,21 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   studentsList: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    justifyContent: 'space-between',
     padding: 16,
     gap: 12,
   },
+  studentCardWrapper: {
+    width: '48%',
+  },
   studentCard: {
+    width: '100%',
+    minHeight: 180,
     backgroundColor: '#fff',
     borderRadius: 12,
-    padding: 16,
+    padding: 12,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -404,55 +534,83 @@ const styles = StyleSheet.create({
     elevation: 2,
   },
   studentHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: 'column',
+    justifyContent: 'flex-start',
     alignItems: 'flex-start',
     marginBottom: 12,
   },
   studentInfo: {
     flex: 1,
+    width: '100%',
   },
   studentName: {
-    fontSize: 18,
+    fontSize: 15,
     fontWeight: '700',
     color: '#1e293b',
   },
   studentDetails: {
-    fontSize: 14,
+    fontSize: 11,
     color: '#64748b',
     marginTop: 2,
   },
-  progressPreview: {
+  feeStatusRow: {
+    marginTop: 6,
     flexDirection: 'row',
-    gap: 16,
-    paddingVertical: 12,
+    gap: 6,
+    alignItems: 'center',
+  },
+  feeStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  feeStatusBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  attendanceBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 6,
+    alignSelf: 'flex-start',
+  },
+  attendanceBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+  },
+  progressPreview: {
+    flexDirection: 'column',
+    gap: 6,
+    paddingVertical: 8,
   },
   gradeItem: {
-    flex: 1,
-    gap: 6,
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
   },
   gradeLabel: {
-    fontSize: 12,
+    fontSize: 11,
     color: '#64748b',
     fontWeight: '600',
   },
   gradeInfo: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 6,
   },
   gradeValue: {
-    fontSize: 16,
+    fontSize: 13,
     fontWeight: '700',
     color: '#1e293b',
   },
   statusDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 6,
+    height: 6,
+    borderRadius: 3,
   },
   divider: {
-    width: 1,
+    height: 1,
     backgroundColor: '#e2e8f0',
   },
   noProgressBadge: {
@@ -481,16 +639,11 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     gap: 4,
-    backgroundColor: '#dbeafe',
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 6,
-    marginTop: 6,
-    alignSelf: 'flex-start',
+    marginTop: 4,
   },
   achievementsText: {
-    fontSize: 11,
-    fontWeight: '700',
+    fontSize: 9,
     color: '#1e40af',
+    fontWeight: '600',
   },
 });

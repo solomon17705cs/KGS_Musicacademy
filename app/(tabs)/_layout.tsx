@@ -1,5 +1,5 @@
 import { Tabs } from 'expo-router';
-import { User, Music2 } from 'lucide-react-native';
+import { User, Music2, Bell } from 'lucide-react-native';
 import { Platform } from 'react-native';
 
 export default function TabLayout() {
@@ -43,10 +43,24 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
+        name="notifications"
+        options={{
+          title: 'Notifications',
+          tabBarIcon: ({ size, color }) => <Bell size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
         name="profile"
         options={{
           title: 'Profile',
           tabBarIcon: ({ size, color }) => <User size={size} color={color} />,
+        }}
+      />
+      <Tabs.Screen
+        name="support"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
         }}
       />
     </Tabs>
