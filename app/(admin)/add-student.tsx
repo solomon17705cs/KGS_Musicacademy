@@ -10,6 +10,7 @@ import {
     KeyboardAvoidingView,
     Platform,
     Modal,
+    useWindowDimensions,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter, useRootNavigationState } from 'expo-router';
@@ -100,6 +101,8 @@ export default function AddStudentScreen() {
 
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const { width: screenWidth } = useWindowDimensions();
+    const isMobile = screenWidth < 768;
 
     const toggleDay = (day: string) => {
         if (classDays.includes(day)) {
@@ -175,7 +178,7 @@ export default function AddStudentScreen() {
     }
 
     return (
-        <View style={styles.container}>
+        <View style={styles.container(isMobile)}>
             <View style={styles.header}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <ArrowLeft size={24} color="#1e293b" />
@@ -199,7 +202,7 @@ export default function AddStudentScreen() {
                         </Text>
                     </View>
 
-                    <View style={styles.row}>
+                    <View style={[styles.row, isMobile && styles.rowMobile]}>
                         <View style={styles.column}>
                             <View style={styles.card}>
                                 <View style={styles.cardHeader}>
@@ -246,7 +249,7 @@ export default function AddStudentScreen() {
                                     />
                                 </View>
 
-                                <View style={styles.row}>
+<View style={styles.row}>
                                     <View style={[styles.inputGroup, { flex: 1 }]}>
                                         <Text style={styles.label}>Joining Date *</Text>
                                         <View style={styles.dateInputRow}>
@@ -354,7 +357,7 @@ export default function AddStudentScreen() {
                                 )}
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Initial Grade</Text>
+                                    <Text style={styles.label}>Grade completed while joining</Text>
                                     <TextInput
                                         style={styles.input}
                                         placeholder="e.g. Grade 1"
@@ -437,7 +440,7 @@ export default function AddStudentScreen() {
                                     <Text style={styles.label}>Parent Name</Text>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="e.g. Priya Sharma"
+                                        placeholder="type parent name"
                                         value={parentName}
                                         onChangeText={setParentName}
                                         editable={!loading}
@@ -448,7 +451,7 @@ export default function AddStudentScreen() {
                                     <Text style={styles.label}>Parent Phone</Text>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="+91 98765 43210"
+                                        placeholder="(mobile number)"
                                         value={parentPhone}
                                         onChangeText={setParentPhone}
                                         keyboardType="phone-pad"
@@ -493,10 +496,11 @@ export default function AddStudentScreen() {
 }
 
 const styles = StyleSheet.create({
-    container: {
+    container: (isMobile: boolean) => ({
         flex: 1,
         backgroundColor: '#f8fafc',
-    },
+        paddingBottom: isMobile ? 34 : 0,
+    }),
     loadingContainer: {
         flex: 1,
         justifyContent: 'center',
@@ -549,6 +553,10 @@ const styles = StyleSheet.create({
     },
     row: {
         flexDirection: 'row',
+        gap: 16,
+    },
+    rowMobile: {
+        flexDirection: 'column',
         gap: 16,
     },
     column: {

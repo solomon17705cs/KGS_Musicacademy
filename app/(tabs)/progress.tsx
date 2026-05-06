@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,22 +9,23 @@ import {
   Image,
   TouchableOpacity,
   Alert,
+  BackHandler,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
-import { studentService, progressService } from '@/lib/firestore';
+import { useRouter } from 'expo-router';
+import { studentService, progressService, notificationService } from '@/lib/firestore';
 import { Student, ProgressRecord } from '@/types/database';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
   Music2,
   TrendingUp,
-  Trophy,
-  Crown,
-  Flame,
   Search,
   Bell,
   Target,
   ChevronRight,
   ChevronDown,
+  ChevronLeft,
+  Flame,
 } from 'lucide-react-native';
 
 const INSTRUMENT_IMAGES: { [key: string]: any } = {
@@ -53,6 +54,23 @@ interface WeeklyData {
   session2Score: number;
 }
 
+function parseDate(dateInput: any): Date {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) return dateInput;
+  if (typeof dateInput === 'number') return new Date(dateInput);
+  if (dateInput.toDate) return dateInput.toDate();
+  const d = new Date(dateInput);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
+function formatDate(dateInput: any): string {
+  return parseDate(dateInput).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric'
+  });
+}
+
 function getWeekNumber(date: Date): number {
   const startOfYear = new Date(date.getFullYear(), 0, 1);
   const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
@@ -69,7 +87,7 @@ function calculateWeeklyData(records: ProgressRecord[]): WeeklyData[] {
   const now = new Date();
   const weeks: WeeklyData[] = [];
 
-  for (let i = 3; i >= 0; i--) {
+  for (let i = 7; i >= 0; i--) {
     const weekStart = new Date(now);
     weekStart.setDate(now.getDate() - (i * 7));
     const weekEnd = new Date(weekStart);
@@ -97,9 +115,10 @@ function calculateWeeklyData(records: ProgressRecord[]): WeeklyData[] {
       session1Score = calcScore(weekRecords[0]);
     }
 
-    const weekNum = getWeekNumber(weekStart);
+    const month = weekStart.getMonth();
+    const weekInMonth = Math.floor(weekStart.getDate() / 7) + 1;
     weeks.push({
-      weekLabel: `W${weekNum}`,
+      weekLabel: `W${weekInMonth}`,
       session1Score,
       session2Score,
     });
@@ -160,18 +179,39 @@ function calculateRealStreak(records: ProgressRecord[]): number {
 }
 
 export default function ProgressScreen() {
-  const { profile, user } = useAuth();
+  const { profile, user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [students, setStudents] = useState<(Student & { progress?: ProgressRecord })[]>([]);
   const [studentsHistory, setStudentsHistory] = useState<Map<string, ProgressRecord[]>>(new Map());
-  const [topStudents, setTopStudents] = useState<Student[]>([]);
   const [activeTab, setActiveTab] = useState<'Practical' | 'Theory'>('Practical');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [unreadCount, setUnreadCount] = useState(0);
 
   useEffect(() => {
+    if (!profile || !user) return;
     loadStudentProgress();
-  }, [profile, user]);
+  }, [profile?.id, user?.email]);
+
+  useEffect(() => {
+    if (!user) return;
+    notificationService.getUserNotifications(user.uid).then(notifications => {
+      setUnreadCount(notifications.filter(n => !n.read).length);
+    });
+  }, [user]);
+
+  useEffect(() => {
+    const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {
+      if (selectedStudent) {
+        setSelectedStudent(null);
+        return true;
+      }
+      return false;
+    });
+    return () => backHandler.remove();
+  }, [selectedStudent]);
 
   async function loadStudentProgress() {
     if (!profile || !user) return;
@@ -209,9 +249,6 @@ export default function ProgressScreen() {
 
       setStudents(studentsWithProgress);
       setStudentsHistory(historyMap);
-
-      const topData = await studentService.getLeaderboard('points');
-      setTopStudents(topData.slice(0, 3));
     } catch (err: any) {
       setError(err.message || 'Failed to load progress');
     } finally {
@@ -240,10 +277,18 @@ export default function ProgressScreen() {
     return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   }
 
-  if (loading) {
+  if (loading || authLoading) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#1e40af" />
+      </View>
+    );
+  }
+
+  if (!profile || !user) {
+    return (
+      <View style={styles.centerContainer}>
+        <Text style={styles.errorText}>Please log in to view progress</Text>
       </View>
     );
   }
@@ -253,16 +298,36 @@ export default function ProgressScreen() {
   return (
     <View style={styles.container}>
       <View style={styles.topHeader}>
-        <View>
-          <Text style={styles.greetingText}>Hello, {userFirstName}</Text>
-          <Text style={styles.welcomeSubtitle}>Welcome back to KGS</Text>
+        {selectedStudent ? (
+          <TouchableOpacity 
+            style={styles.backButtonHeader}
+            onPress={() => setSelectedStudent(null)}>
+            <ChevronLeft size={24} color="#0f172a" />
+          </TouchableOpacity>
+        ) : null}
+        <View style={{ flex: 1 }}>
+          <Text style={styles.greetingText}>
+            {selectedStudent ? selectedStudent.full_name : `Hello, ${userFirstName}`}
+          </Text>
+          <Text style={styles.welcomeSubtitle}>
+            {selectedStudent ? selectedStudent.instrument : 'Welcome back to KGS'}
+          </Text>
         </View>
         <View style={styles.headerRight}>
-          <TouchableOpacity
-            style={styles.iconButton}
-            onPress={() => Alert.alert('Notifications', 'No new notifications at this time.')}>
-            <Bell size={24} color="#0f172a" />
-          </TouchableOpacity>
+          {!selectedStudent && (
+            <TouchableOpacity
+              style={styles.iconButton}
+              onPress={() => router.push('/(tabs)/notifications')}>
+              <View>
+                <Bell size={24} color="#0f172a" />
+                {unreadCount > 0 && (
+                  <View style={styles.badge}>
+                    <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          )}
           <TouchableOpacity style={styles.avatarContainer}>
             <Image
               source={{ uri: `https://ui-avatars.com/api/?name=${userFirstName}&background=1e40af&color=fff` }}
@@ -277,36 +342,180 @@ export default function ProgressScreen() {
         refreshControl={
           <RefreshControl refreshing={refreshing} colors={['#1e40af']} onRefresh={onRefresh} />
         }
-        showsVerticalScrollIndicator={false}>
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={selectedStudent ? styles.contentContainerSelected : undefined}>
 
-        <TouchableOpacity style={styles.searchBar} activeOpacity={0.7}>
-          <Search size={20} color="#64748b" />
-          <Text style={styles.searchText}>Search progress report...</Text>
-        </TouchableOpacity>
+        {selectedStudent ? (
+          <View>
+            <View style={styles.tabContainer}>
+              {(['Practical', 'Theory'] as const).map((tab) => (
+                <TouchableOpacity
+                  key={tab}
+                  style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
+                  onPress={() => setActiveTab(tab)}>
+                  <Text style={[styles.tabButtonText, activeTab === tab && styles.activeTabButtonText]}>
+                    {tab}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
 
-        <View style={styles.sectionHeaderRow}>
-          <Text style={styles.sectionHeading}>Progress Report</Text>
-        </View>
+            {studentsHistory.has(selectedStudent.id) ? (
+              <RealChart
+                records={studentsHistory.get(selectedStudent.id) || []}
+                activeTab={activeTab}
+              />
+            ) : (
+              <View style={styles.graphContainer}>
+                <LinearGradient
+                  colors={['#1e40af', '#3b82f6']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.graphCard}>
+                  <View style={styles.graphHeader}>
+                    <View>
+                      <Text style={styles.graphTitle}>{activeTab} (Monthly)</Text>
+                      <Text style={styles.graphSubtitle}>8 weeks progress - 2 sessions per week</Text>
+                    </View>
+                  </View>
+                  <View style={styles.noDataChart}>
+                    <Text style={styles.noDataChartText}>Add progress records to see your growth chart</Text>
+                  </View>
+                </LinearGradient>
+              </View>
+            )}
 
-        <View style={styles.tabContainer}>
-          {(['Practical', 'Theory'] as const).map((tab) => (
-            <TouchableOpacity
-              key={tab}
-              style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
-              onPress={() => setActiveTab(tab)}>
-              <Text style={[styles.tabButtonText, activeTab === tab && styles.activeTabButtonText]}>
-                {tab}
-              </Text>
-            </TouchableOpacity>
-          ))}
-        </View>
+            {selectedStudent.progress && (
+              <>
+                <Text style={styles.sectionHeading}>Weekly Report</Text>
+                <View style={styles.weeklySummaryCard}>
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryLabel}>Attendance</Text>
+                    <Text style={styles.summaryValue}>{selectedStudent.progress.attendance || '2/2'}</Text>
+                  </View>
+                  <View style={[styles.summaryItem, styles.summaryBorder]}>
+                    <Text style={styles.summaryLabel}>Homework</Text>
+                    <Text style={styles.summaryValue}>{selectedStudent.progress.homework_completion || 100}%</Text>
+                  </View>
+                  <View style={styles.summaryItem}>
+                    <Text style={styles.summaryLabel}>Practice</Text>
+                    <View style={styles.practiceRow}>
+                      <TrendingUp size={12} color="#22c55e" />
+                      <Text style={styles.summaryValue}> {selectedStudent.progress.practice_score || 85}</Text>
+                    </View>
+                  </View>
+                </View>
 
-        {students.length > 0 && students[0] && studentsHistory.has(students[0].id) ? (
-          <RealChart
-            records={studentsHistory.get(students[0].id) || []}
-            activeTab={activeTab}
-          />
-        ) : (
+                <View style={styles.goalSection}>
+                  <View style={styles.goalHeader}>
+                    <Target size={18} color="#1e40af" />
+                    <Text style={styles.goalTitle}>Weekly Goal</Text>
+                    <View style={[styles.goalStatusBadge, { backgroundColor: selectedStudent.progress.goal_status === 'achieved' ? '#f0fdf4' : '#fff7ed' }]}>
+                      <Text style={[styles.goalStatusText, { color: selectedStudent.progress.goal_status === 'achieved' ? '#16a34a' : '#f97316' }]}>
+                        {selectedStudent.progress.goal_status === 'achieved' ? 'Achieved' : 'In Progress'}
+                      </Text>
+                    </View>
+                  </View>
+                  <Text style={styles.goalDescription}>{selectedStudent.progress.weekly_goal || 'Master the current lesson scales'}</Text>
+                </View>
+
+                <View style={styles.gradeDisplayArea}>
+                  <View style={styles.gradeBox}>
+                    <Text style={styles.gradeBoxLabel}>Current Grade</Text>
+                    <Text style={styles.gradeBoxValue}>
+                      {activeTab === 'Theory'
+                        ? (selectedStudent.progress.theory_grade || 'Grade 1')
+                        : (selectedStudent.progress.practical_grade || 'Beginner')}
+                    </Text>
+                  </View>
+                </View>
+
+                {selectedStudent.progress.notes && (
+                  <View style={styles.notesBox}>
+                    <View style={styles.notesHeaderRow}>
+                      <Text style={styles.notesTitle}>Latest Feedback</Text>
+                      <Text style={styles.notesDate}>
+                        {formatDate(selectedStudent.progress.updated_at)}
+                      </Text>
+                    </View>
+                    <Text style={styles.notesTextContent} numberOfLines={3}>
+                      {selectedStudent.progress.notes}
+                    </Text>
+                  </View>
+                )}
+
+                {studentsHistory.has(selectedStudent.id) && (
+                  <View style={styles.reportsSection}>
+                    <Text style={styles.reportsSectionTitle}>Progress Reports</Text>
+                    {studentsHistory.get(selectedStudent.id)?.slice().reverse().slice(0, 5).map((record, idx) => (
+                      <TouchableOpacity 
+                        key={record.id} 
+                        style={styles.reportBox}
+                        activeOpacity={0.7}
+                        onPress={() => router.push({ pathname: `/full-report/${selectedStudent.id}`, params: { recordId: record.id } })}>
+                        <View style={styles.reportBoxHeader}>
+                          <Text style={styles.reportBoxDate}>
+                            {formatDate(record.created_at)}
+                          </Text>
+                          <View style={[styles.statusBadgeSmall, { backgroundColor: getStatusColor(record.theory_status) + '20' }]}>
+                            <Text style={[styles.statusBadgeSmallText, { color: getStatusColor(record.theory_status) }]}>
+                              {getStatusLabel(record.theory_status)}
+                            </Text>
+                          </View>
+                        </View>
+                        <View style={styles.reportBoxContent}>
+                          <View style={styles.reportBoxRow}>
+                            <View style={styles.reportBoxItem}>
+                              <Text style={styles.reportBoxLabel}>Attendance</Text>
+                              <Text style={styles.reportBoxValue}>{record.attendance}</Text>
+                            </View>
+                            <View style={styles.reportBoxItem}>
+                              <Text style={styles.reportBoxLabel}>Homework</Text>
+                              <Text style={styles.reportBoxValue}>{record.homework_completion}%</Text>
+                            </View>
+                            <View style={styles.reportBoxItem}>
+                              <Text style={styles.reportBoxLabel}>Practice</Text>
+                              <Text style={styles.reportBoxValue}>{record.practice_score}</Text>
+                            </View>
+                          </View>
+                          <View style={styles.reportBoxGrades}>
+                            <View style={[styles.gradePill, { backgroundColor: getStatusColor(record.theory_status) + '15' }]}>
+                              <Text style={[styles.gradePillText, { color: getStatusColor(record.theory_status) }]}>
+                                T: {record.theory_grade || '-'}
+                              </Text>
+                            </View>
+                            <View style={[styles.gradePill, { backgroundColor: getStatusColor(record.practical_status) + '15' }]}>
+                              <Text style={[styles.gradePillText, { color: getStatusColor(record.practical_status) }]}>
+                                P: {record.practical_grade || '-'}
+                              </Text>
+                            </View>
+                          </View>
+                          {record.notes && (
+                            <Text style={styles.reportBoxNotes} numberOfLines={2}>{record.notes}</Text>
+                          )}
+                        </View>
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                )}
+
+                <TouchableOpacity 
+                  style={styles.viewReportButton} 
+                  activeOpacity={0.8}
+                  onPress={() => router.push(`/full-report/${selectedStudent.id}`)}>
+                  <Text style={styles.viewReportText}>See Full Report</Text>
+                  <View style={styles.reportArrowCircle}>
+                    <ChevronRight size={16} color="#fff" />
+                  </View>
+                </TouchableOpacity>
+              </>
+            )}
+          </View>
+        ) : students.length === 1 ? (
+          <View>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionHeading}>Progress Report</Text>
+            </View>
           <View style={styles.graphContainer}>
             <LinearGradient
               colors={['#1e40af', '#3b82f6']}
@@ -315,8 +524,8 @@ export default function ProgressScreen() {
               style={styles.graphCard}>
               <View style={styles.graphHeader}>
                 <View>
-                  <Text style={styles.graphTitle}>{activeTab} Growth (Monthly)</Text>
-                  <Text style={styles.graphSubtitle}>Performance across 2 sessions per week</Text>
+                  <Text style={styles.graphTitle}>{activeTab} (Monthly)</Text>
+                  <Text style={styles.graphSubtitle}>8 weeks progress - 2 sessions per week</Text>
                 </View>
               </View>
               <View style={styles.noDataChart}>
@@ -324,35 +533,8 @@ export default function ProgressScreen() {
               </View>
             </LinearGradient>
           </View>
-        )}
-
-        {topStudents.length > 0 && (
-          <View style={styles.leaderboardContainer}>
-            <View style={styles.leaderboardHeader}>
-              <Trophy size={20} color="#fbbf24" />
-              <Text style={styles.leaderboardTitle}>KGS Top Performers</Text>
-            </View>
-            <View style={styles.leaderboardList}>
-              {topStudents.map((student, index) => (
-                <View key={student.id} style={styles.leaderboardItem}>
-                  <View style={styles.rankBadge}>
-                    {index === 0 ? <Crown size={16} color="#fbbf24" /> : <Text style={styles.rankText}>{index + 1}</Text>}
-                  </View>
-                  <View style={styles.leaderboardStudentInfo}>
-                    <Text style={styles.leaderboardStudentName}>{student.full_name}</Text>
-                    <Text style={styles.leaderboardStudentPoints}>{student.points || 0} XP</Text>
-                  </View>
-                  {index === 0 && (
-                    <View style={styles.topStreakBadge}>
-                      <Flame size={12} color="#f97316" />
-                      <Text style={styles.topStreakText}>{student.streak || 0}</Text>
-                    </View>
-                  )}
-                </View>
-              ))}
-            </View>
           </View>
-        )}
+        ) : null}
 
         {error ? (
           <View style={styles.errorContainer}>
@@ -364,14 +546,18 @@ export default function ProgressScreen() {
             <Text style={styles.emptyTitle}>No Progress Records</Text>
             <Text style={styles.emptyText}>No students linked to your account yet.</Text>
           </View>
-        ) : (
+        ) : !selectedStudent ? (
           <View style={styles.studentsList}>
             {students.map((student) => {
               const history = studentsHistory.get(student.id) || [];
               const realStreak = calculateRealStreak(history);
 
               return (
-                <View key={student.id} style={styles.modernCard}>
+                <TouchableOpacity 
+                  key={student.id} 
+                  style={styles.modernCard}
+                  onPress={() => setSelectedStudent(student)}
+                  activeOpacity={0.8}>
                   <View style={styles.cardImageContainer}>
                     <Image
                       source={getStudentImage(student.instrument, activeTab)}
@@ -406,7 +592,7 @@ export default function ProgressScreen() {
                         <View style={styles.weeklySummaryCard}>
                           <View style={styles.summaryItem}>
                             <Text style={styles.summaryLabel}>Attendance</Text>
-                            <Text style={styles.summaryValue}>{student.progress.attendance || '2/2'} ✅</Text>
+                            <Text style={styles.summaryValue}>{student.progress.attendance || '2/2'}</Text>
                           </View>
                           <View style={[styles.summaryItem, styles.summaryBorder]}>
                             <Text style={styles.summaryLabel}>Homework</Text>
@@ -479,7 +665,10 @@ export default function ProgressScreen() {
                           </View>
                         )}
 
-                        <TouchableOpacity style={styles.viewReportButton} activeOpacity={0.8}>
+                        <TouchableOpacity 
+                          style={styles.viewReportButton} 
+                          activeOpacity={0.8}
+                          onPress={() => router.push(`/full-report/${student.id}`)}>
                           <Text style={styles.viewReportText}>See Full Report</Text>
                           <View style={styles.reportArrowCircle}>
                             <ChevronRight size={16} color="#fff" />
@@ -492,11 +681,11 @@ export default function ProgressScreen() {
                       </View>
                     )}
                   </View>
-                </View>
+                </TouchableOpacity>
               );
             })}
           </View>
-        )}
+        ) : null}
       </ScrollView>
     </View>
   );
@@ -521,7 +710,7 @@ function RealChart({ records, activeTab }: { records: ProgressRecord[]; activeTa
         style={styles.graphCard}>
         <View style={styles.graphHeader}>
           <View>
-            <Text style={styles.graphTitle}>{activeTab} Growth (Monthly)</Text>
+            <Text style={styles.graphTitle}>{activeTab} (Monthly)</Text>
             <Text style={styles.graphSubtitle}>Performance across 2 sessions per week</Text>
           </View>
           <View style={[
@@ -552,17 +741,6 @@ function RealChart({ records, activeTab }: { records: ProgressRecord[]; activeTa
             </View>
           ))}
         </View>
-
-        <View style={styles.chartLegend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: 'rgba(255,255,255,0.8)' }]} />
-            <Text style={styles.legendText}>Session 1</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#fbbf24' }]} />
-            <Text style={styles.legendText}>Session 2</Text>
-          </View>
-        </View>
       </LinearGradient>
     </View>
   );
@@ -570,13 +748,17 @@ function RealChart({ records, activeTab }: { records: ProgressRecord[]; activeTa
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  topHeader: { paddingTop: 60, paddingHorizontal: 24, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 },
+  topHeader: { paddingTop: 60, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  backButtonHeader: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+  contentContainerSelected: { paddingBottom: 100 },
   greetingText: { fontSize: 28, fontWeight: '800', color: '#0f172a' },
   welcomeSubtitle: { fontSize: 16, color: '#64748b', marginTop: 2 },
   avatarContainer: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden', borderWidth: 2, borderColor: '#f1f5f9' },
   avatarImage: { width: '100%', height: '100%' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
   iconButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
+  badge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
   centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
   content: { flex: 1, paddingHorizontal: 24 },
   searchBar: { backgroundColor: '#f8fafc', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 24, height: 56 },
@@ -645,24 +827,30 @@ const styles = StyleSheet.create({
   streakBoxValue: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
   streakBoxLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '700' },
   notesBox: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 16 },
+  notesHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
   notesTitle: { fontSize: 11, fontWeight: '700', color: '#334155', marginBottom: 2 },
+  notesDate: { fontSize: 10, color: '#94a3b8' },
   notesTextContent: { fontSize: 13, color: '#64748b', lineHeight: 18 },
+  reportsSection: { marginTop: 8 },
+  reportsSectionTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 12 },
+  reportBox: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12 },
+  reportBoxHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+  reportBoxDate: { fontSize: 13, fontWeight: '700', color: '#0f172a' },
+  statusBadgeSmall: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+  statusBadgeSmallText: { fontSize: 10, fontWeight: '600' },
+  reportBoxContent: {},
+  reportBoxRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+  reportBoxItem: { alignItems: 'center' },
+  reportBoxLabel: { fontSize: 10, color: '#94a3b8', marginBottom: 2 },
+  reportBoxValue: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
+  reportBoxGrades: { flexDirection: 'row', gap: 8, marginBottom: 6 },
+  gradePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+  gradePillText: { fontSize: 12, fontWeight: '600' },
+  reportBoxNotes: { fontSize: 12, color: '#64748b', fontStyle: 'italic' },
   viewReportButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0f172a', padding: 14, borderRadius: 14 },
   viewReportText: { color: '#fff', fontSize: 14, fontWeight: '700' },
   reportArrowCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
   studentsList: { paddingBottom: 100 },
-  leaderboardContainer: { marginBottom: 24 },
-  leaderboardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 16 },
-  leaderboardTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a' },
-  leaderboardList: { gap: 12 },
-  leaderboardItem: { flexDirection: 'row', alignItems: 'center', backgroundColor: '#f8fafc', padding: 16, borderRadius: 20, gap: 12 },
-  rankBadge: { width: 36, height: 36, borderRadius: 18, backgroundColor: '#fff', alignItems: 'center', justifyContent: 'center' },
-  rankText: { fontSize: 14, fontWeight: '800', color: '#64748b' },
-  leaderboardStudentInfo: { flex: 1 },
-  leaderboardStudentName: { fontSize: 16, fontWeight: '700', color: '#0f172a' },
-  leaderboardStudentPoints: { fontSize: 12, color: '#3b82f6', fontWeight: '700', marginTop: 2 },
-  topStreakBadge: { flexDirection: 'row', alignItems: 'center', gap: 4, backgroundColor: '#fff7ed', paddingHorizontal: 10, paddingVertical: 6, borderRadius: 20 },
-  topStreakText: { fontSize: 13, fontWeight: '800', color: '#f97316' },
   errorContainer: { backgroundColor: '#fee2e2', borderRadius: 16, padding: 16, marginBottom: 24 },
   errorText: { color: '#dc2626', fontSize: 14, fontWeight: '600' },
   emptyContainer: { alignItems: 'center', padding: 40, backgroundColor: '#f8fafc', borderRadius: 24, marginBottom: 20 },

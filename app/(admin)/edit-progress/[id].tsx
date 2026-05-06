@@ -12,6 +12,7 @@ import {
   Alert,
   TouchableWithoutFeedback,
   Modal,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter, useLocalSearchParams, useRootNavigationState } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -55,6 +56,8 @@ export default function EditProgressScreen() {
   const [dropdownRect, setDropdownRect] = useState<{ x: number; y: number; width: number } | null>(null);
   const theoryContainerRef = useRef<View>(null);
   const practicalContainerRef = useRef<View>(null);
+  const { width: screenWidth } = useWindowDimensions();
+  const isMobile = screenWidth < 768;
 
   const statusOptions: ProgressStatus[] = [
     'excellent',
@@ -302,7 +305,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
     <View style={{ flex: 1 }}>
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={styles.container}>
+        style={styles.container(isMobile)}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -475,8 +478,8 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
             </View>
           </View>
 
-          <View style={styles.combinedSection}>
-            <View style={styles.combinedColumn}>
+          <View style={[styles.combinedSection, isMobile && styles.combinedSectionMobile]}>
+            <View style={[styles.combinedColumn, isMobile && styles.combinedColumnMobile]}>
               <Text style={styles.combinedTitle}>Weekly Sessions</Text>
 
               <View style={styles.row}>
@@ -529,9 +532,9 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
               </View>
             </View>
 
-            <View style={styles.combinedDivider} />
+            {!isMobile && <View style={styles.combinedDivider} />}
 
-            <View style={styles.combinedColumn}>
+            <View style={[styles.combinedColumn, isMobile && styles.combinedColumnMobile]}>
               <View style={styles.sectionHeaderRow}>
                 <Target size={18} color="#1e40af" />
                 <Text style={[styles.combinedTitle, { marginLeft: 6 }]}>Weekly Goal</Text>
@@ -541,7 +544,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                 <Text style={styles.label}>Goal Task</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g., Master C Major Scale"
+                  placeholder="type homework"
                   value={weeklyGoal}
                   onChangeText={setWeeklyGoal}
                   editable={!saving}
@@ -576,9 +579,9 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
               </View>
             </View>
 
-            <View style={styles.combinedDivider} />
+            {!isMobile && <View style={styles.combinedDivider} />}
 
-            <View style={styles.combinedColumn}>
+            <View style={[styles.combinedColumn, isMobile && styles.combinedColumnMobile]}>
               <View style={styles.sectionHeaderRow}>
                 <Award size={18} color="#1e40af" />
                 <Text style={[styles.combinedTitle, { marginLeft: 6 }]}>Grade Achievement</Text>
@@ -757,10 +760,11 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
 }
 
 const styles = StyleSheet.create({
-  container: {
+  container: (isMobile: boolean) => ({
     flex: 1,
     backgroundColor: '#f8fafc',
-  },
+    paddingBottom: isMobile ? 34 : 0,
+  }),
   centerContainer: {
     flex: 1,
     justifyContent: 'center',
@@ -848,8 +852,19 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 12,
   },
+  combinedSectionMobile: {
+    flexDirection: 'column',
+    gap: 0,
+  },
   combinedColumn: {
     flex: 1,
+  },
+  combinedColumnMobile: {
+    flex: undefined,
+    marginBottom: 16,
+    paddingBottom: 16,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
   },
   combinedDivider: {
     width: 1,

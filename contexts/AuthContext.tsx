@@ -3,6 +3,7 @@ import { User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signO
 import { auth } from '@/lib/firebase';
 import { profileService, studentService } from '@/lib/firestore';
 import { Profile } from '@/types/database';
+import { initializePushNotifications } from '@/lib/notifications';
 
 interface AuthContextType {
   user: User | null;
@@ -32,11 +33,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         let userProfile = await profileService.getProfile(firebaseUser.uid);
         
         if (!userProfile && firebaseUser.email) {
-          const students = await studentService.getStudentsByParentEmail(firebaseUser.email);
+          const normalizedEmail = firebaseUser.email.toLowerCase();
+          const students = await studentService.getStudentsByParentEmail(normalizedEmail);
           if (students.length > 0) {
             const parentName = students[0].parent_name || firebaseUser.displayName || firebaseUser.email.split('@')[0];
             await profileService.createProfile(firebaseUser.uid, {
-              email: firebaseUser.email,
+              email: firebaseUser.email.toLowerCase(),
               full_name: parentName,
               role: 'student',
             });
@@ -56,7 +58,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   async function signIn(email: string, password: string) {
     try {
-      await signInWithEmailAndPassword(auth, email, password);
+      const result = await signInWithEmailAndPassword(auth, email, password);
+      if (result.user) {
+        initializePushNotifications(result.user.uid);
+      }
       return { error: null };
     } catch (error) {
       return { error };

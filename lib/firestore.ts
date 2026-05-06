@@ -86,7 +86,8 @@ export const studentService = {
   },
 
   async getStudentsByParentEmail(parentEmail: string): Promise<Student[]> {
-    const q = query(collection(db, STUDENTS_COLLECTION), where('parent_email', '==', parentEmail));
+    const normalizedEmail = parentEmail.toLowerCase().trim();
+    const q = query(collection(db, STUDENTS_COLLECTION), where('parent_email', '==', normalizedEmail));
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
   },
@@ -207,6 +208,15 @@ export const notificationService = {
     await updateDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId), { read: true });
   },
 
+  async getNotificationById(notificationId: string): Promise<Notification | null> {
+    const docRef = doc(db, NOTIFICATIONS_COLLECTION, notificationId);
+    const docSnap = await getDoc(docRef);
+    if (docSnap.exists()) {
+      return { id: docSnap.id, ...docSnap.data() } as Notification;
+    }
+    return null;
+  },
+
   subscribeToNotifications(userId: string, callback: (notifications: Notification[]) => void) {
     const q = query(
       collection(db, NOTIFICATIONS_COLLECTION),
@@ -216,6 +226,55 @@ export const notificationService = {
     return onSnapshot(q, (snapshot) => {
       callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification)));
     });
+  },
+};
+
+const PUSH_TOKENS_COLLECTION = 'push_tokens';
+
+export const pushTokenService = {
+  async saveToken(userId: string, token: string): Promise<void> {
+    const existingQuery = query(
+      collection(db, PUSH_TOKENS_COLLECTION),
+      where('userId', '==', userId),
+      where('token', '==', token),
+      limit(1)
+    );
+    const existing = await getDocs(existingQuery);
+    
+    if (existing.empty) {
+      await addDoc(collection(db, PUSH_TOKENS_COLLECTION), {
+        userId,
+        token,
+        createdAt: serverTimestamp(),
+        platform: 'mobile',
+      });
+    }
+  },
+
+  async getTokensByUser(userId: string): Promise<string[]> {
+    const q = query(
+      collection(db, PUSH_TOKENS_COLLECTION),
+      where('userId', '==', userId)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => doc.data().token);
+  },
+
+  async getAllTokens(): Promise<string[]> {
+    const snapshot = await getDocs(collection(db, PUSH_TOKENS_COLLECTION));
+    return snapshot.docs.map(doc => doc.data().token);
+  },
+
+  async removeToken(token: string): Promise<void> {
+    const q = query(
+      collection(db, PUSH_TOKENS_COLLECTION),
+      where('token', '==', token),
+      limit(1)
+    );
+    const snapshot = await getDocs(q);
+    if (!snapshot.empty) {
+      await deleteDoc(snapshot.docs[0].ref);
+    }
   },
 };
 

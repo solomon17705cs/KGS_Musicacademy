@@ -541,7 +541,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                 <Text style={styles.label}>Goal Task</Text>
                 <TextInput
                   style={styles.input}
-                  placeholder="e.g., Master C Major Scale"
+                  placeholder="type homework"
                   value={weeklyGoal}
                   onChangeText={setWeeklyGoal}
                   editable={!saving}

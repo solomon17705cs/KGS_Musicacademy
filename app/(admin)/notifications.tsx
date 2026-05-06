@@ -83,7 +83,7 @@ export default function AdminNotificationsScreen() {
             </View>
             <TextInput
               style={styles.input}
-              placeholder="e.g., Class Schedule Update"
+              placeholder="Message title"
               value={title}
               onChangeText={setTitle}
               editable={!sending}

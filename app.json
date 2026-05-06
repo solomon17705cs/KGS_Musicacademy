@@ -4,12 +4,19 @@
     "slug": "kgs-music-academy",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/images/icon.png",
+    "icon": "./Images/logo1.png",
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true
+    },
+    "android": {
+      "package": "com.anonymous.kgsmusicacademy",
+      "adaptiveIcon": {
+        "foregroundImage": "./Images/logo1.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "web": {
       "bundler": "metro",
@@ -20,13 +27,19 @@
       "expo-router",
       "expo-font",
       "expo-web-browser",
-      "@react-native-community/datetimepicker"
+      "@react-native-community/datetimepicker",
+      [
+        "expo-notifications",
+        {
+          "icon": "./Images/logo1.png",
+          "color": "#1e40af",
+          "defaultChannel": "default",
+          "sounds": []
+        }
+      ]
     ],
     "experiments": {
       "typedRoutes": true
-    },
-    "android": {
-      "package": "com.anonymous.kgsmusicacademy"
     }
   }
 }

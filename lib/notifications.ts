@@ -1,143 +1,171 @@
 import { Platform } from 'react-native';
-import { getToken, onMessage } from 'firebase/messaging';
-import { getMessagingInstance } from './firebase';
-import { studentService, profileService, notificationService } from './firestore';
-import { Student } from '@/types/database';
+import { requestPushToken, onForegroundMessage } from './firebase';
+import { pushTokenService } from './firestore';
 
-export async function registerForPushNotificationsAsync(): Promise<string | null> {
-  const messaging = getMessagingInstance();
-  if (Platform.OS === 'web' || !messaging) {
-    console.log('[NOTIFICATIONS] Push notifications not supported on this platform');
+let Notifications: any = null;
+let Device: any = null;
+
+try {
+  Notifications = require('expo-notifications');
+  Device = require('expo-device');
+  
+  Notifications.setNotificationHandler({
+    handleNotification: async () => ({
+      shouldShowAlert: true,
+      shouldPlaySound: true,
+      shouldSetBadge: true,
+      shouldShowBanner: true,
+      shouldShowList: true,
+    }),
+  });
+} catch (e) {
+  console.log('expo-notifications not available in Expo Go');
+}
+
+export async function registerForPushNotifications(): Promise<string | null> {
+  if (!Notifications || !Device) {
+    console.log('Push notifications require a development build');
+    return null;
+  }
+
+  if (!Device.isDevice) {
+    console.log('Push notifications require a physical device');
     return null;
   }
 
   try {
-    const token = await getToken(messaging, {
-      vapidKey: process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_VAPID_KEY,
-    });
+    const { status: existingStatus } = await Notifications.getPermissionsAsync();
+    let finalStatus = existingStatus;
 
-    if (token) {
-      console.log('[NOTIFICATIONS] FCM Token obtained:', token);
-      return token;
+    if (existingStatus !== 'granted') {
+      const { status } = await Notifications.requestPermissionsAsync();
+      finalStatus = status;
     }
 
-    console.log('[NOTIFICATIONS] No registration token available.');
-    return null;
-  } catch (error) {
-    console.error('[NOTIFICATIONS] Error getting FCM token:', error);
+    if (finalStatus !== 'granted') {
+      console.log('Push notification permission not granted');
+      return null;
+    }
+
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#1e40af',
+      });
+    }
+
+    const expoPushToken = await Notifications.getExpoPushTokenAsync();
+    return expoPushToken.data;
+  } catch (e) {
+    console.log('Failed to register for push notifications:', e);
     return null;
   }
 }
 
-export async function saveFCMToken(userId: string, token: string): Promise<void> {
+export async function updateBadgeCount(count: number): Promise<void> {
+  if (!Notifications) return;
   try {
-    await profileService.updateProfile(userId, { fcm_token: token });
-    console.log('[NOTIFICATIONS] FCM token saved for user:', userId);
-  } catch (error) {
-    console.error('[NOTIFICATIONS] Error saving FCM token:', error);
+    await Notifications.setBadgeCountAsync(count);
+  } catch (e) {
+    console.log('Failed to update badge count:', e);
+  }
+}
+
+export async function getBadgeCount(): Promise<number> {
+  if (!Notifications) return 0;
+  try {
+    return await Notifications.getBadgeCountAsync();
+  } catch (e) {
+    return 0;
+  }
+}
+
+export function addNotificationReceivedListener(
+  callback: (notification: any) => void
+): any {
+  if (!Notifications) return { remove: () => {} };
+  return Notifications.addNotificationReceivedListener(callback);
+}
+
+export function addNotificationResponseReceivedListener(
+  callback: (response: any) => void
+): any {
+  if (!Notifications) return { remove: () => {} };
+  return Notifications.addNotificationResponseReceivedListener(callback);
+}
+
+export async function initializePushNotifications(userId: string): Promise<string | null> {
+  if (!Notifications || !Device) {
+    console.log('Push notifications require a development build');
+    return null;
+  }
+
+  if (!Device.isDevice) {
+    console.log('Push notifications require a physical device');
+    return null;
+  }
+
+  try {
+    const { status } = await Notifications.requestPermissionsAsync();
+    if (status !== 'granted') {
+      console.log('Notification permission not granted');
+      return null;
+    }
+
+    const token = await requestPushToken();
+    if (token) {
+      await pushTokenService.saveToken(userId, token);
+      console.log('Push token saved for user:', userId);
+    }
+    return token;
+  } catch (e) {
+    console.log('Failed to initialize push notifications:', e);
+    return null;
+  }
+}
+
+export function listenForForegroundMessages(callback: (notification: any) => void) {
+  onForegroundMessage(callback);
+}
+
+export async function sendPushNotification(expoPushToken: string, title: string, body: string): Promise<void> {
+  if (!Notifications) {
+    console.log('Push notifications require a development build');
+    return;
+  }
+  
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: { title, body },
+      trigger: null,
+    });
+  } catch (e) {
+    console.log('Failed to send notification:', e);
   }
 }
 
 export async function sendProgressNotification(
-  student: Student,
-  instructorName: string,
+  student: any,
+  staffName: string,
   instrument: string
 ): Promise<void> {
-  const title = 'New Progress Update';
-  const body = `Your instructor ${instructorName} has updated progress for ${instrument}. Check it out!`;
-
-  if (student.user_id) {
-    await notifyUser(student.user_id, title, body);
-  }
-
-  if (student.parent_email) {
-    const allProfiles = await profileService.getAllProfiles();
-    const parentProfiles = allProfiles.filter(p => p.email.toLowerCase() === student.parent_email!.toLowerCase());
-    
-    for (const parentProfile of parentProfiles) {
-      await notifyUser(
-        parentProfile.id,
-        'Student Progress Update',
-        `Update for ${student.full_name}: ${body}`
-      );
-    }
-  }
-
-  console.log('[NOTIFICATIONS] Progress notification sent for student:', student.full_name);
-}
-
-export async function notifyUser(userId: string, title: string, body: string, data: Record<string, any> = {}): Promise<void> {
-  try {
-    await notificationService.createNotification({
-      userId,
-      title,
-      body,
-      data,
-      read: false,
-    });
-
-    console.log('[NOTIFICATIONS] Notification created for user:', userId, title, body);
-  } catch (error) {
-    console.error('[NOTIFICATIONS] Error creating notification:', error);
-  }
-}
-
-export async function sendBroadcastNotification(
-  title: string,
-  body: string,
-  targetRole?: 'student' | 'admin'
-): Promise<void> {
-  console.log('[NOTIFICATIONS] Broadcast notification:', title, body, targetRole || 'all');
-  
-  const message = `Admin broadcast: ${body}`;
-  const sentToEmails = new Set<string>();
-  
-  try {
-    const profiles = await profileService.getAllProfiles();
-    
-    for (const profile of profiles) {
-      if (targetRole && profile.role !== targetRole) continue;
-      
-      await notificationService.createNotification({
-        userId: profile.id,
-        title,
-        body: message,
-        read: false,
-      });
-    }
-
-    if (targetRole === 'student' || targetRole === undefined) {
-      const allStudents = await studentService.getAllStudents();
-      for (const student of allStudents) {
-        if (student.parent_email && !sentToEmails.has(student.parent_email)) {
-          sentToEmails.add(student.parent_email);
-          const parentProfiles = profiles.filter(p => p.email.toLowerCase() === student.parent_email!.toLowerCase());
-          for (const parentProfile of parentProfiles) {
-            await notificationService.createNotification({
-              userId: parentProfile.id,
-              title,
-              body: message,
-              read: false,
-            });
-          }
-        }
-      }
-    }
-    
-    console.log('[NOTIFICATIONS] Broadcast notification sent');
-  } catch (error) {
-    console.error('[NOTIFICATIONS] Error sending broadcast:', error);
-  }
-}
-
-export function setupForegroundNotificationListener() {
-  const messaging = getMessagingInstance();
-  if (Platform.OS === 'web' || !messaging) {
-    console.log('[NOTIFICATIONS] Foreground listener not supported on web');
+  if (!Notifications) {
+    console.log('Push notifications require a development build');
     return;
   }
-
-  onMessage(messaging, (payload) => {
-    console.log('[NOTIFICATIONS] Foreground message received:', payload);
-  });
+  
+  try {
+    await Notifications.scheduleNotificationAsync({
+      content: {
+        title: `Progress Updated - ${student.full_name}`,
+        body: `Your ${instrument} progress has been updated by ${staffName}. Check the app for details.`,
+        data: { studentId: student.id },
+      },
+      trigger: null,
+    });
+  } catch (e) {
+    console.log('Failed to send progress notification:', e);
+  }
 }

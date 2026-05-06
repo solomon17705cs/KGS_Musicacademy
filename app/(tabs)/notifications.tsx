@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -8,11 +8,21 @@ import {
   ActivityIndicator,
   RefreshControl,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationService, studentService } from '@/lib/firestore';
 import { Notification } from '@/types/database';
 import { ArrowLeft, Bell, Mail, Clock } from 'lucide-react-native';
+import { updateBadgeCount } from '@/lib/notifications';
+
+function parseDate(dateInput: any): Date {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) return dateInput;
+  if (typeof dateInput === 'number') return new Date(dateInput);
+  if (dateInput.toDate) return dateInput.toDate();
+  const d = new Date(dateInput);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
 
 export default function NotificationsScreen() {
   const router = useRouter();
@@ -24,6 +34,17 @@ export default function NotificationsScreen() {
   useEffect(() => {
     loadNotifications();
   }, [profile, user]);
+
+  useEffect(() => {
+    const unreadCount = notifications.filter(n => !n.read).length;
+    updateBadgeCount(unreadCount);
+  }, [notifications]);
+
+  useFocusEffect(
+    useCallback(() => {
+      loadNotifications();
+    }, [user])
+  );
 
   async function loadNotifications() {
     if (!user) return;
@@ -55,8 +76,8 @@ export default function NotificationsScreen() {
     }
   }
 
-  function getTimeAgo(dateString: string): string {
-    const date = new Date(dateString);
+  function getTimeAgo(dateInput: any): string {
+    const date = parseDate(dateInput);
     const now = new Date();
     const diffMs = now.getTime() - date.getTime();
     const diffMins = Math.floor(diffMs / 60000);
@@ -115,7 +136,7 @@ export default function NotificationsScreen() {
                   styles.notificationCard,
                   !notification.read && styles.unreadCard,
                 ]}
-                onPress={() => markAsRead(notification.id)}
+                onPress={() => router.push(`/notification/${notification.id}`)}
                 activeOpacity={0.7}>
                 <View style={styles.notificationIcon}>
                   <Mail size={20} color={!notification.read ? '#1e40af' : '#94a3b8'} />

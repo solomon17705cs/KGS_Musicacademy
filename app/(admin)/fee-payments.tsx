@@ -9,6 +9,7 @@ import {
   Modal,
   TextInput,
   Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -41,6 +42,8 @@ export default function FeePaymentsScreen() {
   const [editAmount, setEditAmount] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const webDateRef = useRef<any>(null);
+  const { width: screenWidth } = useWindowDimensions();
+  const isMobile = screenWidth < 768;
 
   const currentMonth = viewMonth.getMonth();
   const currentYear = viewMonth.getFullYear();
@@ -503,7 +506,7 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderTopLeftRadius: 24,
     borderTopRightRadius: 24,
-    maxHeight: '75%',
+    height: '90%',
     paddingTop: 20,
     paddingHorizontal: 20,
     paddingBottom: 40,
@@ -534,6 +537,7 @@ const styles = StyleSheet.create({
   },
   modalBody: {
     flex: 1,
+    minHeight: 200,
   },
   inputGroup: {
     marginBottom: 16,

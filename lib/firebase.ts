@@ -1,6 +1,7 @@
 import { initializeApp } from 'firebase/app';
 import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
+import { getToken, onMessage } from 'firebase/messaging';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -32,13 +33,13 @@ export { auth };
 export const db = getFirestore(app);
 
 let messagingInstance: any = null;
-export const getMessagingInstance = () => {
+export const getMessagingInstance = async () => {
   if (Platform.OS === 'web') {
     return null;
   }
   if (!messagingInstance) {
     try {
-      const { getMessaging } = require('firebase/messaging');
+      const { getMessaging } = await import('firebase/messaging');
       messagingInstance = getMessaging(app);
     } catch (e) {
       console.warn('Firebase messaging not supported:', e);
@@ -47,5 +48,27 @@ export const getMessagingInstance = () => {
   }
   return messagingInstance;
 };
+
+export async function requestPushToken(): Promise<string | null> {
+  try {
+    const messaging = await getMessagingInstance();
+    if (!messaging) return null;
+    
+    const vapidKey = process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_VAPID_KEY;
+    const token = await getToken(messaging, { vapidKey });
+    return token;
+  } catch (e) {
+    console.warn('Failed to get push token:', e);
+    return null;
+  }
+}
+
+export function onForegroundMessage(callback: (payload: any) => void) {
+  getMessagingInstance().then(messaging => {
+    if (messaging) {
+      onMessage(messaging, callback);
+    }
+  });
+}
 
 export default app;
