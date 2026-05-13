@@ -4,24 +4,25 @@ import { useRouter, useRootNavigationState } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 
 export default function Index() {
-  const { profile, loading } = useAuth();
+  const { user, profile, loading } = useAuth();
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
 
   useEffect(() => {
-    // Wait for the auth state to resolve and the navigation state to be ready
     if (loading || !rootNavigationState?.key) return;
 
-    if (!profile) {
+    if (!user) {
       router.replace('/login');
-    } else if (profile.role === 'admin') {
-      router.replace('/(admin)/dashboard');
-    } else if (profile.role === 'staff') {
-      router.replace('/(staff)/dashboard');
-    } else {
-      router.replace('/(tabs)/progress');
+    } else if (profile) {
+      if (profile.role === 'admin') {
+        router.replace('/(admin)/dashboard');
+      } else if (profile.role === 'staff') {
+        router.replace('/(staff)/dashboard');
+      } else {
+        router.replace('/(tabs)/progress');
+      }
     }
-  }, [profile, loading, rootNavigationState?.key]);
+  }, [user, profile, loading, rootNavigationState?.key]);
 
   return (
     <View style={styles.container}>

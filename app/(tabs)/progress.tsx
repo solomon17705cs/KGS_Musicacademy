@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
-import { studentService, progressService, notificationService } from '@/lib/firestore';
+import { studentService, progressService, notificationService, attendanceService } from '@/lib/firestore';
 import { Student, ProgressRecord } from '@/types/database';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
@@ -193,7 +193,7 @@ export default function ProgressScreen() {
   useEffect(() => {
     if (!profile || !user) return;
     loadStudentProgress();
-  }, [profile?.id, user?.email]);
+  }, [profile?.id, user?.email, user?.phoneNumber]);
 
   useEffect(() => {
     if (!user) return;
@@ -223,8 +223,25 @@ export default function ProgressScreen() {
       if (profile.role === 'admin') {
         studentList = await studentService.getAllStudents();
       } else {
-        const siblings = await studentService.getStudentsByParentEmail(user.email!);
+        let siblings: Student[] = [];
+        console.log('🔍 User email:', user.email);
+        console.log('🔍 User phone:', user.phoneNumber);
+        console.log('🔍 Profile phone:', profile.phone);
+        
+        if (user.email) {
+          siblings = await studentService.getStudentsByParentEmail(user.email);
+          console.log('🔍 Found by email:', siblings.length);
+        }
+        if (siblings.length === 0 && user.phoneNumber) {
+          siblings = await studentService.getStudentsByParentPhone(user.phoneNumber);
+          console.log('🔍 Found by user phone:', siblings.length);
+        }
+        if (siblings.length === 0 && profile.phone) {
+          siblings = await studentService.getStudentsByParentPhone(profile.phone);
+          console.log('🔍 Found by profile phone:', siblings.length);
+        }
         studentList = siblings;
+        console.log('🔍 Total students found:', studentList.length);
       }
 
       const studentsWithProgress = await Promise.all(
@@ -232,10 +249,11 @@ export default function ProgressScreen() {
           const progress = await progressService.getLatestProgress(student.id);
           const history = await progressService.getProgressRecords(student.id);
           const realStreak = calculateRealStreak(history);
+          const currentMonthAttendance = await attendanceService.getCurrentMonthAttendance(student.id);
           if (realStreak !== student.streak) {
             await studentService.updateStudent(student.id, { streak: realStreak });
           }
-          return { ...student, progress: progress || undefined, streak: realStreak };
+          return { ...student, progress: progress || undefined, streak: realStreak, currentMonthAttendance };
         })
       );
 
@@ -293,7 +311,7 @@ export default function ProgressScreen() {
     );
   }
 
-  const userFirstName = profile?.full_name?.split(' ')[0] || 'User';
+  const userFirstName = (profile?.full_name || 'User').split(' ')[0];
 
   return (
     <View style={styles.container}>
@@ -391,7 +409,7 @@ export default function ProgressScreen() {
                 <View style={styles.weeklySummaryCard}>
                   <View style={styles.summaryItem}>
                     <Text style={styles.summaryLabel}>Attendance</Text>
-                    <Text style={styles.summaryValue}>{selectedStudent.progress.attendance || '2/2'}</Text>
+                    <Text style={styles.summaryValue}>{selectedStudent.currentMonthAttendance || '0/8'}</Text>
                   </View>
                   <View style={[styles.summaryItem, styles.summaryBorder]}>
                     <Text style={styles.summaryLabel}>Homework</Text>
@@ -592,7 +610,7 @@ export default function ProgressScreen() {
                         <View style={styles.weeklySummaryCard}>
                           <View style={styles.summaryItem}>
                             <Text style={styles.summaryLabel}>Attendance</Text>
-                            <Text style={styles.summaryValue}>{student.progress.attendance || '2/2'}</Text>
+                            <Text style={styles.summaryValue}>{student.currentMonthAttendance || '0/8'}</Text>
                           </View>
                           <View style={[styles.summaryItem, styles.summaryBorder]}>
                             <Text style={styles.summaryLabel}>Homework</Text>

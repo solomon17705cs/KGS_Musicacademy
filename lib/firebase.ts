@@ -1,9 +1,8 @@
-import { initializeApp } from 'firebase/app';
-import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
+import { initializeApp, getApps } from 'firebase/app';
+import { getAuth } from 'firebase/auth';
 import { getFirestore } from 'firebase/firestore';
 import { getToken, onMessage } from 'firebase/messaging';
 import { Platform } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 const firebaseConfig = {
   apiKey: process.env.EXPO_PUBLIC_FIREBASE_API_KEY,
@@ -15,22 +14,11 @@ const firebaseConfig = {
   measurementId: process.env.EXPO_PUBLIC_FIREBASE_MEASUREMENT_ID,
 };
 
-const app = initializeApp(firebaseConfig);
+const app = getApps().length === 0 ? initializeApp(firebaseConfig) : getApps()[0];
 
-let auth;
-if (Platform.OS === 'web') {
-  auth = getAuth(app);
-} else {
-  try {
-    auth = initializeAuth(app, {
-      persistence: getReactNativePersistence(AsyncStorage),
-    });
-  } catch (e) {
-    auth = getAuth(app);
-  }
-}
-export { auth };
+export const auth = getAuth(app);
 export const db = getFirestore(app);
+export default app;
 
 let messagingInstance: any = null;
 export const getMessagingInstance = async () => {
@@ -70,5 +58,3 @@ export function onForegroundMessage(callback: (payload: any) => void) {
     }
   });
 }
-
-export default app;

@@ -17,20 +17,20 @@ export default function SupportScreen() {
     {
       icon: <Mail size={24} color="#1e40af" />,
       title: 'Email',
-      value: 'help@kgsacademy.com',
-      action: () => Linking.openURL('mailto:help@kgsacademy.com'),
+      value: 'kgsmusicacademy@gmail.com',
+      action: () => Linking.openURL('mailto:kgsmusicacademy@gmail.com'),
     },
     {
       icon: <Phone size={24} color="#16a34a" />,
       title: 'Phone',
-      value: '+1 (555) 012-3456',
-      action: () => Linking.openURL('tel:+15550123456'),
+      value: '+91 9487927742',
+      action: () => Linking.openURL('tel:+919487927742'),
     },
     {
       icon: <MessageCircle size={24} color="#25D366" />,
       title: 'WhatsApp',
-      value: '+1 (555) 987-6543',
-      action: () => Linking.openURL('https://wa.me/15559876543'),
+      value: '+91 9487927742',
+      action: () => Linking.openURL('https://wa.me/9487927742'),
     },
   ];
 
@@ -76,7 +76,7 @@ export default function SupportScreen() {
               <Clock size={20} color="#64748b" />
               <View style={styles.hoursInfo}>
                 <Text style={styles.hoursText}>Monday - Friday</Text>
-                <Text style={styles.hoursValue}>9:00 AM - 6:00 PM</Text>
+                <Text style={styles.hoursValue}>4:00 PM - 9:00 PM</Text>
               </View>
             </View>
             <View style={styles.divider} />

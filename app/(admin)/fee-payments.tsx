@@ -284,35 +284,36 @@ export default function FeePaymentsScreen() {
 
               {editStatus === 'paid' && (
                 <>
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Fee Amount</Text>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g. 2000"
-                      value={editAmount}
-                      onChangeText={setEditAmount}
-                      keyboardType="numeric"
-                    />
-                  </View>
-
-                  <View style={styles.inputGroup}>
-                    <Text style={styles.label}>Payment Date</Text>
-                    <View style={styles.dateInputRow}>
+                  <View style={styles.sideBySideRow}>
+                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                      <Text style={styles.label}>Fee Amount</Text>
                       <TextInput
-                        style={[styles.input, styles.dateInput]}
-                        placeholder="DD-MM-YYYY"
-                        value={editPaidDate}
-                        onChangeText={(text) => setEditPaidDate(formatDDMMYYYY(text))}
+                        style={styles.input}
+                        placeholder="2000"
+                        value={editAmount}
+                        onChangeText={setEditAmount}
                         keyboardType="numeric"
-                        maxLength={10}
                       />
-                      <TouchableOpacity style={styles.calendarButton} onPress={openWebPicker}>
-                        <Calendar size={18} color="#1e40af" />
-                      </TouchableOpacity>
+                    </View>
+                    <View style={[styles.inputGroup, { flex: 1 }]}>
+                      <Text style={styles.label}>Payment Date</Text>
+                      <View style={styles.dateInputRow}>
+                        <TextInput
+                          style={[styles.input, { flex: 1 }]}
+                          placeholder="DD-MM-YYYY"
+                          value={editPaidDate}
+                          onChangeText={(text) => setEditPaidDate(formatDDMMYYYY(text))}
+                          keyboardType="numeric"
+                          maxLength={10}
+                        />
+                        <TouchableOpacity style={styles.calendarButton} onPress={openWebPicker}>
+                          <Calendar size={16} color="#1e40af" />
+                        </TouchableOpacity>
+                      </View>
                     </View>
                   </View>
 
-                  <View style={styles.inputGroup}>
+                  <View style={styles.inputGroupCompact}>
                     <Text style={styles.label}>Payment Mode</Text>
                     <View style={styles.modeRow}>
                       {PAYMENT_MODES.map(mode => (
@@ -504,18 +505,17 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     backgroundColor: '#fff',
-    borderTopLeftRadius: 24,
-    borderTopRightRadius: 24,
-    height: '90%',
-    paddingTop: 20,
-    paddingHorizontal: 20,
-    paddingBottom: 40,
+    borderTopLeftRadius: 20,
+    borderTopRightRadius: 20,
+    paddingTop: 16,
+    paddingHorizontal: 16,
+    paddingBottom: 24,
   },
   modalHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   modalTitle: {
     fontSize: 20,
@@ -536,24 +536,31 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
   },
   modalBody: {
-    flex: 1,
-    minHeight: 200,
+    paddingTop: 8,
   },
   inputGroup: {
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  inputGroupCompact: {
+    marginBottom: 12,
+  },
+  sideBySideRow: {
+    flexDirection: 'row',
+    gap: 12,
+    marginBottom: 12,
   },
   label: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
     color: '#475569',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   input: {
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    borderRadius: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 12,
+    borderRadius: 8,
+    paddingHorizontal: 12,
+    paddingVertical: 10,
     fontSize: 14,
     backgroundColor: '#f8fafc',
   },
@@ -628,8 +635,8 @@ const styles = StyleSheet.create({
   },
   saveButton: {
     backgroundColor: '#1e40af',
-    borderRadius: 12,
-    paddingVertical: 14,
+    borderRadius: 10,
+    paddingVertical: 12,
     alignItems: 'center',
     marginTop: 8,
   },

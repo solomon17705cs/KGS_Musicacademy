@@ -89,7 +89,7 @@ export default function StaffProfileScreen() {
           <Text style={styles.sectionTitle}>Preferences</Text>
           <TouchableOpacity
             style={styles.menuItem}
-            onPress={() => router.push('/(staff)/notifications')}>
+            onPress={() => router.push('/notification-manage')}>
             <View style={styles.menuIconBox}>
               <Bell size={20} color="#7c3aed" />
             </View>

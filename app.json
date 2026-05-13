@@ -4,7 +4,12 @@
     "slug": "kgs-music-academy",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./Images/logo1.png",
+    "icon": "./Images/logo_fixed.png",
+    "splash": {
+      "image": "./Images/logo_fixed.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#ffffff"
+    },
     "scheme": "myapp",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
@@ -14,7 +19,7 @@
     "android": {
       "package": "com.anonymous.kgsmusicacademy",
       "adaptiveIcon": {
-        "foregroundImage": "./Images/logo1.png",
+        "foregroundImage": "./Images/logo_fixed.png",
         "backgroundColor": "#ffffff"
       }
     },
@@ -26,12 +31,11 @@
     "plugins": [
       "expo-router",
       "expo-font",
-      "expo-web-browser",
       "@react-native-community/datetimepicker",
       [
         "expo-notifications",
         {
-          "icon": "./Images/logo1.png",
+          "icon": "./Images/logo_fixed.png",
           "color": "#1e40af",
           "defaultChannel": "default",
           "sounds": []

@@ -92,6 +92,24 @@ export const studentService = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
   },
 
+  async getStudentsByParentPhone(parentPhone: string): Promise<Student[]> {
+    const cleanPhone = parentPhone.replace(/\s/g, '');
+    const withCode = cleanPhone.startsWith('+') ? cleanPhone : '+91' + cleanPhone;
+    const withoutCode = withCode.replace('+91', '');
+
+    const [snapWithCode, snapWithoutCode] = await Promise.all([
+      getDocs(query(collection(db, STUDENTS_COLLECTION), where('parent_phone', '==', withCode))),
+      getDocs(query(collection(db, STUDENTS_COLLECTION), where('parent_phone', '==', withoutCode))),
+    ]);
+
+    const seen = new Map();
+    [...snapWithCode.docs, ...snapWithoutCode.docs].forEach(doc => {
+      seen.set(doc.id, { id: doc.id, ...doc.data() });
+    });
+
+    return Array.from(seen.values()) as Student[];
+  },
+
   async getStudentByUserId(userId: string): Promise<Student | null> {
     const q = query(collection(db, STUDENTS_COLLECTION), where('user_id', '==', userId), limit(1));
     const snapshot = await getDocs(q);
@@ -348,6 +366,28 @@ export const attendanceService = {
     );
     const snapshot = await getDocs(q);
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
+  },
+
+  async getCurrentMonthAttendance(studentId: string): Promise<string> {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endDate = `${year}-${String(month).padStart(2, '0')}-31`;
+
+    const q = query(
+      collection(db, ATTENDANCE_COLLECTION),
+      where('student_id', '==', studentId)
+    );
+    const snapshot = await getDocs(q);
+    const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
+    
+    const monthRecords = records.filter(r => r.date >= startDate && r.date <= endDate);
+    const present = monthRecords.filter(r => r.status === 'present' || r.status === 'late').length;
+    const totalClasses = Math.max(monthRecords.length, 1);
+    const scheduledClasses = 8;
+    
+    return `${present}/${scheduledClasses}`;
   },
 };
 

@@ -112,6 +112,11 @@ export default function NotificationsScreen() {
             {notifications.filter(n => !n.read).length} unread
           </Text>
         </View>
+        <TouchableOpacity
+          style={styles.settingsButton}
+          onPress={() => router.push('/notification-manage')}>
+          <BellOff size={24} color="#64748b" />
+        </TouchableOpacity>
       </View>
 
       <ScrollView
@@ -190,6 +195,14 @@ const styles = StyleSheet.create({
     gap: 16,
   },
   backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  settingsButton: {
     width: 40,
     height: 40,
     borderRadius: 20,

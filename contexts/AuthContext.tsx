@@ -36,7 +36,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           const normalizedEmail = firebaseUser.email.toLowerCase();
           const students = await studentService.getStudentsByParentEmail(normalizedEmail);
           if (students.length > 0) {
-            const parentName = students[0].parent_name || firebaseUser.displayName || firebaseUser.email.split('@')[0];
+            const parentName = students[0].parent_name || firebaseUser.displayName || (firebaseUser.email ? firebaseUser.email.split('@')[0] : 'User');
             await profileService.createProfile(firebaseUser.uid, {
               email: firebaseUser.email.toLowerCase(),
               full_name: parentName,
@@ -44,6 +44,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             });
             userProfile = await profileService.getProfile(firebaseUser.uid);
           }
+        }
+
+        if (!userProfile && firebaseUser.phoneNumber) {
+          const students = await studentService.getStudentsByParentPhone(firebaseUser.phoneNumber);
+          const parentName = students.length > 0 
+            ? students[0].parent_name || 'Parent'
+            : 'Parent';
+          await profileService.createProfile(firebaseUser.uid, {
+            email: '',
+            full_name: parentName,
+            role: 'student',
+            phone: firebaseUser.phoneNumber,
+          });
+          userProfile = await profileService.getProfile(firebaseUser.uid);
         }
         
         setProfile(userProfile);

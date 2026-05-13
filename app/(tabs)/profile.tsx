@@ -105,7 +105,7 @@ export default function ProfileScreen() {
         <View style={styles.menuSection}>
           <Text style={styles.sectionTitle}>Settings</Text>
           
-          <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(tabs)/notifications')}>
+          <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/notification-manage')}>
             <View style={[styles.menuIconBox, { backgroundColor: '#fdf2f8' }]}>
               <Bell size={20} color="#db2777" />
             </View>
@@ -143,7 +143,6 @@ const styles = StyleSheet.create({
   container: (isMobile: boolean) => ({
     flex: 1,
     backgroundColor: '#f8fafc',
-    paddingBottom: isMobile ? 100 : 24,
   }),
   centerContainer: {
     flex: 1,
@@ -168,6 +167,7 @@ const styles = StyleSheet.create({
   },
   contentContainer: {
     padding: 16,
+    paddingBottom: 100,
   },
   profileHeader: {
     alignItems: 'center',

@@ -77,6 +77,7 @@ export default function SignupScreen() {
             <TextInput
               style={styles.input}
               placeholder="Enter your full name"
+              placeholderTextColor="#94a3b8"
               value={fullName}
               onChangeText={setFullName}
               editable={!loading}
@@ -88,6 +89,7 @@ export default function SignupScreen() {
             <TextInput
               style={styles.input}
               placeholder="Enter your email"
+              placeholderTextColor="#94a3b8"
               value={email}
               onChangeText={setEmail}
               autoCapitalize="none"
@@ -101,6 +103,7 @@ export default function SignupScreen() {
             <TextInput
               style={styles.input}
               placeholder="Enter your password (min 6 characters)"
+              placeholderTextColor="#94a3b8"
               value={password}
               onChangeText={setPassword}
               secureTextEntry

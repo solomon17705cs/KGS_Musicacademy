@@ -96,7 +96,7 @@ export default function AddStudentScreen() {
 
     const [parentName, setParentName] = useState('');
     const [parentEmail, setParentEmail] = useState('');
-    const [parentPhone, setParentPhone] = useState('');
+    const [parentPhone, setParentPhone] = useState('+91 ');
     const [parentAddress, setParentAddress] = useState('');
 
     const [loading, setLoading] = useState(false);
@@ -122,8 +122,8 @@ export default function AddStudentScreen() {
     };
 
     async function handleAddStudent() {
-        if (!fullName || !instrument || !enrollmentDate || !parentEmail) {
-            setError('Please fill in required fields (Name, Instrument, Date, Parent Email)');
+        if (!fullName || !instrument || !enrollmentDate || !parentPhone || parentPhone.trim() === '+91') {
+            setError('Please fill in required fields (Name, Instrument, Date, Parent Phone)');
             return;
         }
 
@@ -215,6 +215,7 @@ export default function AddStudentScreen() {
                                     <TextInput
                                         style={styles.input}
                                         placeholder="Student Name"
+                                        placeholderTextColor="#94a3b8"
                                         value={fullName}
                                         onChangeText={setFullName}
                                         editable={!loading}
@@ -243,6 +244,7 @@ export default function AddStudentScreen() {
                                     <TextInput
                                         style={styles.input}
                                         placeholder="e.g. Piano, Violin"
+                                        placeholderTextColor="#94a3b8"
                                         value={instrument}
                                         onChangeText={setInstrument}
                                         editable={!loading}
@@ -256,6 +258,7 @@ export default function AddStudentScreen() {
                                             <TextInput
                                                 style={[styles.input, styles.dateInput]}
                                                 placeholder="DD-MM-YYYY"
+                                                placeholderTextColor="#94a3b8"
                                                 value={enrollmentDate}
                                                 onChangeText={(text) => setEnrollmentDate(formatDDMMYYYY(text))}
                                                 keyboardType="numeric"
@@ -276,6 +279,7 @@ export default function AddStudentScreen() {
                                             <TextInput
                                                 style={[styles.input, styles.dateInput]}
                                                 placeholder="DD-MM-YYYY"
+                                                placeholderTextColor="#94a3b8"
                                                 value={dob}
                                                 onChangeText={(text) => setDob(formatDDMMYYYY(text))}
                                                 keyboardType="numeric"
@@ -361,6 +365,7 @@ export default function AddStudentScreen() {
                                     <TextInput
                                         style={styles.input}
                                         placeholder="e.g. Grade 1"
+                                        placeholderTextColor="#94a3b8"
                                         value={initialGrade}
                                         onChangeText={setInitialGrade}
                                         editable={!loading}
@@ -424,10 +429,11 @@ export default function AddStudentScreen() {
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Parent Email *</Text>
+                                    <Text style={styles.label}>Parent Email</Text>
                                     <TextInput
                                         style={styles.input}
                                         placeholder="parent@email.com"
+                                        placeholderTextColor="#94a3b8"
                                         value={parentEmail}
                                         onChangeText={setParentEmail}
                                         keyboardType="email-address"
@@ -440,7 +446,8 @@ export default function AddStudentScreen() {
                                     <Text style={styles.label}>Parent Name</Text>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="type parent name"
+                                        placeholder="Parent's Name"
+                                        placeholderTextColor="#94a3b8"
                                         value={parentName}
                                         onChangeText={setParentName}
                                         editable={!loading}
@@ -448,12 +455,21 @@ export default function AddStudentScreen() {
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Parent Phone</Text>
+                                    <Text style={styles.label}>Parent Phone *</Text>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="(mobile number)"
+                                        placeholder="Mobile"
+                                        placeholderTextColor="#94a3b8"
                                         value={parentPhone}
-                                        onChangeText={setParentPhone}
+                                        onChangeText={(text) => {
+                                            if (text.startsWith('+91 ')) {
+                                                setParentPhone(text);
+                                            } else if (text.startsWith('+91')) {
+                                                setParentPhone('+91 ' + text.slice(3));
+                                            } else {
+                                                setParentPhone('+91 ' + text);
+                                            }
+                                        }}
                                         keyboardType="phone-pad"
                                         editable={!loading}
                                     />
@@ -466,6 +482,7 @@ export default function AddStudentScreen() {
                                         <TextInput
                                             style={[styles.input, styles.addressInput]}
                                             placeholder="Enter full address"
+                                            placeholderTextColor="#94a3b8"
                                             value={parentAddress}
                                             onChangeText={setParentAddress}
                                             multiline

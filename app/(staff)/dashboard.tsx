@@ -101,7 +101,7 @@ export default function StaffDashboard() {
   }
 
   const filteredStudents = students.filter(s =>
-    s.full_name.toLowerCase().includes(search.toLowerCase())
+    (s.full_name || '').toLowerCase().includes(search.toLowerCase())
   );
 
   if (loading) {

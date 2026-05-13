@@ -103,7 +103,7 @@ export default function AdminDashboard() {
   }
 
   const filteredStudents = students.filter(s =>
-    s.full_name.toLowerCase().includes(search.toLowerCase())
+    (s.full_name || '').toLowerCase().includes(search.toLowerCase())
   );
 
   if (loading) {
@@ -121,7 +121,7 @@ export default function AdminDashboard() {
           <View style={styles.titleArea}>
             <Text style={styles.headerTitle} numberOfLines={1}>Admin Dashboard</Text>
             <Text style={styles.headerSubtitle}>
-              KGS Music Academy Management
+              KGS Music Academy
             </Text>
           </View>
           <TouchableOpacity
@@ -235,123 +235,109 @@ export default function AdminDashboard() {
                   onPress={() =>
                     router.push(`/(admin)/edit-progress/${student.id}`)
                   }>
-                <View style={styles.studentHeader}>
-                  <View style={styles.studentInfo}>
-                    <Text style={styles.studentName}>{student.full_name}</Text>
-                    <Text style={styles.studentDetails}>
-                      {student.instrument} • {student.enrollment_date}
-                    </Text>
-                    <View style={styles.feeStatusRow}>
-                      <View style={[
-                        styles.feeStatusBadge,
-                        {
-                          backgroundColor: student.fee_status === 'paid' ? '#f0fdf4' : student.fee_status === 'pending' ? '#fff7ed' : '#fee2e2',
-                        }
-                      ]}>
-                        <Text style={[
-                          styles.feeStatusBadgeText,
-                          {
-                            color: student.fee_status === 'paid' ? '#16a34a' : student.fee_status === 'pending' ? '#f97316' : '#ef4444',
-                          }
-                        ]}>
-                          Fee: {student.fee_status || 'pending'}
-                        </Text>
-                      </View>
-                      {student.attendancePct !== undefined && student.attendancePct > 0 && (
+                  <View style={styles.studentHeader}>
+                    <View style={styles.studentInfo}>
+                      <Text style={styles.studentName}>{student.full_name}</Text>
+                      <Text style={styles.studentDetails}>
+                        {student.instrument} • {student.enrollment_date}
+                      </Text>
+                      <View style={styles.feeStatusRow}>
                         <View style={[
-                          styles.attendanceBadge,
+                          styles.feeStatusBadge,
                           {
-                            backgroundColor: student.attendancePct >= 80 ? '#f0fdf4' : student.attendancePct >= 50 ? '#fff7ed' : '#fee2e2',
+                            backgroundColor: student.fee_status === 'paid' ? '#f0fdf4' : student.fee_status === 'pending' ? '#fff7ed' : '#fee2e2',
                           }
                         ]}>
                           <Text style={[
-                            styles.attendanceBadgeText,
+                            styles.feeStatusBadgeText,
                             {
-                              color: student.attendancePct >= 80 ? '#16a34a' : student.attendancePct >= 50 ? '#f97316' : '#ef4444',
+                              color: student.fee_status === 'paid' ? '#16a34a' : student.fee_status === 'pending' ? '#f97316' : '#ef4444',
                             }
                           ]}>
-                            {student.attendancePct}%
+                            Fee: {student.fee_status || 'pending'}
+                          </Text>
+                        </View>
+                      </View>
+                      {student.completed_grades && student.completed_grades.length > 0 && (
+                        <View style={styles.achievementsBadge}>
+                          <Award size={12} color="#1e40af" />
+                          <Text style={styles.achievementsText}>
+                            {student.completed_grades.length} Grades
                           </Text>
                         </View>
                       )}
                     </View>
-                    {student.completed_grades && student.completed_grades.length > 0 && (
-                      <View style={styles.achievementsBadge}>
-                        <Award size={12} color="#1e40af" />
-                        <Text style={styles.achievementsText}>
-                          {student.completed_grades.length} Grades
-                        </Text>
-                      </View>
-                    )}
                   </View>
-                </View>
 
-                {student.progress ? (
-                  <View style={styles.progressPreview}>
-                    <View style={styles.gradeItem}>
-                      <Text style={styles.gradeLabel}>Theory</Text>
-                      <View style={styles.gradeInfo}>
-                        <Text style={styles.gradeValue}>
-                          {student.progress.theory_grade || 'N/A'}
-                        </Text>
-                        <View
-                          style={[
-                            styles.statusDot,
-                            {
-                              backgroundColor: getStatusColor(
-                                student.progress.theory_status
-                              ),
-                            },
-                          ]}
-                        />
+                  {student.progress ? (
+                    <View style={styles.progressPreview}>
+                      <View style={styles.gradeItem}>
+                        <Text style={styles.gradeLabel}>Theory</Text>
+                        <View style={styles.gradeInfo}>
+                          <Text style={styles.gradeValue}>
+                            {student.progress.theory_grade || 'N/A'}
+                          </Text>
+                          <View
+                            style={[
+                              styles.statusDot,
+                              {
+                                backgroundColor: getStatusColor(
+                                  student.progress.theory_status
+                                ),
+                              },
+                            ]}
+                          />
+                        </View>
                       </View>
-                    </View>
 
-                    <View style={styles.divider} />
+                      <View style={styles.divider} />
 
-                    <View style={styles.gradeItem}>
-                      <Text style={styles.gradeLabel}>Practical</Text>
-                      <View style={styles.gradeInfo}>
-                        <Text style={styles.gradeValue}>
-                          {student.progress.practical_grade || 'N/A'}
-                        </Text>
-                        <View
-                          style={[
-                            styles.statusDot,
-                            {
-                              backgroundColor: getStatusColor(
-                                student.progress.practical_status
-                              ),
-                            },
-                          ]}
-                        />
+                      <View style={styles.gradeItem}>
+                        <Text style={styles.gradeLabel}>Practical</Text>
+                        <View style={styles.gradeInfo}>
+                          <Text style={styles.gradeValue}>
+                            {student.progress.practical_grade || 'N/A'}
+                          </Text>
+                          <View
+                            style={[
+                              styles.statusDot,
+                              {
+                                backgroundColor: getStatusColor(
+                                  student.progress.practical_status
+                                ),
+                              },
+                            ]}
+                          />
+                        </View>
                       </View>
                     </View>
-                  </View>
-                ) : (
-                  <View style={styles.noProgressBadge}>
-                    <Text style={styles.noProgressText}>No progress yet</Text>
-                  </View>
-                )}
+                  ) : (
+                    <View style={styles.noProgressBadge}>
+                      <Text style={styles.noProgressText}>No progress yet</Text>
+                    </View>
+                  )}
 
-                {student.progress && (
-                  <View style={styles.updateInfo}>
-                    <TrendingUp size={12} color="#64748b" />
-                    <Text style={styles.updateText}>
-                      Updated{' '}
-                      {(() => {
-                        const d = new Date(student.progress!.updated_at);
-                        if (isNaN(d.getTime())) return 'today';
-                        const today = new Date();
-                        const yesterday = new Date();
-                        yesterday.setDate(yesterday.getDate() - 1);
-                        if (d.toDateString() === today.toDateString()) return 'today';
-                        if (d.toDateString() === yesterday.toDateString()) return 'yesterday';
-                        return d.toLocaleDateString();
-                      })()}
-                    </Text>
-                  </View>
-                )}
+                  {student.progress && (
+                    <View style={styles.updateInfo}>
+                      <TrendingUp size={12} color="#64748b" />
+                      <Text style={styles.updateText}>
+                        {(() => {
+                          const dateStr = student.progress!.updated_at;
+                          const d = typeof dateStr === 'string' ? new Date(dateStr) : dateStr.toDate();
+                          if (isNaN(d.getTime())) return 'never';
+                          const today = new Date();
+                          today.setHours(0, 0, 0, 0);
+                          const yesterday = new Date(today);
+                          yesterday.setDate(yesterday.getDate() - 1);
+                          const progressDate = new Date(d);
+                          progressDate.setHours(0, 0, 0, 0);
+                          if (progressDate.getTime() === today.getTime()) return 'Updated today';
+                          if (progressDate.getTime() === yesterday.getTime()) return 'Updated yesterday';
+                          return `Updated ${d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+                        })()}
+                      </Text>
+                    </View>
+                  )}
                 </TouchableOpacity>
               </View>
             ))}

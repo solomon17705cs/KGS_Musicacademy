@@ -52,7 +52,12 @@ export interface Profile {
   email: string;
   full_name: string;
   role: UserRole;
+  phone?: string;
   fcm_token?: string;
+  notification_settings?: {
+    push_enabled: boolean;
+    email_enabled: boolean;
+  };
   created_at: string;
   updated_at: string;
 }
