@@ -162,6 +162,7 @@ export default function EditStudentScreen() {
     }
 
     async function handleUpdateStudent() {
+        // Parent Phone is now mandatory; Email is optional.
         if (!fullName || !instrument || !enrollmentDate || !parentPhone || parentPhone.trim() === '+91') {
             setError('Please fill in required fields (Name, Instrument, Date, Parent Phone)');
             return;
@@ -492,6 +493,7 @@ export default function EditStudentScreen() {
                                         placeholderTextColor="#94a3b8"
                                         value={parentPhone}
                                         onChangeText={(text) => {
+                                            // Maintain the +91 prefix during edits
                                             if (text.startsWith('+91 ')) {
                                                 setParentPhone(text);
                                             } else if (text.startsWith('+91')) {

@@ -94,8 +94,10 @@ export default function AddStudentScreen() {
     const [classDays, setClassDays] = useState<string[]>([]);
     const [classTiming, setClassTiming] = useState<string | null>(null);
 
+    // Parent & Contact Information
     const [parentName, setParentName] = useState('');
     const [parentEmail, setParentEmail] = useState('');
+    // Pre-populate mobile with +91 as requested for regional convenience
     const [parentPhone, setParentPhone] = useState('+91 ');
     const [parentAddress, setParentAddress] = useState('');
 
@@ -122,6 +124,8 @@ export default function AddStudentScreen() {
     };
 
     async function handleAddStudent() {
+        // Validation: Parent Phone is now MANDATORY, while Email is OPTIONAL.
+        // We also check if the phone was left as just '+91'
         if (!fullName || !instrument || !enrollmentDate || !parentPhone || parentPhone.trim() === '+91') {
             setError('Please fill in required fields (Name, Instrument, Date, Parent Phone)');
             return;
@@ -462,6 +466,7 @@ export default function AddStudentScreen() {
                                         placeholderTextColor="#94a3b8"
                                         value={parentPhone}
                                         onChangeText={(text) => {
+                                            // Ensure the input always maintains the +91 prefix
                                             if (text.startsWith('+91 ')) {
                                                 setParentPhone(text);
                                             } else if (text.startsWith('+91')) {
