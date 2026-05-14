@@ -132,7 +132,11 @@ export default function AttendanceScreen() {
   async function loadDetailData() {
     if (!selectedStudent) return;
     try {
-      const recs = await attendanceService.getWeekAttendance(detailStartStr, detailEndStr);
+      const recs = await attendanceService.getMonthAttendanceForStudent(
+        selectedStudent.id,
+        detailMonth.getFullYear(),
+        detailMonth.getMonth() + 1
+      );
       setDetailRecords(recs);
     } catch (err) {
       console.error('Failed to load detail data:', err);

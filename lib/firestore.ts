@@ -381,13 +381,26 @@ export const attendanceService = {
     );
     const snapshot = await getDocs(q);
     const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
-    
+
     const monthRecords = records.filter(r => r.date >= startDate && r.date <= endDate);
     const present = monthRecords.filter(r => r.status === 'present' || r.status === 'late').length;
     const totalClasses = Math.max(monthRecords.length, 1);
     const scheduledClasses = 8;
-    
+
     return `${present}/${scheduledClasses}`;
+  },
+
+  async getMonthAttendanceForStudent(studentId: string, year: number, month: number): Promise<AttendanceRecord[]> {
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endDate = `${year}-${String(month).padStart(2, '0')}-31`;
+
+    const q = query(
+      collection(db, ATTENDANCE_COLLECTION),
+      where('student_id', '==', studentId)
+    );
+    const snapshot = await getDocs(q);
+    const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
+    return records.filter(r => r.date >= startDate && r.date <= endDate);
   },
 };
 

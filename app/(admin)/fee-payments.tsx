@@ -10,6 +10,7 @@ import {
   TextInput,
   Platform,
   useWindowDimensions,
+  KeyboardAvoidingView,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -251,7 +252,9 @@ export default function FeePaymentsScreen() {
 
       {/* Edit Payment Modal */}
       <Modal visible={editModal} animationType="slide" transparent>
-        <View style={styles.modalContainer}>
+        <KeyboardAvoidingView
+          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+          style={styles.modalContainer}>
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View>
@@ -263,7 +266,7 @@ export default function FeePaymentsScreen() {
               </TouchableOpacity>
             </View>
 
-            <ScrollView style={styles.modalBody}>
+            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
               <View style={styles.inputGroup}>
                 <Text style={styles.label}>Status</Text>
                 <View style={styles.statusToggle}>
@@ -336,7 +339,7 @@ export default function FeePaymentsScreen() {
               </TouchableOpacity>
             </ScrollView>
           </View>
-        </View>
+        </KeyboardAvoidingView>
       </Modal>
 
       {Platform.OS === 'web' && (
