@@ -87,9 +87,15 @@ export const studentService = {
 
   async getStudentsByParentEmail(parentEmail: string): Promise<Student[]> {
     const normalizedEmail = parentEmail.toLowerCase().trim();
-    const q = query(collection(db, STUDENTS_COLLECTION), where('parent_email', '==', normalizedEmail));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+    const [fathers, mothers] = await Promise.all([
+      getDocs(query(collection(db, STUDENTS_COLLECTION), where('father_email', '==', normalizedEmail))),
+      getDocs(query(collection(db, STUDENTS_COLLECTION), where('mother_email', '==', normalizedEmail))),
+    ]);
+    const seen = new Map();
+    [...fathers.docs, ...mothers.docs].forEach(doc => {
+      seen.set(doc.id, { id: doc.id, ...doc.data() });
+    });
+    return Array.from(seen.values()) as Student[];
   },
 
   async getStudentsByParentPhone(parentPhone: string): Promise<Student[]> {
@@ -97,13 +103,15 @@ export const studentService = {
     const withCode = cleanPhone.startsWith('+') ? cleanPhone : '+91' + cleanPhone;
     const withoutCode = withCode.replace('+91', '');
 
-    const [snapWithCode, snapWithoutCode] = await Promise.all([
-      getDocs(query(collection(db, STUDENTS_COLLECTION), where('parent_phone', '==', withCode))),
-      getDocs(query(collection(db, STUDENTS_COLLECTION), where('parent_phone', '==', withoutCode))),
+    const [fathersWith, fathersWithout, mothersWith, mothersWithout] = await Promise.all([
+      getDocs(query(collection(db, STUDENTS_COLLECTION), where('father_phone', '==', withCode))),
+      getDocs(query(collection(db, STUDENTS_COLLECTION), where('father_phone', '==', withoutCode))),
+      getDocs(query(collection(db, STUDENTS_COLLECTION), where('mother_phone', '==', withCode))),
+      getDocs(query(collection(db, STUDENTS_COLLECTION), where('mother_phone', '==', withoutCode))),
     ]);
 
     const seen = new Map();
-    [...snapWithCode.docs, ...snapWithoutCode.docs].forEach(doc => {
+    [...fathersWith.docs, ...fathersWithout.docs, ...mothersWith.docs, ...mothersWithout.docs].forEach(doc => {
       seen.set(doc.id, { id: doc.id, ...doc.data() });
     });
 

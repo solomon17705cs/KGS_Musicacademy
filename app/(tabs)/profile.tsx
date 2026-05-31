@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -7,16 +7,43 @@ import {
   ScrollView,
   Image,
   useWindowDimensions,
+  Linking,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { studentService } from '@/lib/firestore';
 import { User, Mail, LogOut, ChevronRight, Bell, HelpCircle, Music, Award, Clock, TrendingUp } from 'lucide-react-native';
+import MusicalNotesLoading from '@/components/MusicalNotesLoading';
 
 export default function ProfileScreen() {
-  const { profile, signOut } = useAuth();
+  const { profile, user, signOut } = useAuth();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+  const [linkedStudents, setLinkedStudents] = useState<number | null>(null);
+
+  useEffect(() => {
+    if (!profile || !user) return;
+    checkLinkedStudents();
+  }, [profile?.id, user?.email, user?.phoneNumber]);
+
+  async function checkLinkedStudents() {
+    try {
+      let students: any[] = [];
+      if (user?.email) {
+        students = await studentService.getStudentsByParentEmail(user.email);
+      }
+      if (students.length === 0 && user?.phoneNumber) {
+        students = await studentService.getStudentsByParentPhone(user.phoneNumber);
+      }
+      if (students.length === 0 && profile?.phone) {
+        students = await studentService.getStudentsByParentPhone(profile.phone);
+      }
+      setLinkedStudents(students.length);
+    } catch {
+      setLinkedStudents(0);
+    }
+  }
 
   async function handleSignOut() {
     try {
@@ -34,11 +61,7 @@ export default function ProfileScreen() {
   const userFirstName = profile?.full_name?.split(' ')[0] || 'User';
 
   if (!profile) {
-    return (
-      <View style={styles.centerContainer}>
-        <Text>Loading...</Text>
-      </View>
-    );
+    return <MusicalNotesLoading text="Loading profile..." />;
   }
 
   return (
@@ -79,17 +102,31 @@ export default function ProfileScreen() {
             </View>
           </View>
 
-          <View style={styles.infoRow}>
-            <View style={[styles.infoIconContainer, { backgroundColor: '#f0fdf4' }]}>
-              <Award size={18} color="#16a34a" />
+          <TouchableOpacity
+            style={styles.infoRow}
+            activeOpacity={0.7}
+            disabled={linkedStudents === null || linkedStudents > 0}
+            onPress={() => Linking.openURL('https://share.google/NYSagURL03flH36By')}>
+            <View style={[styles.infoIconContainer, { backgroundColor: linkedStudents === null ? '#f1f5f9' : linkedStudents > 0 ? '#f0fdf4' : '#fef2f2' }]}>
+              <Award size={18} color={linkedStudents === null ? '#94a3b8' : linkedStudents > 0 ? '#16a34a' : '#ef4444'} />
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Status</Text>
-              <Text style={[styles.infoValue, { color: '#16a34a' }]}>Active</Text>
+              {linkedStudents === null ? (
+                <Text style={[styles.infoValue, { color: '#94a3b8' }]}>Checking...</Text>
+              ) : linkedStudents > 0 ? (
+                <Text style={[styles.infoValue, { color: '#16a34a' }]}>Active</Text>
+              ) : (
+                <>
+                  <Text style={[styles.infoValue, { color: '#ef4444' }]}>Account Pending Activation</Text>
+                  <Text style={styles.inactiveHint}>Your account is not linked to a student profile yet.</Text>
+                  <Text style={styles.inactiveHint}>Please visit KGS Music Academy with your registered mobile number/ mail id to complete activation.</Text>
+                </>
+              )}
             </View>
-          </View>
+          </TouchableOpacity>
 
-          {profile.role === 'student' && (
+          {profile.role === 'parent' && (
             <View style={styles.infoRow}>
               <View style={[styles.infoIconContainer, { backgroundColor: '#eff6ff' }]}>
                 <Music size={18} color="#1e40af" />
@@ -258,6 +295,13 @@ const styles = StyleSheet.create({
     fontWeight: '600',
     color: '#1e293b',
     marginTop: 2,
+  },
+  inactiveHint: {
+    fontSize: 11,
+    color: '#ef4444',
+    fontWeight: '500',
+    marginTop: 1,
+    lineHeight: 15,
   },
   menuSection: {
     marginBottom: 16,

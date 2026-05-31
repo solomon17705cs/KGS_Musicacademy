@@ -1,0 +1,74 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isAdmin() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
+    }
+    function isStaff() {
+      return request.auth != null &&
+        get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'staff';
+    }
+    function isStaffOrAdmin() { return isAdmin() || isStaff(); }
+    function isOwner(userId) { return request.auth != null && request.auth.uid == userId; }
+
+    function myEmail() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.email;
+    }
+
+    function myPhone() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.phone;
+    }
+
+    function isMyStudent(studentId) {
+      let student = get(/databases/$(database)/documents/students/$(studentId));
+      return student.data.father_phone == myPhone() ||
+             student.data.father_email == myEmail() ||
+             student.data.mother_phone == myPhone() ||
+             student.data.mother_email == myEmail();
+    }
+
+    match /profiles/{userId} {
+      allow read: if isOwner(userId) || isAdmin();
+      allow create: if isOwner(userId);
+      allow update: if isOwner(userId);
+      allow delete: if isAdmin();
+    }
+
+    match /students/{studentId} {
+      allow read: if isStaffOrAdmin() ||
+        resource.data.father_phone == myPhone() ||
+        resource.data.father_email == myEmail() ||
+        resource.data.mother_phone == myPhone() ||
+        resource.data.mother_email == myEmail();
+      allow write: if isStaffOrAdmin();
+      allow delete: if isAdmin();
+    }
+
+    match /progress_records/{recordId} {
+      allow read: if isStaffOrAdmin() || isMyStudent(resource.data.student_id);
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /attendance_records/{recordId} {
+      allow read: if isStaffOrAdmin() || isMyStudent(resource.data.student_id);
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /fee_payments/{paymentId} {
+      allow read: if isStaffOrAdmin() || isMyStudent(resource.data.student_id);
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /notifications/{notificationId} {
+      allow read: if isStaffOrAdmin() || resource.data.userId == request.auth.uid;
+      allow create: if isStaffOrAdmin();
+      allow update: if resource.data.userId == request.auth.uid;
+      allow delete: if isAdmin();
+    }
+
+    match /push_tokens/{tokenId} {
+      allow read, write: if request.auth != null;
+    }
+  }
+}

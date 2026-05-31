@@ -4,18 +4,19 @@ import {
   Text,
   StyleSheet,
   ScrollView,
-  ActivityIndicator,
   RefreshControl,
   Image,
   TouchableOpacity,
   Alert,
   BackHandler,
+  Linking,
 } from 'react-native';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { studentService, progressService, notificationService, attendanceService } from '@/lib/firestore';
-import { Student, ProgressRecord } from '@/types/database';
+import { Student, ProgressRecord, ProgressStatus } from '@/types/database';
 import { LinearGradient } from 'expo-linear-gradient';
+import MusicalNotesLoading from '@/components/MusicalNotesLoading';
 import {
   Music2,
   TrendingUp,
@@ -26,6 +27,7 @@ import {
   ChevronDown,
   ChevronLeft,
   Flame,
+  X,
 } from 'lucide-react-native';
 
 const INSTRUMENT_IMAGES: { [key: string]: any } = {
@@ -43,15 +45,14 @@ const INSTRUMENT_IMAGES: { [key: string]: any } = {
   'Theory': require('../../Images/Theory Of Music.jpeg'),
 };
 
-function getStudentImage(instrument: string, tab: string) {
-  if (tab === 'Theory') return INSTRUMENT_IMAGES['Theory'];
+function getStudentImage(instrument: string) {
   return INSTRUMENT_IMAGES[instrument] || INSTRUMENT_IMAGES['Piano'];
 }
 
 interface WeeklyData {
   weekLabel: string;
-  session1Score: number;
-  session2Score: number;
+  theoryScore: number;
+  practicalScore: number;
 }
 
 function parseDate(dateInput: any): Date {
@@ -77,6 +78,25 @@ function getWeekNumber(date: Date): number {
   return Math.ceil((days + startOfYear.getDay() + 1) / 7);
 }
 
+function getScoreColor(score: number): string {
+  if (score >= 90) return '#34c759';
+  if (score >= 75) return '#22c55e';
+  if (score >= 60) return '#84cc16';
+  if (score >= 40) return '#f59e0b';
+  if (score >= 20) return '#f97316';
+  return '#ef4444';
+}
+
+function statusToScore(status: ProgressStatus): number {
+  switch (status) {
+    case 'excellent': return 90;
+    case 'good': return 75;
+    case 'needs_improvement': return 50;
+    case 'struggling': return 30;
+    default: return 50;
+  }
+}
+
 function calculateWeeklyData(records: ProgressRecord[]): WeeklyData[] {
   if (records.length === 0) return [];
 
@@ -98,29 +118,23 @@ function calculateWeeklyData(records: ProgressRecord[]): WeeklyData[] {
       return d >= weekStart && d <= weekEnd;
     });
 
-    const calcScore = (rec: ProgressRecord) => {
-      const hw = rec.homework_completion || 0;
-      const pr = rec.practice_score || 0;
-      const ms = rec.mastery_level || 0;
-      return Math.round((hw + pr + ms) / 3);
-    };
-
-    let session1Score = 0;
-    let session2Score = 0;
+    let theoryScore = 0;
+    let practicalScore = 0;
 
     if (weekRecords.length >= 2) {
-      session1Score = calcScore(weekRecords[0]);
-      session2Score = calcScore(weekRecords[weekRecords.length - 1]);
+      theoryScore = statusToScore(weekRecords[0].theory_status);
+      practicalScore = statusToScore(weekRecords[weekRecords.length - 1].practical_status);
     } else if (weekRecords.length === 1) {
-      session1Score = calcScore(weekRecords[0]);
+      theoryScore = statusToScore(weekRecords[0].theory_status);
+      practicalScore = statusToScore(weekRecords[0].practical_status);
     }
 
     const month = weekStart.getMonth();
     const weekInMonth = Math.floor(weekStart.getDate() / 7) + 1;
     weeks.push({
       weekLabel: `W${weekInMonth}`,
-      session1Score,
-      session2Score,
+      theoryScore,
+      practicalScore,
     });
   }
 
@@ -134,15 +148,8 @@ function calculateGrowthPercentage(records: ProgressRecord[]): number {
     new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
   );
 
-  const calcAvg = (rec: ProgressRecord) => {
-    const hw = rec.homework_completion || 0;
-    const pr = rec.practice_score || 0;
-    const ms = rec.mastery_level || 0;
-    return (hw + pr + ms) / 3;
-  };
-
-  const firstAvg = calcAvg(sorted[0]);
-  const lastAvg = calcAvg(sorted[sorted.length - 1]);
+  const firstAvg = statusToScore(sorted[0].theory_status);
+  const lastAvg = statusToScore(sorted[sorted.length - 1].theory_status);
 
   if (firstAvg === 0) return 0;
 
@@ -178,17 +185,19 @@ function calculateRealStreak(records: ProgressRecord[]): number {
   return streak;
 }
 
+type StudentWithData = Student & { progress?: ProgressRecord; currentMonthAttendance?: string };
+
 export default function ProgressScreen() {
   const { profile, user, loading: authLoading } = useAuth();
   const router = useRouter();
-  const [students, setStudents] = useState<(Student & { progress?: ProgressRecord })[]>([]);
+  const [students, setStudents] = useState<StudentWithData[]>([]);
   const [studentsHistory, setStudentsHistory] = useState<Map<string, ProgressRecord[]>>(new Map());
-  const [activeTab, setActiveTab] = useState<'Practical' | 'Theory'>('Practical');
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [selectedStudent, setSelectedStudent] = useState<StudentWithData | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [showActivationBanner, setShowActivationBanner] = useState(true);
 
   useEffect(() => {
     if (!profile || !user) return;
@@ -296,11 +305,7 @@ export default function ProgressScreen() {
   }
 
   if (loading || authLoading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#1e40af" />
-      </View>
-    );
+    return <MusicalNotesLoading text="Loading progress..." />;
   }
 
   if (!profile || !user) {
@@ -346,7 +351,7 @@ export default function ProgressScreen() {
               </View>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.avatarContainer}>
+          <TouchableOpacity style={styles.avatarContainer} onPress={() => router.push('/(tabs)/profile')}>
             <Image
               source={{ uri: `https://ui-avatars.com/api/?name=${userFirstName}&background=1e40af&color=fff` }}
               style={styles.avatarImage}
@@ -354,6 +359,25 @@ export default function ProgressScreen() {
           </TouchableOpacity>
         </View>
       </View>
+
+      {students.length === 0 && !loading && !selectedStudent && showActivationBanner && (
+        <View style={styles.activationBanner}>
+          <TouchableOpacity
+            style={styles.activationBannerContent}
+            activeOpacity={0.7}
+            onPress={() => Linking.openURL('https://share.google/NYSagURL03flH36By')}>
+            <Text style={styles.activationBannerTitle}>Account Pending Activation</Text>
+            <Text style={styles.activationBannerText}>
+              Your account is not linked to a student profile yet.{'\n'}
+              Please visit KGS Music Academy with your registered{'\n'}
+              mobile number/ mail id to complete activation.
+            </Text>
+          </TouchableOpacity>
+          <TouchableOpacity onPress={() => setShowActivationBanner(false)} style={styles.activationBannerClose}>
+            <X size={18} color="#ef4444" />
+          </TouchableOpacity>
+        </View>
+      )}
 
       <ScrollView
         style={styles.content}
@@ -365,23 +389,9 @@ export default function ProgressScreen() {
 
         {selectedStudent ? (
           <View>
-            <View style={styles.tabContainer}>
-              {(['Practical', 'Theory'] as const).map((tab) => (
-                <TouchableOpacity
-                  key={tab}
-                  style={[styles.tabButton, activeTab === tab && styles.activeTabButton]}
-                  onPress={() => setActiveTab(tab)}>
-                  <Text style={[styles.tabButtonText, activeTab === tab && styles.activeTabButtonText]}>
-                    {tab}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-
             {studentsHistory.has(selectedStudent.id) ? (
               <RealChart
                 records={studentsHistory.get(selectedStudent.id) || []}
-                activeTab={activeTab}
               />
             ) : (
               <View style={styles.graphContainer}>
@@ -392,7 +402,7 @@ export default function ProgressScreen() {
                   style={styles.graphCard}>
                   <View style={styles.graphHeader}>
                     <View>
-                      <Text style={styles.graphTitle}>{activeTab} (Monthly)</Text>
+                      <Text style={styles.graphTitle}>Theory & Practical (Monthly)</Text>
                       <Text style={styles.graphSubtitle}>8 weeks progress - 2 sessions per week</Text>
                     </View>
                   </View>
@@ -418,8 +428,8 @@ export default function ProgressScreen() {
                   <View style={styles.summaryItem}>
                     <Text style={styles.summaryLabel}>Practice</Text>
                     <View style={styles.practiceRow}>
-                      <TrendingUp size={12} color="#22c55e" />
-                      <Text style={styles.summaryValue}> {selectedStudent.progress.practice_score || 85}</Text>
+                      <TrendingUp size={12} color={getScoreColor(selectedStudent.progress.practice_score || 85)} />
+                      <Text style={[styles.summaryValue, { color: getScoreColor(selectedStudent.progress.practice_score || 85) }]}> {selectedStudent.progress.practice_score || 85}</Text>
                     </View>
                   </View>
                 </View>
@@ -439,11 +449,15 @@ export default function ProgressScreen() {
 
                 <View style={styles.gradeDisplayArea}>
                   <View style={styles.gradeBox}>
-                    <Text style={styles.gradeBoxLabel}>Current Grade</Text>
+                    <Text style={styles.gradeBoxLabel}>Theory Grade</Text>
                     <Text style={styles.gradeBoxValue}>
-                      {activeTab === 'Theory'
-                        ? (selectedStudent.progress.theory_grade || 'Grade 1')
-                        : (selectedStudent.progress.practical_grade || 'Beginner')}
+                      {selectedStudent.progress.theory_grade || 'Grade 1'}
+                    </Text>
+                  </View>
+                  <View style={styles.gradeBox}>
+                    <Text style={styles.gradeBoxLabel}>Practical Grade</Text>
+                    <Text style={styles.gradeBoxValue}>
+                      {selectedStudent.progress.practical_grade || 'Beginner'}
                     </Text>
                   </View>
                 </View>
@@ -465,12 +479,14 @@ export default function ProgressScreen() {
                 {studentsHistory.has(selectedStudent.id) && (
                   <View style={styles.reportsSection}>
                     <Text style={styles.reportsSectionTitle}>Progress Reports</Text>
-                    {studentsHistory.get(selectedStudent.id)?.slice().reverse().slice(0, 5).map((record, idx) => (
+                    {[...(studentsHistory.get(selectedStudent.id) || [])]
+                      .sort((a, b) => parseDate(b.created_at).getTime() - parseDate(a.created_at).getTime())
+                      .slice(0, 5).map((record, idx) => (
                       <TouchableOpacity 
                         key={record.id} 
                         style={styles.reportBox}
                         activeOpacity={0.7}
-                        onPress={() => router.push({ pathname: `/full-report/${selectedStudent.id}`, params: { recordId: record.id } })}>
+                        onPress={() => router.push({ pathname: `/full-report/${selectedStudent.id}` as any, params: { recordId: record.id } })}>
                         <View style={styles.reportBoxHeader}>
                           <Text style={styles.reportBoxDate}>
                             {formatDate(record.created_at)}
@@ -483,10 +499,6 @@ export default function ProgressScreen() {
                         </View>
                         <View style={styles.reportBoxContent}>
                           <View style={styles.reportBoxRow}>
-                            <View style={styles.reportBoxItem}>
-                              <Text style={styles.reportBoxLabel}>Attendance</Text>
-                              <Text style={styles.reportBoxValue}>{record.attendance}</Text>
-                            </View>
                             <View style={styles.reportBoxItem}>
                               <Text style={styles.reportBoxLabel}>Homework</Text>
                               <Text style={styles.reportBoxValue}>{record.homework_completion}%</Text>
@@ -520,7 +532,7 @@ export default function ProgressScreen() {
                 <TouchableOpacity 
                   style={styles.viewReportButton} 
                   activeOpacity={0.8}
-                  onPress={() => router.push(`/full-report/${selectedStudent.id}`)}>
+                  onPress={() => router.push(`/full-report/${selectedStudent.id}` as any)}>
                   <Text style={styles.viewReportText}>See Full Report</Text>
                   <View style={styles.reportArrowCircle}>
                     <ChevronRight size={16} color="#fff" />
@@ -542,7 +554,7 @@ export default function ProgressScreen() {
               style={styles.graphCard}>
               <View style={styles.graphHeader}>
                 <View>
-                  <Text style={styles.graphTitle}>{activeTab} (Monthly)</Text>
+                  <Text style={styles.graphTitle}>Theory & Practical (Monthly)</Text>
                   <Text style={styles.graphSubtitle}>8 weeks progress - 2 sessions per week</Text>
                 </View>
               </View>
@@ -578,7 +590,7 @@ export default function ProgressScreen() {
                   activeOpacity={0.8}>
                   <View style={styles.cardImageContainer}>
                     <Image
-                      source={getStudentImage(student.instrument, activeTab)}
+                      source={getStudentImage(student.instrument)}
                       style={styles.cardBgImage}
                     />
                     <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.cardImageOverlay} />
@@ -587,19 +599,13 @@ export default function ProgressScreen() {
                         <Text style={styles.modernStudentName} numberOfLines={1}>{student.full_name}</Text>
                         <Text style={styles.modernInstrumentText}>{student.instrument}</Text>
                       </View>
-                      <View style={[
-                        styles.modernStatusBadge,
-                        {
-                          backgroundColor: student.progress
-                            ? getStatusColor(activeTab === 'Theory' ? student.progress.theory_status : student.progress.practical_status)
-                            : '#64748b'
-                        }
-                      ]}>
-                        <Text style={styles.statusBadgeText}>
-                          {student.progress
-                            ? getStatusLabel(activeTab === 'Theory' ? student.progress.theory_status : student.progress.practical_status)
-                            : 'No Data'}
-                        </Text>
+                      <View style={styles.cardStatusRow}>
+                        <View style={[styles.miniBadge, { backgroundColor: student.progress ? getStatusColor(student.progress.theory_status) : '#64748b' }]}>
+                          <Text style={styles.miniBadgeText}>T: {student.progress ? getStatusLabel(student.progress.theory_status) : 'N/A'}</Text>
+                        </View>
+                        <View style={[styles.miniBadge, { backgroundColor: student.progress ? getStatusColor(student.progress.practical_status) : '#64748b' }]}>
+                          <Text style={styles.miniBadgeText}>P: {student.progress ? getStatusLabel(student.progress.practical_status) : 'N/A'}</Text>
+                        </View>
                       </View>
                     </View>
                   </View>
@@ -619,8 +625,8 @@ export default function ProgressScreen() {
                           <View style={styles.summaryItem}>
                             <Text style={styles.summaryLabel}>Practice</Text>
                             <View style={styles.practiceRow}>
-                              <TrendingUp size={12} color="#22c55e" />
-                              <Text style={styles.summaryValue}> {student.progress.practice_score || 85}</Text>
+                              <TrendingUp size={12} color={getScoreColor(student.progress.practice_score || 85)} />
+                              <Text style={[styles.summaryValue, { color: getScoreColor(student.progress.practice_score || 85) }]}> {student.progress.practice_score || 85}</Text>
                             </View>
                           </View>
                         </View>
@@ -660,11 +666,15 @@ export default function ProgressScreen() {
 
                         <View style={styles.gradeDisplayArea}>
                           <View style={styles.gradeBox}>
-                            <Text style={styles.gradeBoxLabel}>Current Grade</Text>
+                            <Text style={styles.gradeBoxLabel}>Theory</Text>
                             <Text style={styles.gradeBoxValue}>
-                              {activeTab === 'Theory'
-                                ? (student.progress.theory_grade || 'Grade 1')
-                                : (student.progress.practical_grade || 'Beginner')}
+                              {student.progress.theory_grade || 'Grade 1'}
+                            </Text>
+                          </View>
+                          <View style={styles.gradeBox}>
+                            <Text style={styles.gradeBoxLabel}>Practical</Text>
+                            <Text style={styles.gradeBoxValue}>
+                              {student.progress.practical_grade || 'Beginner'}
                             </Text>
                           </View>
                           <View style={styles.streakBox}>
@@ -686,7 +696,7 @@ export default function ProgressScreen() {
                         <TouchableOpacity 
                           style={styles.viewReportButton} 
                           activeOpacity={0.8}
-                          onPress={() => router.push(`/full-report/${student.id}`)}>
+                          onPress={() => router.push(`/full-report/${student.id}` as any)}>
                           <Text style={styles.viewReportText}>See Full Report</Text>
                           <View style={styles.reportArrowCircle}>
                             <ChevronRight size={16} color="#fff" />
@@ -709,13 +719,13 @@ export default function ProgressScreen() {
   );
 }
 
-function RealChart({ records, activeTab }: { records: ProgressRecord[]; activeTab: string }) {
+function RealChart({ records }: { records: ProgressRecord[] }) {
   const weeklyData = calculateWeeklyData(records);
   const growth = calculateGrowthPercentage(records);
   const isPositive = growth >= 0;
 
   const maxScore = Math.max(
-    ...weeklyData.map(w => Math.max(w.session1Score, w.session2Score, 1))
+    ...weeklyData.map(w => Math.max(w.theoryScore, w.practicalScore, 1))
   );
   const barScale = 120 / maxScore;
 
@@ -728,8 +738,8 @@ function RealChart({ records, activeTab }: { records: ProgressRecord[]; activeTa
         style={styles.graphCard}>
         <View style={styles.graphHeader}>
           <View>
-            <Text style={styles.graphTitle}>{activeTab} (Monthly)</Text>
-            <Text style={styles.graphSubtitle}>Performance across 2 sessions per week</Text>
+            <Text style={styles.graphTitle}>Theory & Practical (Monthly)</Text>
+            <Text style={styles.graphSubtitle}>Theory vs Practical performance per week</Text>
           </View>
           <View style={[
             styles.growthBadge,
@@ -747,17 +757,27 @@ function RealChart({ records, activeTab }: { records: ProgressRecord[]; activeTa
             <View key={idx} style={styles.weekGroup}>
               <View style={styles.sessionPair}>
                 <View style={[styles.chartBar, {
-                  height: Math.max(week.session1Score * barScale, 4),
-                  backgroundColor: week.session1Score > 0 ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.15)',
+                  height: Math.max(week.theoryScore * barScale, 4),
+                  backgroundColor: week.theoryScore > 0 ? '#6366f1' : 'rgba(255,255,255,0.15)',
                 }]} />
                 <View style={[styles.chartBar, {
-                  height: Math.max(week.session2Score * barScale, 4),
-                  backgroundColor: week.session2Score > 0 ? '#fbbf24' : 'rgba(251,191,36,0.2)',
+                  height: Math.max(week.practicalScore * barScale, 4),
+                  backgroundColor: week.practicalScore > 0 ? '#f59e0b' : 'rgba(251,191,36,0.2)',
                 }]} />
               </View>
               <Text style={styles.chartDayText}>{week.weekLabel}</Text>
             </View>
           ))}
+        </View>
+        <View style={styles.chartLegend}>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: '#6366f1' }]} />
+            <Text style={styles.legendText}>Theory</Text>
+          </View>
+          <View style={styles.legendItem}>
+            <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
+            <Text style={styles.legendText}>Practical</Text>
+          </View>
         </View>
       </LinearGradient>
     </View>
@@ -771,6 +791,11 @@ const styles = StyleSheet.create({
   contentContainerSelected: { paddingBottom: 100 },
   greetingText: { fontSize: 28, fontWeight: '800', color: '#0f172a' },
   welcomeSubtitle: { fontSize: 16, color: '#64748b', marginTop: 2 },
+  activationBanner: { backgroundColor: '#fef2f2', borderRadius: 16, marginHorizontal: 24, marginBottom: 16, padding: 16, flexDirection: 'row', borderWidth: 1, borderColor: '#fecaca' },
+  activationBannerContent: { flex: 1, marginRight: 8 },
+  activationBannerTitle: { fontSize: 14, fontWeight: '700', color: '#ef4444', marginBottom: 4 },
+  activationBannerText: { fontSize: 12, color: '#dc2626', fontWeight: '500', lineHeight: 18 },
+  activationBannerClose: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
   avatarContainer: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden', borderWidth: 2, borderColor: '#f1f5f9' },
   avatarImage: { width: '100%', height: '100%' },
   headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
@@ -783,11 +808,6 @@ const styles = StyleSheet.create({
   searchText: { color: '#94a3b8', fontSize: 16, marginLeft: 12 },
   sectionHeaderRow: { marginBottom: 16 },
   sectionHeading: { fontSize: 22, fontWeight: '700', color: '#0f172a' },
-  tabContainer: { flexDirection: 'row', marginBottom: 24, backgroundColor: '#f8fafc', borderRadius: 16, padding: 6, gap: 8 },
-  tabButton: { flex: 1, paddingVertical: 12, alignItems: 'center', borderRadius: 12 },
-  activeTabButton: { backgroundColor: '#fff', shadowColor: '#000', shadowOffset: { width: 0, height: 2 }, shadowOpacity: 0.05, shadowRadius: 4, elevation: 2 },
-  tabButtonText: { fontSize: 16, fontWeight: '600', color: '#64748b' },
-  activeTabButtonText: { color: '#0f172a' },
   graphContainer: { marginBottom: 24 },
   graphCard: { borderRadius: 24, padding: 24, shadowColor: '#1e40af', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 8 },
   graphHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
@@ -814,8 +834,9 @@ const styles = StyleSheet.create({
   cardHeaderInfo: { flex: 1, marginRight: 10 },
   modernStudentName: { fontSize: 20, fontWeight: '800', color: '#fff' },
   modernInstrumentText: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2, fontWeight: '600' },
-  modernStatusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  statusBadgeText: { color: '#fff', fontSize: 10, fontWeight: '800', textTransform: 'uppercase' },
+  cardStatusRow: { flexDirection: 'row', gap: 6 },
+  miniBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+  miniBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
   cardBody: { padding: 20 },
   weeklySummaryCard: { flexDirection: 'row', backgroundColor: '#f8fafc', borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#f1f5f9' },
   summaryItem: { flex: 1, alignItems: 'center' },

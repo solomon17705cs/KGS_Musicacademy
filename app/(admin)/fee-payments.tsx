@@ -189,6 +189,7 @@ export default function FeePaymentsScreen() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#1e40af" />
+        <Text style={styles.loadingText}>Loading payments...</Text>
       </View>
     );
   }
@@ -377,6 +378,12 @@ const styles = StyleSheet.create({
     flex: 1,
     justifyContent: 'center',
     alignItems: 'center',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: '#64748b',
+    fontWeight: '500',
   },
   header: {
     backgroundColor: '#fff',

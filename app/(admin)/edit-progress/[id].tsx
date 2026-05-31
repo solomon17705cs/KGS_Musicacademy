@@ -289,6 +289,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#1e40af" />
+        <Text style={styles.loadingText}>Loading student progress...</Text>
       </View>
     );
   }
@@ -770,6 +771,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: '#64748b',
+    fontWeight: '500',
   },
   header: {
     backgroundColor: '#fff',

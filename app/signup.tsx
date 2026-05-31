@@ -18,7 +18,6 @@ export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
-  const [role, setRole] = useState<'student'>('student');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const { signUp } = useAuth();
@@ -38,7 +37,7 @@ export default function SignupScreen() {
     setLoading(true);
     setError('');
 
-    const { error } = await signUp(email, password, fullName, role);
+    const { error } = await signUp(email, password, fullName, 'parent');
 
     if (error) {
       setError(error.message || 'Failed to create account');
@@ -109,26 +108,6 @@ export default function SignupScreen() {
               secureTextEntry
               editable={!loading}
             />
-          </View>
-
-          <View style={styles.inputGroup}>
-            <Text style={styles.label}>I am a</Text>
-            <View style={styles.roleContainer}>
-              <TouchableOpacity
-                style={[
-                  styles.roleButton,
-                  styles.roleButtonActive,
-                ]}
-                disabled={loading}>
-                <Text
-                  style={[
-                    styles.roleButtonText,
-                    styles.roleButtonTextActive,
-                  ]}>
-                  Student
-                </Text>
-              </TouchableOpacity>
-            </View>
           </View>
 
           <TouchableOpacity
@@ -217,31 +196,6 @@ const styles = StyleSheet.create({
     padding: 14,
     fontSize: 16,
     color: '#1e293b',
-  },
-  roleContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  roleButton: {
-    flex: 1,
-    backgroundColor: '#fff',
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    padding: 14,
-    alignItems: 'center',
-  },
-  roleButtonActive: {
-    borderColor: '#1e40af',
-    backgroundColor: '#dbeafe',
-  },
-  roleButtonText: {
-    fontSize: 16,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  roleButtonTextActive: {
-    color: '#1e40af',
   },
   button: {
     backgroundColor: '#1e40af',

@@ -1,4 +1,4 @@
-export type UserRole = 'student' | 'admin' | 'staff';
+export type UserRole = 'parent' | 'student' | 'admin' | 'staff';
 export type Gender = 'male' | 'female';
 
 export type ProgressStatus =
@@ -72,9 +72,12 @@ export interface CompletedGrade {
 export interface Student {
   id: string;
   user_id: string | null;
-  parent_email: string | null;
-  parent_name: string | null;
-  parent_phone: string | null;
+  father_name: string | null;
+  father_phone: string | null;
+  father_email: string | null;
+  mother_name: string | null;
+  mother_phone: string | null;
+  mother_email: string | null;
   parent_address: string | null;
   full_name: string;
   gender: Gender | null;

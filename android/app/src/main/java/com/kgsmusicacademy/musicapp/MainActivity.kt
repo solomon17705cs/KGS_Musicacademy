@@ -1,4 +1,4 @@
-package com.anonymous.kgsmusicacademy
+package com.kgsmusicacademy.musicapp
 import expo.modules.splashscreen.SplashScreenManager
 
 import android.os.Build

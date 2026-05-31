@@ -5,3 +5,7 @@ node_modules
 
 expo-env.d.ts
 # @end expo-cli
+
+# Environment files (contain secrets)
+.env
+.env.production

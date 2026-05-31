@@ -1,4 +1,4 @@
-package com.anonymous.kgsmusicacademy
+package com.kgsmusicacademy.musicapp
 
 import android.app.Application
 import android.content.res.Configuration

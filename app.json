@@ -17,7 +17,7 @@
       "supportsTablet": true
     },
     "android": {
-      "package": "com.anonymous.kgsmusicacademy",
+      "package": "com.kgsmusicacademy.musicapp",
       "adaptiveIcon": {
         "foregroundImage": "./Images/logo_fixed.png",
         "backgroundColor": "#ffffff"

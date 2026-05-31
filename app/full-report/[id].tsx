@@ -6,9 +6,10 @@ import {
   ScrollView,
   TouchableOpacity,
   Image,
+  ActivityIndicator,
 } from 'react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
-import { studentService, progressService } from '@/lib/firestore';
+import { studentService, progressService, attendanceService } from '@/lib/firestore';
 import { Student, ProgressRecord } from '@/types/database';
 import { ArrowLeft, Flame, Calendar, Award } from 'lucide-react-native';
 
@@ -49,12 +50,29 @@ function getStatusLabel(status: string) {
   return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
 }
 
+function parseDate(dateInput: any): Date {
+  if (!dateInput) return new Date();
+  if (dateInput instanceof Date) return dateInput;
+  if (typeof dateInput === 'number') return new Date(dateInput);
+  if (dateInput.toDate) return dateInput.toDate();
+  const d = new Date(dateInput);
+  return isNaN(d.getTime()) ? new Date() : d;
+}
+
+function formatDate(dateInput: any): string {
+  return parseDate(dateInput).toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+  });
+}
+
 export default function FullReportScreen() {
   const { id, recordId } = useLocalSearchParams<{ id: string; recordId?: string }>();
   const router = useRouter();
   
   const [student, setStudent] = useState<Student | null>(null);
   const [progressRecords, setProgressRecords] = useState<ProgressRecord[]>([]);
+  const [currentMonthAttendance, setCurrentMonthAttendance] = useState<string>('');
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -65,9 +83,13 @@ export default function FullReportScreen() {
         const studentData = await studentService.getStudent(id as string);
         setStudent(studentData);
         
-        const records = await progressService.getProgressRecords(id as string);
-        const sorted = [...records].sort((a, b) => 
-          new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+        const [records, attendance] = await Promise.all([
+          progressService.getProgressRecords(id as string),
+          attendanceService.getCurrentMonthAttendance(id as string),
+        ]);
+        setCurrentMonthAttendance(attendance);
+        const sorted = [...records].sort((a, b) =>
+          parseDate(a.created_at).getTime() - parseDate(b.created_at).getTime()
         );
         
         if (recordId) {
@@ -89,15 +111,7 @@ export default function FullReportScreen() {
   if (loading) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
-          <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
-            <ArrowLeft size={24} color="#1e293b" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Full Report</Text>
-        </View>
-        <View style={styles.loadingContainer}>
-          <Text>Loading...</Text>
-        </View>
+        <ActivityIndicator size="large" color="#1e40af" />
       </View>
     );
   }
@@ -187,29 +201,31 @@ export default function FullReportScreen() {
               </View>
             </View>
 
-            <View style={styles.section}>
-              <Text style={styles.sectionTitle}>Weekly Progress</Text>
-              
-              <View style={styles.statsGrid}>
-                <View style={styles.statItem}>
-                  <Calendar size={18} color="#1e40af" />
-                  <Text style={styles.statLabel}>Attendance</Text>
-                  <Text style={styles.statValue}>{latestProgress.attendance || 'N/A'}</Text>
+              <View style={styles.section}>
+                <Text style={styles.sectionTitle}>Weekly Progress</Text>
+                
+                <View style={styles.gradeRow}>
+                  <View style={styles.statItem}>
+                    <Calendar size={18} color="#1e40af" />
+                    <Text style={styles.statLabel}>Attendance</Text>
+                    <Text style={styles.statValue}>{currentMonthAttendance || 'N/A'}</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>Homework</Text>
+                    <Text style={styles.statValue}>{latestProgress.homework_completion || 0}%</Text>
+                  </View>
                 </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>Homework</Text>
-                  <Text style={styles.statValue}>{latestProgress.homework_completion || 0}%</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>Practice Score</Text>
-                  <Text style={styles.statValue}>{latestProgress.practice_score || 0}%</Text>
-                </View>
-                <View style={styles.statItem}>
-                  <Text style={styles.statLabel}>Mastery</Text>
-                  <Text style={styles.statValue}>{latestProgress.mastery_level || 0}%</Text>
+                <View style={[styles.gradeRow, { marginTop: 12 }]}>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>Practice Score</Text>
+                    <Text style={styles.statValue}>{latestProgress.practice_score || 0}%</Text>
+                  </View>
+                  <View style={styles.statItem}>
+                    <Text style={styles.statLabel}>Mastery</Text>
+                    <Text style={styles.statValue}>{latestProgress.mastery_level || 0}%</Text>
+                  </View>
                 </View>
               </View>
-            </View>
 
             {latestProgress.weekly_goal && (
               <View style={styles.section}>
@@ -245,14 +261,11 @@ export default function FullReportScreen() {
         {progressRecords.length > 1 && (
           <View style={styles.section}>
             <Text style={styles.sectionTitle}>Recent Sessions</Text>
-            {progressRecords.slice(0, 5).map((record) => (
+            {progressRecords.slice(-5).reverse().map((record) => (
               <View key={record.id} style={styles.historyItem}>
                 <View style={styles.historyDate}>
                   <Text style={styles.historyDateText}>
-                    {new Date(record.created_at).toLocaleDateString('en-IN', {
-                      day: '2-digit',
-                      month: 'short',
-                    })}
+                    {formatDate(record.created_at)}
                   </Text>
                 </View>
                 <View style={styles.historyDetails}>
@@ -260,7 +273,7 @@ export default function FullReportScreen() {
                     T: {record.theory_grade || '-'} | P: {record.practical_grade || '-'}
                   </Text>
                   <Text style={styles.historyStatus}>
-                    {record.attendance} | HW: {record.homework_completion}%
+                    HW: {record.homework_completion}%
                   </Text>
                 </View>
               </View>
@@ -439,13 +452,8 @@ const styles = StyleSheet.create({
     fontSize: 13,
     fontWeight: '600',
   },
-  statsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-  },
   statItem: {
-    width: '47%',
+    flex: 1,
     backgroundColor: '#f8fafc',
     borderRadius: 10,
     padding: 12,

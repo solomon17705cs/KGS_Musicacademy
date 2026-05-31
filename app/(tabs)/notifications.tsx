@@ -5,15 +5,15 @@ import {
   StyleSheet,
   ScrollView,
   TouchableOpacity,
-  ActivityIndicator,
   RefreshControl,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationService, studentService } from '@/lib/firestore';
 import { Notification } from '@/types/database';
-import { ArrowLeft, Bell, Mail, Clock } from 'lucide-react-native';
+import { ArrowLeft, Bell, BellOff, Mail, Clock } from 'lucide-react-native';
 import { updateBadgeCount } from '@/lib/notifications';
+import MusicalNotesLoading from '@/components/MusicalNotesLoading';
 
 function parseDate(dateInput: any): Date {
   if (!dateInput) return new Date();
@@ -91,11 +91,7 @@ export default function NotificationsScreen() {
   }
 
   if (loading) {
-    return (
-      <View style={styles.centerContainer}>
-        <ActivityIndicator size="large" color="#1e40af" />
-      </View>
-    );
+    return <MusicalNotesLoading text="Loading notifications..." />;
   }
 
   return (
@@ -177,11 +173,6 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     backgroundColor: '#f8fafc',
-  },
-  centerContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
   },
   header: {
     backgroundColor: '#fff',

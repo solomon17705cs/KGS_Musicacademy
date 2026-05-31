@@ -59,7 +59,7 @@ export default function LoginScreen() {
 
     try {
       let digits = phone.trim().replace(/\D/g, '');
-      
+
       if (digits.length === 0) {
         setError('Please enter a valid phone number');
         setLoading(false);
@@ -83,7 +83,7 @@ export default function LoginScreen() {
       const formattedPhone = '+91' + digits;
       console.log('Sending OTP to:', formattedPhone);
 
-      const sessionInfo = await sendOTPviaSMS(formattedPhone);
+      const sessionInfo = await sendOTPviaSMS(formattedPhone, auth);
       setVerificationId(sessionInfo);
       console.log('OTP sent, sessionInfo:', sessionInfo);
     } catch (err: any) {
@@ -338,6 +338,8 @@ export default function LoginScreen() {
             <Text style={styles.footerLink}>Sign Up</Text>
           </TouchableOpacity>
         </View>
+
+        {Platform.OS === 'web' && <View id="recaptcha-container" />}
       </ScrollView>
     </KeyboardAvoidingView>
   );

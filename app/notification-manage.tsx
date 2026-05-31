@@ -12,14 +12,13 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { profileService } from '@/lib/firestore';
-import { ArrowLeft, Bell, BellOff, MessageSquare, Info } from 'lucide-react-native';
+import { ArrowLeft, Bell, Info } from 'lucide-react-native';
 
 export default function NotificationManageScreen() {
   const router = useRouter();
   const { profile, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(profile?.notification_settings?.push_enabled ?? true);
-  const [emailEnabled, setEmailEnabled] = useState(profile?.notification_settings?.email_enabled ?? true);
 
   async function togglePush(value: boolean) {
     if (!user) return;
@@ -27,30 +26,13 @@ export default function NotificationManageScreen() {
     try {
       await profileService.updateProfile(user.uid, {
         notification_settings: {
-          ...profile?.notification_settings,
           push_enabled: value,
+          email_enabled: false,
         },
       });
     } catch (err) {
       console.error('Failed to update push settings:', err);
       setPushEnabled(!value); // Rollback
-      Alert.alert('Error', 'Failed to update notification settings');
-    }
-  }
-
-  async function toggleEmail(value: boolean) {
-    if (!user) return;
-    setEmailEnabled(value);
-    try {
-      await profileService.updateProfile(user.uid, {
-        notification_settings: {
-          ...profile?.notification_settings,
-          email_enabled: value,
-        },
-      });
-    } catch (err) {
-      console.error('Failed to update email settings:', err);
-      setEmailEnabled(!value); // Rollback
       Alert.alert('Error', 'Failed to update notification settings');
     }
   }
@@ -85,24 +67,6 @@ export default function NotificationManageScreen() {
               onValueChange={togglePush}
               trackColor={{ false: '#cbd5e1', true: '#93c5fd' }}
               thumbColor={pushEnabled ? '#1e40af' : '#f8fafc'}
-            />
-          </View>
-
-          <View style={styles.settingItem}>
-            <View style={styles.settingInfo}>
-              <View style={[styles.iconBox, { backgroundColor: '#f0fdf4' }]}>
-                <MessageSquare size={20} color="#16a34a" />
-              </View>
-              <View>
-                <Text style={styles.settingLabel}>Email Notifications</Text>
-                <Text style={styles.settingDescription}>Receive updates via email</Text>
-              </View>
-            </View>
-            <Switch
-              value={emailEnabled}
-              onValueChange={toggleEmail}
-              trackColor={{ false: '#cbd5e1', true: '#86efac' }}
-              thumbColor={emailEnabled ? '#16a34a' : '#f8fafc'}
             />
           </View>
         </View>

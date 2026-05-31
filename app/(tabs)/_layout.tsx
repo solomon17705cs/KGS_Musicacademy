@@ -1,5 +1,6 @@
 import { Tabs } from 'expo-router';
-import { User, Music2, Bell } from 'lucide-react-native';
+import { User, Bell } from 'lucide-react-native';
+import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, useWindowDimensions, View, Text, StyleSheet } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
@@ -97,7 +98,7 @@ export default function TabLayout() {
         options={{
           title: 'Progress',
           tabBarIcon: ({ size, color }) => (
-            <Music2 size={size} color={color} />
+            <MaterialCommunityIcons name="music-clef-treble" size={size * 1.3} color={color} />
           ),
         }}
       />

@@ -16,7 +16,7 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter, useRootNavigationState } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService } from '@/lib/firestore';
-import { ArrowLeft, UserPlus, Calendar, Music, Mail, Phone, MapPin, Clock } from 'lucide-react-native';
+import { ArrowLeft, UserPlus, Calendar, Music, Phone, MapPin, Clock } from 'lucide-react-native';
 
 const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const BATCH_OPTIONS = ['Batch 1', 'Batch 2', 'Batch 3'];
@@ -95,10 +95,12 @@ export default function AddStudentScreen() {
     const [classTiming, setClassTiming] = useState<string | null>(null);
 
     // Parent & Contact Information
-    const [parentName, setParentName] = useState('');
-    const [parentEmail, setParentEmail] = useState('');
-    // Pre-populate mobile with +91 as requested for regional convenience
-    const [parentPhone, setParentPhone] = useState('+91 ');
+    const [fatherName, setFatherName] = useState('');
+    const [fatherPhone, setFatherPhone] = useState('');
+    const [fatherEmail, setFatherEmail] = useState('');
+    const [motherName, setMotherName] = useState('');
+    const [motherPhone, setMotherPhone] = useState('');
+    const [motherEmail, setMotherEmail] = useState('');
     const [parentAddress, setParentAddress] = useState('');
 
     const [loading, setLoading] = useState(false);
@@ -124,10 +126,15 @@ export default function AddStudentScreen() {
     };
 
     async function handleAddStudent() {
-        // Validation: Parent Phone is now MANDATORY, while Email is OPTIONAL.
-        // We also check if the phone was left as just '+91'
-        if (!fullName || !instrument || !enrollmentDate || !parentPhone || parentPhone.trim() === '+91') {
-            setError('Please fill in required fields (Name, Instrument, Date, Parent Phone)');
+        if (!fullName || !instrument || !enrollmentDate) {
+            setError('Please fill in required fields (Name, Instrument, Date)');
+            return;
+        }
+
+        const hasFatherInfo = fatherName.trim() || fatherPhone.trim() || fatherEmail.trim();
+        const hasMotherInfo = motherName.trim() || motherPhone.trim() || motherEmail.trim();
+        if (!hasFatherInfo && !hasMotherInfo) {
+            setError('Please provide at least one parent\'s information');
             return;
         }
 
@@ -148,9 +155,12 @@ export default function AddStudentScreen() {
         try {
             await studentService.createStudent({
                 user_id: null,
-                parent_email: parentEmail.toLowerCase().trim(),
-                parent_name: parentName.trim() || null,
-                parent_phone: parentPhone.trim() || null,
+                father_name: fatherName.trim() || null,
+                father_phone: fatherPhone.trim() || null,
+                father_email: fatherEmail.toLowerCase().trim() || null,
+                mother_name: motherName.trim() || null,
+                mother_phone: motherPhone.trim() || null,
+                mother_email: motherEmail.toLowerCase().trim() || null,
                 parent_address: parentAddress.trim() || null,
                 full_name: fullName,
                 gender: gender || null,
@@ -177,6 +187,7 @@ export default function AddStudentScreen() {
         return (
             <View style={styles.loadingContainer}>
                 <ActivityIndicator size="large" color="#1e40af" />
+                <Text style={styles.loadingText}>Loading...</Text>
             </View>
         );
     }
@@ -202,7 +213,7 @@ export default function AddStudentScreen() {
 
                     <View style={styles.infoBox}>
                         <Text style={styles.infoBoxText}>
-                            Parent login credentials will be shared with this email. All children linked to this email will appear under one account.
+                            Provide at least one parent's information. Parents can log in with their email to view their child's progress.
                         </Text>
                     </View>
 
@@ -428,74 +439,114 @@ export default function AddStudentScreen() {
                         <View style={styles.column}>
                             <View style={styles.card}>
                                 <View style={styles.cardHeader}>
-                                    <Mail size={20} color="#1e40af" />
-                                    <Text style={styles.cardTitle}>Parent Details</Text>
+                                    <UserPlus size={20} color="#1e40af" />
+                                    <Text style={styles.cardTitle}>Father's Details</Text>
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Parent Email</Text>
+                                    <Text style={styles.label}>Father Name</Text>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="parent@email.com"
+                                        placeholder="Father's Name"
                                         placeholderTextColor="#94a3b8"
-                                        value={parentEmail}
-                                        onChangeText={setParentEmail}
-                                        keyboardType="email-address"
-                                        autoCapitalize="none"
+                                        value={fatherName}
+                                        onChangeText={setFatherName}
                                         editable={!loading}
                                     />
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Parent Name</Text>
+                                    <Text style={styles.label}>Father Phone</Text>
                                     <TextInput
                                         style={styles.input}
-                                        placeholder="Parent's Name"
+                                        placeholder="Phone"
                                         placeholderTextColor="#94a3b8"
-                                        value={parentName}
-                                        onChangeText={setParentName}
-                                        editable={!loading}
-                                    />
-                                </View>
-
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Parent Phone *</Text>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="Mobile"
-                                        placeholderTextColor="#94a3b8"
-                                        value={parentPhone}
-                                        onChangeText={(text) => {
-                                            // Ensure the input always maintains the +91 prefix
-                                            if (text.startsWith('+91 ')) {
-                                                setParentPhone(text);
-                                            } else if (text.startsWith('+91')) {
-                                                setParentPhone('+91 ' + text.slice(3));
-                                            } else {
-                                                setParentPhone('+91 ' + text);
-                                            }
-                                        }}
+                                        value={fatherPhone}
+                                        onChangeText={setFatherPhone}
                                         keyboardType="phone-pad"
                                         editable={!loading}
                                     />
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Parent Address</Text>
-                                    <View style={styles.addressContainer}>
-                                        <MapPin size={16} color="#64748b" style={styles.addressIcon} />
-                                        <TextInput
-                                            style={[styles.input, styles.addressInput]}
-                                            placeholder="Enter full address"
-                                            placeholderTextColor="#94a3b8"
-                                            value={parentAddress}
-                                            onChangeText={setParentAddress}
-                                            multiline
-                                            numberOfLines={3}
-                                            textAlignVertical="top"
-                                            editable={!loading}
-                                        />
-                                    </View>
+                                    <Text style={styles.label}>Father Email</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="father@email.com"
+                                        placeholderTextColor="#94a3b8"
+                                        value={fatherEmail}
+                                        onChangeText={setFatherEmail}
+                                        keyboardType="email-address"
+                                        autoCapitalize="none"
+                                        editable={!loading}
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={styles.card}>
+                                <View style={styles.cardHeader}>
+                                    <UserPlus size={20} color="#1e40af" />
+                                    <Text style={styles.cardTitle}>Mother's Details</Text>
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Mother Name</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Mother's Name"
+                                        placeholderTextColor="#94a3b8"
+                                        value={motherName}
+                                        onChangeText={setMotherName}
+                                        editable={!loading}
+                                    />
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Mother Phone</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="Phone"
+                                        placeholderTextColor="#94a3b8"
+                                        value={motherPhone}
+                                        onChangeText={setMotherPhone}
+                                        keyboardType="phone-pad"
+                                        editable={!loading}
+                                    />
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Mother Email</Text>
+                                    <TextInput
+                                        style={styles.input}
+                                        placeholder="mother@email.com"
+                                        placeholderTextColor="#94a3b8"
+                                        value={motherEmail}
+                                        onChangeText={setMotherEmail}
+                                        keyboardType="email-address"
+                                        autoCapitalize="none"
+                                        editable={!loading}
+                                    />
+                                </View>
+                            </View>
+
+                            <View style={styles.card}>
+                                <View style={styles.cardHeader}>
+                                    <MapPin size={20} color="#1e40af" />
+                                    <Text style={styles.cardTitle}>Address</Text>
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <TextInput
+                                        style={[styles.input, styles.addressInput]}
+                                        placeholder="Enter full address"
+                                        placeholderTextColor="#94a3b8"
+                                        value={parentAddress}
+                                        onChangeText={setParentAddress}
+                                        multiline
+                                        numberOfLines={3}
+                                        textAlignVertical="top"
+                                        editable={!loading}
+                                    />
                                 </View>
                             </View>
                         </View>
@@ -527,6 +578,12 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
+    },
+    loadingText: {
+        marginTop: 16,
+        fontSize: 15,
+        color: '#64748b',
+        fontWeight: '500',
     },
     header: {
         flexDirection: 'row',

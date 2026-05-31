@@ -110,6 +110,7 @@ export default function AdminDashboard() {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#1e40af" />
+        <Text style={styles.loadingText}>Loading dashboard...</Text>
       </View>
     );
   }
@@ -358,6 +359,12 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
+  },
+  loadingText: {
+    marginTop: 16,
+    fontSize: 15,
+    color: '#64748b',
+    fontWeight: '500',
   },
   header: {
     backgroundColor: '#fff',

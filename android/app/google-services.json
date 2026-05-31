@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "349156521983",
+    "project_id": "kgs-music-academy",
+    "storage_bucket": "kgs-music-academy.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:349156521983:android:e1077313f5a23f1bc519ca",
+        "android_client_info": {
+          "package_name": "com.kgsmusicacademy.musicapp"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyA5dUByltfHRlDzXvJMnE-G3UNKphls2hc"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
