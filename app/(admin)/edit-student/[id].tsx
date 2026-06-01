@@ -11,6 +11,7 @@ import {
     Platform,
     Alert,
     Modal,
+    useWindowDimensions,
 } from 'react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter, useLocalSearchParams, useRootNavigationState } from 'expo-router';
@@ -108,6 +109,9 @@ export default function EditStudentScreen() {
     const [motherPhone, setMotherPhone] = useState('');
     const [motherEmail, setMotherEmail] = useState('');
     const [parentAddress, setParentAddress] = useState('');
+
+    const { width } = useWindowDimensions();
+    const isMobile = width < 768;
 
     const toggleDay = (day: string) => {
         if (classDays.includes(day)) {
@@ -249,8 +253,9 @@ export default function EditStudentScreen() {
                         </View>
                     ) : null}
 
-                    <View style={styles.row}>
-                        <View style={styles.column}>
+                    {isMobile ? (
+
+                        <>
                             <View style={styles.card}>
                                 <View style={styles.cardHeader}>
                                     <UserPlus size={20} color="#1e40af" />
@@ -298,7 +303,7 @@ export default function EditStudentScreen() {
                                     />
                                 </View>
 
-                                <View style={styles.row}>
+                                <View style={[styles.row, isMobile && styles.rowMobile]}>
                                     <View style={[styles.inputGroup, { flex: 1 }]}>
                                         <Text style={styles.label}>Joining Date *</Text>
                                         <View style={styles.dateInputRow}>
@@ -320,7 +325,7 @@ export default function EditStudentScreen() {
                                             </TouchableOpacity>
                                         </View>
                                     </View>
-                                    <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                                    <View style={[styles.inputGroup, { flex: 1, marginLeft: isMobile ? 0 : 8 }]}>
                                         <Text style={styles.label}>Date of Birth</Text>
                                         <View style={styles.dateInputRow}>
                                             <TextInput
@@ -466,9 +471,7 @@ export default function EditStudentScreen() {
                                     </View>
                                 </View>
                             </View>
-                        </View>
 
-                        <View style={styles.column}>
                             <View style={styles.card}>
                                 <View style={styles.cardHeader}>
                                     <UserPlus size={20} color="#1e40af" />
@@ -581,8 +584,346 @@ export default function EditStudentScreen() {
                                     />
                                 </View>
                             </View>
+                        </>
+
+                    ) : (
+
+                        <View style={styles.row}>
+                            <View style={styles.column}>
+                                <View style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <UserPlus size={20} color="#1e40af" />
+                                        <Text style={styles.cardTitle}>Student Details</Text>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Full Name *</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Student Name"
+                                            placeholderTextColor="#94a3b8"
+                                            value={fullName}
+                                            onChangeText={setFullName}
+                                            editable={!saving}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Gender</Text>
+                                        <View style={styles.genderRow}>
+                                            {(['male', 'female'] as const).map(g => (
+                                                <TouchableOpacity
+                                                    key={g}
+                                                    style={[styles.genderBtn, gender === g && styles.genderBtnActive]}
+                                                    onPress={() => setGender(g)}
+                                                    disabled={saving}>
+                                                    <Text style={[styles.genderBtnText, gender === g && styles.genderBtnTextActive]}>
+                                                        {g.charAt(0).toUpperCase() + g.slice(1)}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Instrument *</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="e.g. Piano, Violin"
+                                            placeholderTextColor="#94a3b8"
+                                            value={instrument}
+                                            onChangeText={setInstrument}
+                                            editable={!saving}
+                                        />
+                                    </View>
+
+                                    <View style={[styles.row, isMobile && styles.rowMobile]}>
+                                        <View style={[styles.inputGroup, { flex: 1 }]}>
+                                            <Text style={styles.label}>Joining Date *</Text>
+                                            <View style={styles.dateInputRow}>
+                                                <TextInput
+                                                    style={[styles.input, styles.dateInput]}
+                                                    placeholder="DD-MM-YYYY"
+                                                    placeholderTextColor="#94a3b8"
+                                                    value={enrollmentDate}
+                                                    onChangeText={(text) => setEnrollmentDate(formatDDMMYYYY(text))}
+                                                    keyboardType="numeric"
+                                                    maxLength={10}
+                                                    editable={!saving}
+                                                />
+                                                <TouchableOpacity
+                                                    style={styles.calendarButton}
+                                                    onPress={() => openWebPicker('enrollment')}
+                                                    disabled={saving}>
+                                                    <Calendar size={18} color="#1e40af" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                        <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                                            <Text style={styles.label}>Date of Birth</Text>
+                                            <View style={styles.dateInputRow}>
+                                                <TextInput
+                                                    style={[styles.input, styles.dateInput]}
+                                                    placeholder="DD-MM-YYYY"
+                                                    placeholderTextColor="#94a3b8"
+                                                    value={dob}
+                                                    onChangeText={(text) => setDob(formatDDMMYYYY(text))}
+                                                    keyboardType="numeric"
+                                                    maxLength={10}
+                                                    editable={!saving}
+                                                />
+                                                <TouchableOpacity
+                                                    style={styles.calendarButton}
+                                                    onPress={() => openWebPicker('dob')}
+                                                    disabled={saving}>
+                                                    <Calendar size={18} color="#1e40af" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    </View>
+
+                                    {Platform.OS === 'web' && (
+                                        <input
+                                            ref={webEnrollmentRef as any}
+                                            type="date"
+                                            style={{ position: 'absolute', top: '20px', left: '30%', opacity: 0, width: '200px', height: '30px', zIndex: -1 }}
+                                            onChange={(e) => handleWebDateChange('enrollment', e.target.value)}
+                                        />
+                                    )}
+
+                                    {Platform.OS === 'web' && (
+                                        <input
+                                            ref={webDobRef as any}
+                                            type="date"
+                                            style={{ position: 'absolute', top: '20px', left: '70%', opacity: 0, width: '200px', height: '30px', zIndex: -1 }}
+                                            onChange={(e) => handleWebDateChange('dob', e.target.value)}
+                                        />
+                                    )}
+
+                                    {Platform.OS !== 'web' && showEnrollmentPicker && (
+                                        <Modal visible={showEnrollmentPicker} transparent animationType="fade">
+                                            <View style={styles.modalOverlay}>
+                                                <View style={styles.modalContent}>
+                                                    <Text style={styles.modalTitle}>Select Joining Date</Text>
+                                                    <DateTimePicker
+                                                        value={parseDDMMYYYY(enrollmentDate) || new Date()}
+                                                        mode="date"
+                                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                        onChange={(_, selectedDate) => {
+                                                            if (selectedDate) {
+                                                                setEnrollmentDate(toDDMMYYYY(selectedDate));
+                                                            }
+                                                        }}
+                                                    />
+                                                    <TouchableOpacity style={styles.modalButton} onPress={() => setShowEnrollmentPicker(false)}>
+                                                        <Text style={styles.modalButtonText}>Done</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        </Modal>
+                                    )}
+
+                                    {Platform.OS !== 'web' && showDobPicker && (
+                                        <Modal visible={showDobPicker} transparent animationType="fade">
+                                            <View style={styles.modalOverlay}>
+                                                <View style={styles.modalContent}>
+                                                    <Text style={styles.modalTitle}>Select Date of Birth</Text>
+                                                    <DateTimePicker
+                                                        value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
+                                                        mode="date"
+                                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
+                                                        onChange={(_, selectedDate) => {
+                                                            if (selectedDate) {
+                                                                setDob(toDDMMYYYY(selectedDate));
+                                                            }
+                                                        }}
+                                                    />
+                                                    <TouchableOpacity style={styles.modalButton} onPress={() => setShowDobPicker(false)}>
+                                                        <Text style={styles.modalButtonText}>Done</Text>
+                                                    </TouchableOpacity>
+                                                </View>
+                                            </View>
+                                        </Modal>
+                                    )}
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Initial Grade</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="e.g. Grade 1"
+                                            placeholderTextColor="#94a3b8"
+                                            value={initialGrade}
+                                            onChangeText={setInitialGrade}
+                                            editable={!saving}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Class Days (max 3)</Text>
+                                        <View style={styles.daySelector}>
+                                            {DAYS_OF_WEEK.map(day => (
+                                                <TouchableOpacity
+                                                    key={day}
+                                                    style={[
+                                                        styles.dayButton,
+                                                        classDays.includes(day) && styles.dayButtonActive,
+                                                    ]}
+                                                    onPress={() => toggleDay(day)}
+                                                    disabled={saving && !classDays.includes(day)}>
+                                                    <Text style={[
+                                                        styles.dayButtonText,
+                                                        classDays.includes(day) && styles.dayButtonTextActive,
+                                                    ]}>
+                                                        {day}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Class Timing</Text>
+                                        <View style={styles.timingSelector}>
+                                            {BATCH_OPTIONS.map(batch => (
+                                                <TouchableOpacity
+                                                    key={batch}
+                                                    style={[
+                                                        styles.timingButton,
+                                                        classTiming === batch && styles.timingButtonActive,
+                                                    ]}
+                                                    onPress={() => setClassTiming(batch)}
+                                                    disabled={saving}>
+                                                    <Clock size={14} color={classTiming === batch ? '#fff' : '#64748b'} />
+                                                    <Text style={[
+                                                        styles.timingButtonText,
+                                                        classTiming === batch && styles.timingButtonTextActive,
+                                                    ]}>
+                                                        {batch}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </View>
+                                </View>
+                            </View>
+
+                            <View style={styles.column}>
+                                <View style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <UserPlus size={20} color="#1e40af" />
+                                        <Text style={styles.cardTitle}>Father's Details</Text>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Father Name</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Father's Name"
+                                            placeholderTextColor="#94a3b8"
+                                            value={fatherName}
+                                            onChangeText={setFatherName}
+                                            editable={!saving}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Father Phone</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Phone"
+                                            placeholderTextColor="#94a3b8"
+                                            value={fatherPhone}
+                                            onChangeText={setFatherPhone}
+                                            keyboardType="phone-pad"
+                                            editable={!saving}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Father Email</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="father@email.com"
+                                            placeholderTextColor="#94a3b8"
+                                            value={fatherEmail}
+                                            onChangeText={setFatherEmail}
+                                            keyboardType="email-address"
+                                            autoCapitalize="none"
+                                            editable={!saving}
+                                        />
+                                    </View>
+                                </View>
+
+                                <View style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <UserPlus size={20} color="#1e40af" />
+                                        <Text style={styles.cardTitle}>Mother's Details</Text>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Mother Name</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Mother's Name"
+                                            placeholderTextColor="#94a3b8"
+                                            value={motherName}
+                                            onChangeText={setMotherName}
+                                            editable={!saving}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Mother Phone</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Phone"
+                                            placeholderTextColor="#94a3b8"
+                                            value={motherPhone}
+                                            onChangeText={setMotherPhone}
+                                            keyboardType="phone-pad"
+                                            editable={!saving}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Mother Email</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="mother@email.com"
+                                            placeholderTextColor="#94a3b8"
+                                            value={motherEmail}
+                                            onChangeText={setMotherEmail}
+                                            keyboardType="email-address"
+                                            autoCapitalize="none"
+                                            editable={!saving}
+                                        />
+                                    </View>
+                                </View>
+
+                                <View style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <MapPin size={20} color="#1e40af" />
+                                        <Text style={styles.cardTitle}>Address</Text>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <TextInput
+                                            style={[styles.input, styles.addressInput]}
+                                            placeholder="Enter full address"
+                                            placeholderTextColor="#94a3b8"
+                                            value={parentAddress}
+                                            onChangeText={setParentAddress}
+                                            multiline
+                                            numberOfLines={3}
+                                            textAlignVertical="top"
+                                            editable={!saving}
+                                        />
+                                    </View>
+                                </View>
+                            </View>
                         </View>
-                    </View>
+
+                    )}
 
                     <TouchableOpacity
                         style={[styles.submitButton, saving && styles.buttonDisabled]}
@@ -651,6 +992,10 @@ const styles = StyleSheet.create({
     },
     row: {
         flexDirection: 'row',
+        gap: 16,
+    },
+    rowMobile: {
+        flexDirection: 'column',
         gap: 16,
     },
     column: {
