@@ -234,13 +234,15 @@ export default function FullReportScreen() {
                   <Text style={styles.goalText}>{latestProgress.weekly_goal}</Text>
                   <View style={[
                     styles.goalStatus,
-                    { backgroundColor: latestProgress.goal_status === 'achieved' ? '#dcfce7' : '#fef3c7' }
+                    {
+                      backgroundColor: latestProgress.goal_status === 'achieved' ? '#dcfce7' : latestProgress.goal_status === 'not_done' ? '#fef2f2' : '#fef3c7',
+                    }
                   ]}>
                     <Text style={[
                       styles.goalStatusText,
-                      { color: latestProgress.goal_status === 'achieved' ? '#16a34a' : '#d97706' }
+                      { color: latestProgress.goal_status === 'achieved' ? '#16a34a' : latestProgress.goal_status === 'not_done' ? '#ef4444' : '#d97706' }
                     ]}>
-                      {latestProgress.goal_status === 'achieved' ? 'Achieved' : 'In Progress'}
+                      {latestProgress.goal_status === 'achieved' ? 'Achieved' : latestProgress.goal_status === 'not_done' ? 'Not Done' : 'In Progress'}
                     </Text>
                   </View>
                 </View>

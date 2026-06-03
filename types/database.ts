@@ -106,8 +106,13 @@ export interface ProgressRecord {
   homework_completion: number;
   practice_score: number;
   weekly_goal: string;
-  goal_status: 'achieved' | 'in_progress';
+  goal_status: 'achieved' | 'in_progress' | 'not_done';
   mastery_level: number;
+  teacher_verified: boolean;
+  teacher_practice_rating: number;
+  verified_at: string | null;
+  performance_score: number;
+  performance_label: string;
   notes: string;
   updated_by: string | null;
   created_at: string;

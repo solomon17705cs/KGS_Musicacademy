@@ -166,7 +166,15 @@ export const progressService = {
       where('student_id', '==', studentId)
     );
     const snapshot = await getDocs(q);
-    const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProgressRecord));
+    const records = snapshot.docs.map(doc => {
+      const data = doc.data();
+      return {
+        id: doc.id,
+        ...data,
+        created_at: data.created_at?.toDate?.()?.toISOString() ?? data.created_at,
+        updated_at: data.updated_at?.toDate?.()?.toISOString() ?? data.updated_at,
+      } as ProgressRecord;
+    });
     return records.sort((a, b) =>
       new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     );
@@ -203,7 +211,15 @@ export const progressService = {
       where('student_id', '==', studentId)
     );
     return onSnapshot(q, (snapshot) => {
-      const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as ProgressRecord));
+      const records = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          created_at: data.created_at?.toDate?.()?.toISOString() ?? data.created_at,
+          updated_at: data.updated_at?.toDate?.()?.toISOString() ?? data.updated_at,
+        } as ProgressRecord;
+      });
       callback(records.sort((a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       ));

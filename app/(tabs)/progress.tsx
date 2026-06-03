@@ -14,9 +14,11 @@ import {
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { studentService, progressService, notificationService, attendanceService } from '@/lib/firestore';
-import { Student, ProgressRecord, ProgressStatus } from '@/types/database';
+import { Student, ProgressRecord } from '@/types/database';
 import { LinearGradient } from 'expo-linear-gradient';
 import MusicalNotesLoading from '@/components/MusicalNotesLoading';
+import ProgressHistogram from '@/components/ProgressHistogram';
+import { calculateProgressScore } from '@/lib/scoreCalculator';
 import {
   Music2,
   TrendingUp,
@@ -27,6 +29,7 @@ import {
   ChevronDown,
   ChevronLeft,
   Flame,
+  Star,
   X,
 } from 'lucide-react-native';
 
@@ -49,12 +52,6 @@ function getStudentImage(instrument: string) {
   return INSTRUMENT_IMAGES[instrument] || INSTRUMENT_IMAGES['Piano'];
 }
 
-interface WeeklyData {
-  weekLabel: string;
-  theoryScore: number;
-  practicalScore: number;
-}
-
 function parseDate(dateInput: any): Date {
   if (!dateInput) return new Date();
   if (dateInput instanceof Date) return dateInput;
@@ -72,12 +69,6 @@ function formatDate(dateInput: any): string {
   });
 }
 
-function getWeekNumber(date: Date): number {
-  const startOfYear = new Date(date.getFullYear(), 0, 1);
-  const days = Math.floor((date.getTime() - startOfYear.getTime()) / (24 * 60 * 60 * 1000));
-  return Math.ceil((days + startOfYear.getDay() + 1) / 7);
-}
-
 function getScoreColor(score: number): string {
   if (score >= 90) return '#34c759';
   if (score >= 75) return '#22c55e';
@@ -87,92 +78,23 @@ function getScoreColor(score: number): string {
   return '#ef4444';
 }
 
-function statusToScore(status: ProgressStatus): number {
-  switch (status) {
-    case 'excellent': return 90;
-    case 'good': return 75;
-    case 'needs_improvement': return 50;
-    case 'struggling': return 30;
-    default: return 50;
-  }
-}
-
-function calculateWeeklyData(records: ProgressRecord[]): WeeklyData[] {
-  if (records.length === 0) return [];
-
-  const sorted = [...records].sort((a, b) =>
-    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
-
-  const now = new Date();
-  const weeks: WeeklyData[] = [];
-
-  for (let i = 7; i >= 0; i--) {
-    const weekStart = new Date(now);
-    weekStart.setDate(now.getDate() - (i * 7));
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-
-    const weekRecords = sorted.filter(r => {
-      const d = new Date(r.created_at);
-      return d >= weekStart && d <= weekEnd;
-    });
-
-    let theoryScore = 0;
-    let practicalScore = 0;
-
-    if (weekRecords.length >= 2) {
-      theoryScore = statusToScore(weekRecords[0].theory_status);
-      practicalScore = statusToScore(weekRecords[weekRecords.length - 1].practical_status);
-    } else if (weekRecords.length === 1) {
-      theoryScore = statusToScore(weekRecords[0].theory_status);
-      practicalScore = statusToScore(weekRecords[0].practical_status);
-    }
-
-    const month = weekStart.getMonth();
-    const weekInMonth = Math.floor(weekStart.getDate() / 7) + 1;
-    weeks.push({
-      weekLabel: `W${weekInMonth}`,
-      theoryScore,
-      practicalScore,
-    });
-  }
-
-  return weeks;
-}
-
-function calculateGrowthPercentage(records: ProgressRecord[]): number {
-  if (records.length < 2) return 0;
-
-  const sorted = [...records].sort((a, b) =>
-    new Date(a.created_at).getTime() - new Date(b.created_at).getTime()
-  );
-
-  const firstAvg = statusToScore(sorted[0].theory_status);
-  const lastAvg = statusToScore(sorted[sorted.length - 1].theory_status);
-
-  if (firstAvg === 0) return 0;
-
-  return Math.round(((lastAvg - firstAvg) / firstAvg) * 100);
-}
-
 function calculateRealStreak(records: ProgressRecord[]): number {
   if (records.length === 0) return 0;
 
   const sorted = [...records].sort((a, b) =>
-    new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    parseDate(b.created_at).getTime() - parseDate(a.created_at).getTime()
   );
 
   let streak = 1;
   const now = new Date();
-  const lastUpdate = new Date(sorted[0].created_at);
+  const lastUpdate = parseDate(sorted[0].created_at);
   const daysSinceLast = Math.floor((now.getTime() - lastUpdate.getTime()) / (1000 * 3600 * 24));
 
   if (daysSinceLast > 8) return 0;
 
   for (let i = 1; i < sorted.length; i++) {
-    const current = new Date(sorted[i - 1].created_at);
-    const previous = new Date(sorted[i].created_at);
+    const current = parseDate(sorted[i - 1].created_at);
+    const previous = parseDate(sorted[i].created_at);
     const diffDays = Math.floor((current.getTime() - previous.getTime()) / (1000 * 3600 * 24));
 
     if (diffDays <= 8) {
@@ -259,8 +181,10 @@ export default function ProgressScreen() {
           const history = await progressService.getProgressRecords(student.id);
           const realStreak = calculateRealStreak(history);
           const currentMonthAttendance = await attendanceService.getCurrentMonthAttendance(student.id);
-          if (realStreak !== student.streak) {
-            await studentService.updateStudent(student.id, { streak: realStreak });
+          if (realStreak !== student.streak && (profile.role === 'admin' || profile.role === 'staff')) {
+            try {
+              await studentService.updateStudent(student.id, { streak: realStreak });
+            } catch (_) {}
           }
           return { ...student, progress: progress || undefined, streak: realStreak, currentMonthAttendance };
         })
@@ -389,29 +313,42 @@ export default function ProgressScreen() {
 
         {selectedStudent ? (
           <View>
-            {studentsHistory.has(selectedStudent.id) ? (
-              <RealChart
-                records={studentsHistory.get(selectedStudent.id) || []}
-              />
-            ) : (
-              <View style={styles.graphContainer}>
-                <LinearGradient
-                  colors={['#1e40af', '#3b82f6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                  style={styles.graphCard}>
-                  <View style={styles.graphHeader}>
-                    <View>
-                      <Text style={styles.graphTitle}>Theory & Practical (Monthly)</Text>
-                      <Text style={styles.graphSubtitle}>8 weeks progress - 2 sessions per week</Text>
+            {(() => {
+              const history = studentsHistory.get(selectedStudent.id) || [];
+              const sorted = [...history]
+                .filter(r => (r.teacher_practice_rating > 0 || r.practice_score > 0 || r.homework_completion > 0))
+                .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime());
+              const latest = sorted[sorted.length - 1];
+              const latestScore = latest ? calculateProgressScore({
+                teacherRating: latest.teacher_practice_rating,
+                practiceScore: latest.practice_score ?? 0,
+                homeworkCompletion: latest.homework_completion ?? 0,
+              }).finalScore : null;
+
+              return (
+                <View style={styles.graphContainer}>
+                  <LinearGradient
+                    colors={['#1e40af', '#3b82f6']}
+                    start={{ x: 0, y: 0 }}
+                    end={{ x: 1, y: 1 }}
+                    style={styles.graphCard}>
+                    <View style={styles.graphHeader}>
+                      <View>
+                        <Text style={styles.graphTitle}>Progress Score</Text>
+                        <Text style={styles.graphSubtitle}>Overall performance per report</Text>
+                      </View>
+                      {latest && (
+                        <View style={styles.latestBadge}>
+                          <Text style={styles.latestScore}>{latestScore}</Text>
+                          <Text style={styles.latestLabel}>Latest</Text>
+                        </View>
+                      )}
                     </View>
-                  </View>
-                  <View style={styles.noDataChart}>
-                    <Text style={styles.noDataChartText}>Add progress records to see your growth chart</Text>
-                  </View>
-                </LinearGradient>
-              </View>
-            )}
+                    <ProgressHistogram records={history} />
+                  </LinearGradient>
+                </View>
+              );
+            })()}
 
             {selectedStudent.progress && (
               <>
@@ -438,13 +375,26 @@ export default function ProgressScreen() {
                   <View style={styles.goalHeader}>
                     <Target size={18} color="#1e40af" />
                     <Text style={styles.goalTitle}>Weekly Goal</Text>
-                    <View style={[styles.goalStatusBadge, { backgroundColor: selectedStudent.progress.goal_status === 'achieved' ? '#f0fdf4' : '#fff7ed' }]}>
-                      <Text style={[styles.goalStatusText, { color: selectedStudent.progress.goal_status === 'achieved' ? '#16a34a' : '#f97316' }]}>
-                        {selectedStudent.progress.goal_status === 'achieved' ? 'Achieved' : 'In Progress'}
+                    <View style={[styles.goalStatusBadge, {
+                      backgroundColor: selectedStudent.progress.goal_status === 'achieved' ? '#f0fdf4' : selectedStudent.progress.goal_status === 'not_done' ? '#fef2f2' : '#fff7ed',
+                    }]}>
+                      <Text style={[styles.goalStatusText, {
+                        color: selectedStudent.progress.goal_status === 'achieved' ? '#16a34a' : selectedStudent.progress.goal_status === 'not_done' ? '#ef4444' : '#f97316',
+                      }]}>
+                        {selectedStudent.progress.goal_status === 'achieved' ? 'Achieved' : selectedStudent.progress.goal_status === 'not_done' ? 'Not Done' : 'In Progress'}
                       </Text>
                     </View>
                   </View>
                   <Text style={styles.goalDescription}>{selectedStudent.progress.weekly_goal || 'Master the current lesson scales'}</Text>
+                  {selectedStudent.progress?.goal_status === 'achieved' && (selectedStudent.progress?.teacher_practice_rating ?? 0) > 0 && (
+                    <View style={styles.teacherRatingRow}>
+                      <Text style={styles.teacherRatingLabel}>Teacher's Rating: </Text>
+                      {[1, 2, 3, 4, 5].map(s => (
+                        <Star key={s} size={14} fill={(selectedStudent.progress?.teacher_practice_rating ?? 0) >= s ? '#f59e0b' : '#d1d5db'} color={(selectedStudent.progress?.teacher_practice_rating ?? 0) >= s ? '#f59e0b' : '#d1d5db'} />
+                      ))}
+                      <Text style={styles.teacherRatingValue}>{selectedStudent.progress?.teacher_practice_rating ?? 0}/5</Text>
+                    </View>
+                  )}
                 </View>
 
                 <View style={styles.gradeDisplayArea}>
@@ -546,23 +496,26 @@ export default function ProgressScreen() {
             <View style={styles.sectionHeaderRow}>
               <Text style={styles.sectionHeading}>Progress Report</Text>
             </View>
-          <View style={styles.graphContainer}>
-            <LinearGradient
-              colors={['#1e40af', '#3b82f6']}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-              style={styles.graphCard}>
-              <View style={styles.graphHeader}>
-                <View>
-                  <Text style={styles.graphTitle}>Theory & Practical (Monthly)</Text>
-                  <Text style={styles.graphSubtitle}>8 weeks progress - 2 sessions per week</Text>
-                </View>
+          {(() => {
+            const history = studentsHistory.get(students[0].id) || [];
+            return (
+              <View style={styles.graphContainer}>
+                <LinearGradient
+                  colors={['#1e40af', '#3b82f6']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.graphCard}>
+                  <View style={styles.graphHeader}>
+                    <View>
+                      <Text style={styles.graphTitle}>Progress Score</Text>
+                      <Text style={styles.graphSubtitle}>Overall performance per report</Text>
+                    </View>
+                  </View>
+                  <ProgressHistogram records={history} />
+                </LinearGradient>
               </View>
-              <View style={styles.noDataChart}>
-                <Text style={styles.noDataChartText}>Add progress records to see your growth chart</Text>
-              </View>
-            </LinearGradient>
-          </View>
+            );
+          })()}
           </View>
         ) : null}
 
@@ -635,9 +588,13 @@ export default function ProgressScreen() {
                           <View style={styles.goalHeader}>
                             <Target size={18} color="#1e40af" />
                             <Text style={styles.goalTitle}>Weekly Goal</Text>
-                            <View style={[styles.goalStatusBadge, { backgroundColor: student.progress.goal_status === 'achieved' ? '#f0fdf4' : '#fff7ed' }]}>
-                              <Text style={[styles.goalStatusText, { color: student.progress.goal_status === 'achieved' ? '#16a34a' : '#f97316' }]}>
-                                {student.progress.goal_status === 'achieved' ? 'Achieved' : 'In Progress'}
+                            <View style={[styles.goalStatusBadge, {
+                              backgroundColor: student.progress.goal_status === 'achieved' ? '#f0fdf4' : student.progress.goal_status === 'not_done' ? '#fef2f2' : '#fff7ed',
+                            }]}>
+                              <Text style={[styles.goalStatusText, {
+                                color: student.progress.goal_status === 'achieved' ? '#16a34a' : student.progress.goal_status === 'not_done' ? '#ef4444' : '#f97316',
+                              }]}>
+                                {student.progress.goal_status === 'achieved' ? 'Achieved' : student.progress.goal_status === 'not_done' ? 'Not Done' : 'In Progress'}
                               </Text>
                             </View>
                           </View>
@@ -719,71 +676,6 @@ export default function ProgressScreen() {
   );
 }
 
-function RealChart({ records }: { records: ProgressRecord[] }) {
-  const weeklyData = calculateWeeklyData(records);
-  const growth = calculateGrowthPercentage(records);
-  const isPositive = growth >= 0;
-
-  const maxScore = Math.max(
-    ...weeklyData.map(w => Math.max(w.theoryScore, w.practicalScore, 1))
-  );
-  const barScale = 120 / maxScore;
-
-  return (
-    <View style={styles.graphContainer}>
-      <LinearGradient
-        colors={['#1e40af', '#3b82f6']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.graphCard}>
-        <View style={styles.graphHeader}>
-          <View>
-            <Text style={styles.graphTitle}>Theory & Practical (Monthly)</Text>
-            <Text style={styles.graphSubtitle}>Theory vs Practical performance per week</Text>
-          </View>
-          <View style={[
-            styles.growthBadge,
-            { backgroundColor: isPositive ? 'rgba(34,197,94,0.3)' : 'rgba(239,68,68,0.3)' }
-          ]}>
-            <TrendingUp size={12} color={isPositive ? '#22c55e' : '#ef4444'} />
-            <Text style={[styles.growthText, { color: isPositive ? '#22c55e' : '#ef4444' }]}>
-              {isPositive ? '+' : ''}{growth}%
-            </Text>
-          </View>
-        </View>
-
-        <View style={styles.chartArea}>
-          {weeklyData.map((week, idx) => (
-            <View key={idx} style={styles.weekGroup}>
-              <View style={styles.sessionPair}>
-                <View style={[styles.chartBar, {
-                  height: Math.max(week.theoryScore * barScale, 4),
-                  backgroundColor: week.theoryScore > 0 ? '#6366f1' : 'rgba(255,255,255,0.15)',
-                }]} />
-                <View style={[styles.chartBar, {
-                  height: Math.max(week.practicalScore * barScale, 4),
-                  backgroundColor: week.practicalScore > 0 ? '#f59e0b' : 'rgba(251,191,36,0.2)',
-                }]} />
-              </View>
-              <Text style={styles.chartDayText}>{week.weekLabel}</Text>
-            </View>
-          ))}
-        </View>
-        <View style={styles.chartLegend}>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#6366f1' }]} />
-            <Text style={styles.legendText}>Theory</Text>
-          </View>
-          <View style={styles.legendItem}>
-            <View style={[styles.legendDot, { backgroundColor: '#f59e0b' }]} />
-            <Text style={styles.legendText}>Practical</Text>
-          </View>
-        </View>
-      </LinearGradient>
-    </View>
-  );
-}
-
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
   topHeader: { paddingTop: 60, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
@@ -815,17 +707,22 @@ const styles = StyleSheet.create({
   graphSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
   growthBadge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
   growthText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  chartArea: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', height: 120, marginBottom: 10 },
-  weekGroup: { alignItems: 'center', gap: 8 },
-  sessionPair: { flexDirection: 'row', alignItems: 'flex-end', gap: 4 },
-  chartBar: { width: 10, borderRadius: 5 },
-  chartDayText: { color: 'rgba(255,255,255,0.6)', fontSize: 10, fontWeight: '700' },
-  chartLegend: { flexDirection: 'row', justifyContent: 'center', gap: 16, marginTop: 8 },
-  legendItem: { flexDirection: 'row', alignItems: 'center', gap: 6 },
-  legendDot: { width: 8, height: 8, borderRadius: 4 },
-  legendText: { color: 'rgba(255,255,255,0.7)', fontSize: 11, fontWeight: '600' },
-  noDataChart: { height: 120, justifyContent: 'center', alignItems: 'center' },
-  noDataChartText: { color: 'rgba(255,255,255,0.6)', fontSize: 14, textAlign: 'center' },
+  latestBadge: {
+    backgroundColor: 'rgba(255,255,255,0.2)',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    alignItems: 'center',
+  },
+  latestScore: {
+    color: 'white',
+    fontSize: 22,
+    fontWeight: '800',
+  },
+  latestLabel: {
+    color: 'rgba(255,255,255,0.7)',
+    fontSize: 10,
+  },
   modernCard: { backgroundColor: '#fff', borderRadius: 24, marginBottom: 20, borderWidth: 1, borderColor: '#f1f5f9', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 3 },
   cardImageContainer: { height: 160, position: 'relative' },
   cardBgImage: { width: '100%', height: '100%' },
@@ -897,4 +794,7 @@ const styles = StyleSheet.create({
   emptyText: { fontSize: 14, color: '#64748b', textAlign: 'center', marginTop: 8 },
   noProgressContainer: { padding: 16, backgroundColor: '#f8fafc', borderRadius: 12, alignItems: 'center' },
   noProgressText: { fontSize: 13, color: '#94a3b8', fontStyle: 'italic' },
+  teacherRatingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 2 },
+  teacherRatingLabel: { fontSize: 12, color: '#64748b', fontWeight: '600' },
+  teacherRatingValue: { fontSize: 12, color: '#64748b', fontWeight: '700', marginLeft: 4 },
 });

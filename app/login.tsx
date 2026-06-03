@@ -290,7 +290,7 @@ export default function LoginScreen() {
                         editable={!loading}
                       />
                     </View>
-                    <Text style={styles.hint}>OTP sent to +91{phone.slice(-4)}</Text>
+                    <Text style={styles.hint}>OTP sent to +91 {phone.slice(0, 5)} {phone.slice(5)}</Text>
                   </View>
 
                   <TouchableOpacity

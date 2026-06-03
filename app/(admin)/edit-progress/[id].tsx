@@ -19,8 +19,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { studentService, progressService, profileService } from '@/lib/firestore';
 import { sendProgressNotification } from '@/lib/notifications';
 import { generateProgressReport } from '@/lib/ai';
+import { calculateProgressScore } from '@/lib/scoreCalculator';
 import { Student, ProgressRecord, ProgressStatus } from '@/types/database';
-import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock, Award, Trophy, Sparkles, ChevronDown, FileText, Edit2 } from 'lucide-react-native';
+import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock, Award, Trophy, Sparkles, ChevronDown, FileText, Edit2, XCircle, Star } from 'lucide-react-native';
 
 const GRADE_OPTIONS = ['Basic', 'Initial', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
 const THEORY_OPTIONS = ['Basic', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
@@ -41,8 +42,11 @@ export default function EditProgressScreen() {
   const [homeworkCompletion, setHomeworkCompletion] = useState('100');
   const [practiceScore, setPracticeScore] = useState('0');
   const [weeklyGoal, setWeeklyGoal] = useState('');
-  const [goalStatus, setGoalStatus] = useState<'achieved' | 'in_progress'>('in_progress');
+  const [goalStatus, setGoalStatus] = useState<'achieved' | 'in_progress' | 'not_done'>('in_progress');
   const [masteryLevel, setMasteryLevel] = useState('0');
+  const [teacherVerified, setTeacherVerified] = useState(false);
+  const [teacherPracticeRating, setTeacherPracticeRating] = useState(0);
+  const [verifiedAt, setVerifiedAt] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
@@ -94,6 +98,9 @@ export default function EditProgressScreen() {
         setWeeklyGoal(progressData.weekly_goal || '');
         setGoalStatus(progressData.goal_status || 'in_progress');
         setMasteryLevel(String(progressData.mastery_level ?? 0));
+        setTeacherVerified(progressData.teacher_verified ?? false);
+        setTeacherPracticeRating(progressData.teacher_practice_rating ?? 0);
+        setVerifiedAt(progressData.verified_at ?? null);
         setNotes(progressData.notes);
       }
     } catch (err: any) {
@@ -110,6 +117,16 @@ export default function EditProgressScreen() {
     setError('');
 
     try {
+      const isAchieved = goalStatus === 'achieved';
+      const nowISO = isAchieved ? new Date().toISOString() : null;
+
+      const teacherRating = isAchieved ? teacherPracticeRating : 0;
+      const score = calculateProgressScore({
+        teacherRating,
+        practiceScore: parseInt(practiceScore) || 0,
+        homeworkCompletion: parseInt(homeworkCompletion) || 0,
+      });
+
       await progressService.createProgressRecord({
         student_id: id as string,
         theory_grade: theoryGrade,
@@ -122,6 +139,11 @@ export default function EditProgressScreen() {
         weekly_goal: weeklyGoal,
         goal_status: goalStatus,
         mastery_level: parseInt(masteryLevel) || 0,
+        teacher_verified: isAchieved,
+        teacher_practice_rating: teacherRating,
+        verified_at: nowISO,
+        performance_score: score.finalScore,
+        performance_label: score.label,
         notes: notes,
         updated_by: profile.id,
       });
@@ -138,7 +160,7 @@ export default function EditProgressScreen() {
       const pracScore = parseInt(practiceScore) || 0;
       pointsToAdd += Math.floor(pracScore / 2);
 
-      if (goalStatus === 'achieved') pointsToAdd += 50;
+      if (isAchieved) pointsToAdd += 50;
 
       const now = new Date();
       const lastUpdate = new Date(student.updated_at || 0);
@@ -558,9 +580,30 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                   <TouchableOpacity
                     style={[
                       styles.choiceButton,
+                      goalStatus === 'not_done' && styles.choiceButtonActiveNotDone,
+                    ]}
+                    onPress={() => {
+                      setGoalStatus('not_done');
+                      setTeacherVerified(false);
+                      setVerifiedAt(null);
+                    }}
+                    disabled={saving}>
+                    <XCircle size={16} color={goalStatus === 'not_done' ? '#ef4444' : '#64748b'} />
+                    <Text style={[styles.choiceButtonText, goalStatus === 'not_done' && styles.choiceButtonTextActiveNotDone]}>
+                      {isMobile ? '❌' : '❌ Not Done'}
+                    </Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[
+                      styles.choiceButton,
+                      { marginLeft: 8 },
                       goalStatus === 'in_progress' && styles.choiceButtonActive,
                     ]}
-                    onPress={() => setGoalStatus('in_progress')}
+                    onPress={() => {
+                      setGoalStatus('in_progress');
+                      setTeacherVerified(false);
+                      setVerifiedAt(null);
+                    }}
                     disabled={saving}>
                     <Clock size={16} color={goalStatus === 'in_progress' ? '#f97316' : '#64748b'} />
                     <Text style={[styles.choiceButtonText, goalStatus === 'in_progress' && styles.choiceButtonTextActive]}>In Progress</Text>
@@ -571,13 +614,43 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                       { marginLeft: 8 },
                       goalStatus === 'achieved' && styles.choiceButtonActiveAchieved,
                     ]}
-                    onPress={() => setGoalStatus('achieved')}
+                    onPress={() => {
+                      setGoalStatus('achieved');
+                      setTeacherVerified(true);
+                      setVerifiedAt(new Date().toISOString());
+                    }}
                     disabled={saving}>
                     <CheckCircle2 size={16} color={goalStatus === 'achieved' ? '#16a34a' : '#64748b'} />
                     <Text style={[styles.choiceButtonText, goalStatus === 'achieved' && styles.choiceButtonTextActiveAchieved]}>Achieved</Text>
                   </TouchableOpacity>
                 </View>
               </View>
+
+              {goalStatus === 'achieved' && (
+                <View style={styles.inputGroup}>
+                  <Text style={styles.label}>Teacher's Practice Rating</Text>
+                  <View style={styles.ratingRow}>
+                    {[1, 2, 3, 4, 5].map((star) => (
+                      <TouchableOpacity
+                        key={star}
+                        onPress={() => setTeacherPracticeRating(star)}
+                        disabled={saving}
+                        style={styles.starButton}>
+                        <Star
+                          size={28}
+                          fill={teacherPracticeRating >= star ? '#f59e0b' : '#e2e8f0'}
+                          color={teacherPracticeRating >= star ? '#f59e0b' : '#e2e8f0'}
+                        />
+                      </TouchableOpacity>
+                    ))}
+                  </View>
+                  {verifiedAt && (
+                    <Text style={styles.verifiedAtText}>
+                      Verified at: {new Date(verifiedAt).toLocaleString('en-IN', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })}
+                    </Text>
+                  )}
+                </View>
+              )}
             </View>
 
             {!isMobile && <View style={styles.combinedDivider} />}
@@ -936,6 +1009,10 @@ const styles = StyleSheet.create({
     borderColor: '#16a34a',
     backgroundColor: '#f0fdf4',
   },
+  choiceButtonActiveNotDone: {
+    borderColor: '#ef4444',
+    backgroundColor: '#fef2f2',
+  },
   choiceButtonText: {
     fontSize: 14,
     fontWeight: '600',
@@ -946,6 +1023,25 @@ const styles = StyleSheet.create({
   },
   choiceButtonTextActiveAchieved: {
     color: '#16a34a',
+  },
+  choiceButtonTextActiveNotDone: {
+    color: '#ef4444',
+  },
+  ratingRow: {
+    flexDirection: 'row',
+    gap: 8,
+    justifyContent: 'center',
+    paddingVertical: 8,
+  },
+  starButton: {
+    padding: 4,
+  },
+  verifiedAtText: {
+    fontSize: 12,
+    color: '#64748b',
+    fontStyle: 'italic',
+    textAlign: 'center',
+    marginTop: 4,
   },
   label: {
     fontSize: 14,
