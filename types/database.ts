@@ -87,6 +87,7 @@ export interface Student {
   initial_grade: string | null;
   class_days: string[];
   class_timing: string | null;
+  summer_class: boolean;
   completed_grades: CompletedGrade[];
   streak: number;
   points: number;

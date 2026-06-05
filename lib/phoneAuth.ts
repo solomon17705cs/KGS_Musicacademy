@@ -1,4 +1,4 @@
-import { PhoneAuthProvider, signInWithCredential, signInWithPhoneNumber, RecaptchaVerifier, Auth } from 'firebase/auth';
+import { PhoneAuthProvider, signInWithCredential, signInWithPhoneNumber, RecaptchaVerifier, Auth, ConfirmationResult } from 'firebase/auth';
 import { Platform } from 'react-native';
 
 const getApiKey = (): string => {
@@ -9,7 +9,19 @@ const getApiKey = (): string => {
   return apiKey;
 };
 
-let confirmationResult: any = null;
+let confirmationResult: ConfirmationResult | null = null;
+let recaptchaVerifier: RecaptchaVerifier | null = null;
+
+function getRecaptchaVerifier(auth: Auth): RecaptchaVerifier {
+  if (recaptchaVerifier) {
+    try { recaptchaVerifier.clear(); } catch (_) {}
+    recaptchaVerifier = null;
+  }
+  recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
+    size: 'invisible',
+  });
+  return recaptchaVerifier;
+}
 
 export async function sendOTPviaSMS(phoneNumber: string, auth?: Auth): Promise<string> {
   // Mobile: use REST API (silent reCAPTCHA)
@@ -40,11 +52,8 @@ export async function sendOTPviaSMS(phoneNumber: string, auth?: Auth): Promise<s
     throw new Error('Auth instance required for web OTP');
   }
 
-  const recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
-    size: 'normal',
-  });
-
-  const result = await signInWithPhoneNumber(auth, phoneNumber, recaptchaVerifier);
+  const verifier = getRecaptchaVerifier(auth);
+  const result = await signInWithPhoneNumber(auth, phoneNumber, verifier);
   confirmationResult = result;
   return result.verificationId;
 }
@@ -62,4 +71,11 @@ export async function verifyOTPandSignIn(
 
   const credential = PhoneAuthProvider.credential(verificationId, otp);
   await signInWithCredential(auth, credential);
+}
+
+export function clearRecaptchaVerifier(): void {
+  if (recaptchaVerifier) {
+    try { recaptchaVerifier.clear(); } catch (_) {}
+    recaptchaVerifier = null;
+  }
 }

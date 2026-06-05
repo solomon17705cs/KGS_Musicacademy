@@ -62,7 +62,7 @@ export default function AdminDashboard() {
         allStudents.map(async (student) => {
           const [progress, summary] = await Promise.all([
             progressService.getLatestProgress(student.id),
-            attendanceService.getAttendanceSummary(student.id, student.enrollment_date),
+            attendanceService.getAttendanceSummary(student.id, student.enrollment_date, student.summer_class),
           ]);
           return { ...student, progress: progress || undefined, attendancePct: summary.percentage };
         })
@@ -238,7 +238,7 @@ export default function AdminDashboard() {
                   }>
                   <View style={styles.studentHeader}>
                     <View style={styles.studentInfo}>
-                      <Text style={styles.studentName}>{student.full_name}</Text>
+                      <Text style={styles.studentName}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
                       <Text style={styles.studentDetails}>
                         {student.instrument} • {student.enrollment_date}
                       </Text>

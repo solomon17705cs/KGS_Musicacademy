@@ -360,7 +360,7 @@ export const attendanceService = {
     return all.filter(r => r.date >= startDate && r.date <= endDate);
   },
 
-  async getAttendanceSummary(studentId: string, enrollmentDate?: string): Promise<{ total: number; present: number; absent: number; late: number; excused: number; percentage: number }> {
+  async getAttendanceSummary(studentId: string, enrollmentDate?: string, summerClass: boolean = false): Promise<{ total: number; present: number; absent: number; late: number; excused: number; percentage: number }> {
     const allRecords = await this.getAllAttendanceForStudent(studentId);
     const total = allRecords.length;
     if (total === 0) return { total: 0, present: 0, absent: 0, late: 0, excused: 0, percentage: 0 };
@@ -371,7 +371,9 @@ export const attendanceService = {
     const excused = allRecords.filter(r => r.status === 'excused').length;
 
     let expectedClasses = total;
-    if (enrollmentDate) {
+    if (summerClass) {
+      expectedClasses = Math.max(30, total);
+    } else if (enrollmentDate) {
       const enrollment = parseDate(enrollmentDate);
       const now = new Date();
       const monthsDiff = (now.getFullYear() - enrollment.getFullYear()) * 12 + (now.getMonth() - enrollment.getMonth()) + 1;
@@ -392,13 +394,7 @@ export const attendanceService = {
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
   },
 
-  async getCurrentMonthAttendance(studentId: string): Promise<string> {
-    const now = new Date();
-    const year = now.getFullYear();
-    const month = now.getMonth() + 1;
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endDate = `${year}-${String(month).padStart(2, '0')}-31`;
-
+  async getCurrentMonthAttendance(studentId: string, summerClass: boolean = false): Promise<string> {
     const q = query(
       collection(db, ATTENDANCE_COLLECTION),
       where('student_id', '==', studentId)
@@ -406,12 +402,21 @@ export const attendanceService = {
     const snapshot = await getDocs(q);
     const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
 
+    if (summerClass) {
+      const present = records.filter(r => r.status === 'present' || r.status === 'late').length;
+      return `${present}/30`;
+    }
+
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = now.getMonth() + 1;
+    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+    const endDate = `${year}-${String(month).padStart(2, '0')}-31`;
+
     const monthRecords = records.filter(r => r.date >= startDate && r.date <= endDate);
     const present = monthRecords.filter(r => r.status === 'present' || r.status === 'late').length;
-    const totalClasses = Math.max(monthRecords.length, 1);
-    const scheduledClasses = 8;
 
-    return `${present}/${scheduledClasses}`;
+    return `${present}/8`;
   },
 
   async getMonthAttendanceForStudent(studentId: string, year: number, month: number): Promise<AttendanceRecord[]> {

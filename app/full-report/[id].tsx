@@ -85,7 +85,7 @@ export default function FullReportScreen() {
         
         const [records, attendance] = await Promise.all([
           progressService.getProgressRecords(id as string),
-          attendanceService.getCurrentMonthAttendance(id as string),
+          attendanceService.getCurrentMonthAttendance(id as string, studentData?.summer_class),
         ]);
         setCurrentMonthAttendance(attendance);
         const sorted = [...records].sort((a, b) =>
@@ -152,7 +152,7 @@ export default function FullReportScreen() {
             />
           </View>
           <View style={styles.studentInfo}>
-            <Text style={styles.studentName}>{student.full_name}</Text>
+            <Text style={styles.studentName}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
             <Text style={styles.studentInstrument}>{student.instrument}</Text>
             <View style={styles.streakBadge}>
               <Flame size={14} color="#f97316" />

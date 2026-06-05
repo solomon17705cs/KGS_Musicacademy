@@ -21,7 +21,7 @@ import { sendProgressNotification } from '@/lib/notifications';
 import { generateProgressReport } from '@/lib/ai';
 import { calculateProgressScore } from '@/lib/scoreCalculator';
 import { Student, ProgressRecord, ProgressStatus } from '@/types/database';
-import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock, Award, Trophy, Sparkles, ChevronDown, FileText, Edit2, XCircle, Star } from 'lucide-react-native';
+import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock, Award, Trophy, Sparkles, ChevronDown, FileText, Edit2, XCircle, Star, Calendar } from 'lucide-react-native';
 
 const GRADE_OPTIONS = ['Basic', 'Initial', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
 const THEORY_OPTIONS = ['Basic', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
@@ -336,7 +336,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
           <ArrowLeft size={24} color="#1e293b" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>{student.full_name}</Text>
+          <Text style={styles.headerTitle}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
           <Text style={styles.headerSubtitle}>{student.instrument}</Text>
         </View>
         <TouchableOpacity
@@ -344,6 +344,12 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
           onPress={() => router.push(`/(staff)/edit-student/${student?.id}`)}
           disabled={saving}>
           <Edit2 size={24} color="#1e40af" />
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={styles.attendanceButton}
+          onPress={() => router.push('/(staff)/attendance')}
+          disabled={saving}>
+          <Calendar size={24} color="#16a34a" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.deleteButton}
@@ -875,6 +881,14 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: '#eff6ff',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  attendanceButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: '#f0fdf4',
     alignItems: 'center',
     justifyContent: 'center',
   },

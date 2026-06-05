@@ -20,7 +20,7 @@ import { studentService } from '@/lib/firestore';
 import { Student } from '@/types/database';
 import { ArrowLeft, UserPlus, Calendar, Music, Phone, MapPin, Clock } from 'lucide-react-native';
 
-const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const BATCH_OPTIONS = ['Batch 1', 'Batch 2', 'Batch 3'];
 
 function formatDDMMYYYY(text: string): string {
@@ -101,6 +101,7 @@ export default function EditStudentScreen() {
     const [initialGrade, setInitialGrade] = useState('');
     const [classDays, setClassDays] = useState<string[]>([]);
     const [classTiming, setClassTiming] = useState<string | null>(null);
+    const [summerClass, setSummerClass] = useState(false);
 
     const [fatherName, setFatherName] = useState('');
     const [fatherPhone, setFatherPhone] = useState('');
@@ -157,6 +158,7 @@ export default function EditStudentScreen() {
             setInitialGrade(studentData.initial_grade || '');
             setClassDays(studentData.class_days || []);
             setClassTiming(studentData.class_timing || null);
+            setSummerClass(studentData.summer_class || false);
             setFatherName(studentData.father_name || '');
             setFatherPhone(studentData.father_phone || '');
             setFatherEmail(studentData.father_email || '');
@@ -208,6 +210,7 @@ export default function EditStudentScreen() {
                 initial_grade: initialGrade || null,
                 class_days: classDays,
                 class_timing: classTiming || null,
+                summer_class: summerClass,
                 father_name: fatherName.trim() || null,
                 father_phone: fatherPhone.trim() || null,
                 father_email: fatherEmail.toLowerCase().trim() || null,
@@ -445,6 +448,24 @@ export default function EditStudentScreen() {
                                             </TouchableOpacity>
                                         ))}
                                     </View>
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Summer Class</Text>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.timingButton,
+                                            summerClass && styles.timingButtonActive,
+                                        ]}
+                                        onPress={() => setSummerClass(!summerClass)}
+                                        disabled={saving}>
+                                        <Text style={[
+                                            styles.timingButtonText,
+                                            summerClass && styles.timingButtonTextActive,
+                                        ]}>
+                                            {summerClass ? '☀️ Summer Class' : 'Summer Class'}
+                                        </Text>
+                                    </TouchableOpacity>
                                 </View>
 
                                 <View style={styles.inputGroup}>
@@ -779,6 +800,24 @@ export default function EditStudentScreen() {
                                                 </TouchableOpacity>
                                             ))}
                                         </View>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Summer Class</Text>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.timingButton,
+                                                summerClass && styles.timingButtonActive,
+                                            ]}
+                                            onPress={() => setSummerClass(!summerClass)}
+                                            disabled={saving}>
+                                            <Text style={[
+                                                styles.timingButtonText,
+                                                summerClass && styles.timingButtonTextActive,
+                                            ]}>
+                                                {summerClass ? '☀️ Summer Class' : 'Summer Class'}
+                                            </Text>
+                                        </TouchableOpacity>
                                     </View>
 
                                     <View style={styles.inputGroup}>

@@ -18,7 +18,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { studentService } from '@/lib/firestore';
 import { ArrowLeft, UserPlus, Calendar, Music, Phone, MapPin, Clock } from 'lucide-react-native';
 
-const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const BATCH_OPTIONS = ['Batch 1', 'Batch 2', 'Batch 3'];
 
 function formatDDMMYYYY(text: string): string {
@@ -93,6 +93,7 @@ export default function AddStudentScreen() {
     const [initialGrade, setInitialGrade] = useState('');
     const [classDays, setClassDays] = useState<string[]>([]);
     const [classTiming, setClassTiming] = useState<string | null>(null);
+    const [summerClass, setSummerClass] = useState(false);
 
     // Parent & Contact Information
     const [fatherName, setFatherName] = useState('');
@@ -170,6 +171,7 @@ export default function AddStudentScreen() {
                 initial_grade: initialGrade || null,
                 class_days: classDays,
                 class_timing: classTiming || null,
+                summer_class: summerClass,
                 completed_grades: [],
                 streak: 0,
                 points: 0,
@@ -408,6 +410,24 @@ export default function AddStudentScreen() {
                                             </TouchableOpacity>
                                         ))}
                                     </View>
+                                </View>
+
+                                <View style={styles.inputGroup}>
+                                    <Text style={styles.label}>Summer Class</Text>
+                                    <TouchableOpacity
+                                        style={[
+                                            styles.timingButton,
+                                            summerClass && styles.timingButtonActive,
+                                        ]}
+                                        onPress={() => setSummerClass(!summerClass)}
+                                        disabled={loading}>
+                                        <Text style={[
+                                            styles.timingButtonText,
+                                            summerClass && styles.timingButtonTextActive,
+                                        ]}>
+                                            {summerClass ? '☀️ Summer Class' : 'Summer Class'}
+                                        </Text>
+                                    </TouchableOpacity>
                                 </View>
 
                                 <View style={styles.inputGroup}>

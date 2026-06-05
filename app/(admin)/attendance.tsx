@@ -93,6 +93,7 @@ export default function AttendanceScreen() {
   const [detailMonth, setDetailMonth] = useState(new Date());
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailRecords, setDetailRecords] = useState<AttendanceRecord[]>([]);
+  const [allAttendanceMap, setAllAttendanceMap] = useState<Record<string, AttendanceRecord[]>>({});
 
   const weekDates = getWeekDates(weekStart);
   const weekStartStr = formatDate(weekDates[0]);
@@ -121,6 +122,13 @@ export default function AttendanceScreen() {
       setStudents(allStudents);
       setWeekRecords(weekRecs);
       setMonthRecords(monthRecs);
+
+      const summerStudents = allStudents.filter(s => s.summer_class);
+      const map: Record<string, AttendanceRecord[]> = {};
+      await Promise.all(summerStudents.map(async (s) => {
+        map[s.id] = await attendanceService.getAllAttendanceForStudent(s.id);
+      }));
+      setAllAttendanceMap(map);
     } catch (err) {
       console.error('Failed to load attendance:', err);
     } finally {
@@ -174,14 +182,21 @@ export default function AttendanceScreen() {
     ).length;
   }
 
-  function getStudentMonthlySummary(student: Student, records?: AttendanceRecord[]): { present: number; extra: number; percentage: number } {
-    const recs = (records || monthRecords).filter(r => r.student_id === student.id && r.status === 'present');
-    const present = Math.min(recs.length, 8);
-    const extra = Math.max(recs.length - 8, 0);
-    return { present, extra, percentage: Math.round((recs.length / 8) * 100) };
+  function getStudentMonthlySummary(student: Student, records?: AttendanceRecord[]): { present: number; extra: number; percentage: number; total: number } {
+    const total = student.summer_class ? 30 : 8;
+    let recs: AttendanceRecord[];
+    if (student.summer_class) {
+      recs = (allAttendanceMap[student.id] || []).filter(r => r.status === 'present');
+    } else {
+      recs = (records || monthRecords).filter(r => r.student_id === student.id && r.status === 'present');
+    }
+    const present = Math.min(recs.length, total);
+    const extra = Math.max(recs.length - total, 0);
+    return { present, extra, total, percentage: Math.round((recs.length / total) * 100) };
   }
 
-  function isExtraClass(studentId: string, dateStr: string, records?: AttendanceRecord[]): boolean {
+  function isExtraClass(studentId: string, dateStr: string, student?: Student, records?: AttendanceRecord[]): boolean {
+    if (student?.summer_class) return false;
     const beforeCount = getStudentMonthlyCount(studentId, dateStr, records);
     return beforeCount >= 8;
   }
@@ -226,7 +241,7 @@ export default function AttendanceScreen() {
     );
   }
 
-  const summary = selectedStudent ? getStudentMonthlySummary(selectedStudent, detailRecords) : { present: 0, extra: 0, percentage: 0 };
+  const summary = selectedStudent ? getStudentMonthlySummary(selectedStudent, detailRecords) : { present: 0, extra: 0, percentage: 0, total: 8 };
   const detailWeeks = getWeeksOfMonth(detailMonth);
   const futureMonth = isFutureMonth(detailMonth);
   const detailMonthName = detailMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -282,7 +297,7 @@ export default function AttendanceScreen() {
               <View key={student.id} style={styles.tableRow}>
                 <TouchableOpacity style={styles.nameCell} onPress={() => openDetail(student)}>
                   <Text style={styles.studentName} numberOfLines={1}>
-                    {student.full_name}
+                    {student.full_name}{student.summer_class ? ' ☀️' : ''}
                   </Text>
                   <Text style={styles.instrumentText} numberOfLines={1}>
                     {student.instrument}
@@ -295,7 +310,8 @@ export default function AttendanceScreen() {
                   const record = getStatusForStudentDate(student.id, dateStr);
                   const isScheduled = (student.class_days || []).includes(DAY_NAMES[idx]);
                   const isFuture = date > new Date();
-                  const isExtra = record?.status === 'present' && isExtraClass(student.id, dateStr);
+                  const isSunday = date.getDay() === 0;
+                  const isExtra = record?.status === 'present' && isExtraClass(student.id, dateStr, student);
 
                   return (
                     <TouchableOpacity
@@ -305,15 +321,18 @@ export default function AttendanceScreen() {
                         isExtra && styles.extraClassCell,
                         record?.status === 'present' && !isExtra && styles.presentCell,
                         isFuture && styles.futureCell,
-                        !record && !isScheduled && styles.unscheduledCell,
+                        !record && !isSunday && !isScheduled && styles.unscheduledCell,
+                        isSunday && styles.sundayCell,
                       ]}
                       onPress={() => {
-                        if (!isFuture) {
+                        if (!isFuture && !isSunday) {
                           toggleAttendance(student.id, dateStr);
                         }
                       }}
-                      disabled={isFuture}>
-                      {record && record.status === 'present' ? (
+                      disabled={isFuture || isSunday}>
+                      {isSunday ? (
+                        <Text style={styles.sundayText}>-</Text>
+                      ) : record && record.status === 'present' ? (
                         <Text style={[styles.statusIcon, isExtra ? styles.extraText : styles.presentText]}>
                           {isExtra ? 'E' : 'P'}
                         </Text>
@@ -332,7 +351,7 @@ export default function AttendanceScreen() {
                   <Text style={styles.summaryPercentage}>
                     {studentSummary.percentage > 0 ? `${studentSummary.percentage}%` : '—'}
                   </Text>
-                  <Text style={styles.summaryCount}>{studentSummary.present}/8 {studentSummary.extra > 0 && `+${studentSummary.extra}`}</Text>
+                  <Text style={styles.summaryCount}>{studentSummary.present}/{studentSummary.total} {studentSummary.extra > 0 && `+${studentSummary.extra}`}</Text>
                 </View>
               </View>
             );
@@ -397,51 +416,55 @@ export default function AttendanceScreen() {
 
             <View style={styles.modalSummary}>
               <Text style={styles.summaryPercentage}>{summary.percentage > 0 ? `${summary.percentage}%` : '—'}</Text>
-              <Text style={styles.summaryCount}>{summary.present}/8 {summary.extra > 0 && `+${summary.extra}`}</Text>
+              <Text style={styles.summaryCount}>{summary.present}/{summary.total} {summary.extra > 0 && `+${summary.extra}`}</Text>
             </View>
 
             <ScrollView style={styles.modalBody}>
-              {detailWeeks.map((weekDates, weekIdx) => (
-                <View key={weekIdx} style={styles.modalWeekRow}>
-                  {weekDates.map((date, idx) => {
-                    const dateStr = formatDate(date);
-                    const record = detailRecords.find(r => r.student_id === selectedStudent?.id && r.date === dateStr);
-                    const isScheduled = (selectedStudent?.class_days || []).includes(DAY_NAMES[idx]);
-                    const isFuture = date > new Date();
-                    const isExtra = record?.status === 'present' && isExtraClass(selectedStudent!.id, dateStr, detailRecords);
-                    const sameMonth = date.getMonth() === detailMonth.getMonth();
+                  {detailWeeks.map((weekDates, weekIdx) => (
+                    <View key={weekIdx} style={styles.modalWeekRow}>
+                      {weekDates.map((date, idx) => {
+                        const dateStr = formatDate(date);
+                        const record = detailRecords.find(r => r.student_id === selectedStudent?.id && r.date === dateStr);
+                        const isScheduled = (selectedStudent?.class_days || []).includes(DAY_NAMES[idx]);
+                        const isFuture = date > new Date();
+                        const isSunday = date.getDay() === 0;
+                        const isExtra = record?.status === 'present' && isExtraClass(selectedStudent!.id, dateStr, selectedStudent!, detailRecords);
+                        const sameMonth = date.getMonth() === detailMonth.getMonth();
 
-                    return (
-                      <View key={idx} style={styles.modalDayColumn}>
-                        <Text style={[styles.modalDayName, !sameMonth && styles.fadedText]}>{DAY_NAMES[idx]}</Text>
-                        <Text style={[styles.modalDayNum, !sameMonth && styles.fadedText]}>{date.getDate()}</Text>
-                        <TouchableOpacity
-                          style={[
-                            styles.modalStatusCell,
-                            !sameMonth && styles.fadedCell,
-                            isExtra && styles.extraClassCell,
-                            record?.status === 'present' && !isExtra && styles.presentCell,
-                            (isFuture || futureMonth) && styles.futureCell,
-                            !record && !isScheduled && styles.unscheduledCell,
-                          ]}
-                          onPress={() => {
-                            if (!isFuture && !futureMonth && sameMonth) {
-                              toggleAttendance(selectedStudent!.id, dateStr, true);
-                            }
-                          }}
-                          disabled={isFuture || futureMonth || !sameMonth}>
-                          {record && record.status === 'present' ? (
-                            <Text style={[styles.statusIcon, isExtra ? styles.extraText : styles.presentText]}>
-                              {isExtra ? 'E' : 'P'}
-                            </Text>
-                          ) : (
-                            <Text style={styles.emptyText}>+</Text>
-                          )}
-                        </TouchableOpacity>
-                      </View>
-                    );
-                  })}
-                </View>
+                        return (
+                          <View key={idx} style={styles.modalDayColumn}>
+                            <Text style={[styles.modalDayName, !sameMonth && styles.fadedText]}>{DAY_NAMES[idx]}</Text>
+                            <Text style={[styles.modalDayNum, !sameMonth && styles.fadedText]}>{date.getDate()}</Text>
+                            <TouchableOpacity
+                              style={[
+                                styles.modalStatusCell,
+                                !sameMonth && styles.fadedCell,
+                                isExtra && styles.extraClassCell,
+                                record?.status === 'present' && !isExtra && styles.presentCell,
+                                (isFuture || futureMonth) && styles.futureCell,
+                                !record && !isSunday && !isScheduled && styles.unscheduledCell,
+                                isSunday && styles.sundayCell,
+                              ]}
+                              onPress={() => {
+                                if (!isFuture && !futureMonth && sameMonth && !isSunday) {
+                                  toggleAttendance(selectedStudent!.id, dateStr, true);
+                                }
+                              }}
+                              disabled={isFuture || futureMonth || !sameMonth || isSunday}>
+                              {isSunday ? (
+                                <Text style={styles.sundayText}>-</Text>
+                              ) : record && record.status === 'present' ? (
+                                <Text style={[styles.statusIcon, isExtra ? styles.extraText : styles.presentText]}>
+                                  {isExtra ? 'E' : 'P'}
+                                </Text>
+                              ) : (
+                                <Text style={styles.emptyText}>+</Text>
+                              )}
+                            </TouchableOpacity>
+                          </View>
+                        );
+                      })}
+                    </View>
               ))}
             </ScrollView>
           </View>
@@ -620,6 +643,16 @@ const styles = StyleSheet.create({
   },
   futureCell: {
     backgroundColor: '#fafafa',
+  },
+  sundayCell: {
+    backgroundColor: '#f1f5f9',
+    borderColor: '#e2e8f0',
+    opacity: 0.6,
+  },
+  sundayText: {
+    fontSize: 14,
+    color: '#94a3b8',
+    fontWeight: '600',
   },
   presentCell: {
     backgroundColor: '#f0fdf4',

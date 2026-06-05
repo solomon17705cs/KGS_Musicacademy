@@ -236,7 +236,7 @@ export default function FeePaymentsScreen() {
                   style={styles.studentCard}
                   onPress={() => openEditModal(student)}>
                   <View style={styles.studentInfo}>
-                    <Text style={styles.studentName}>{student.full_name}</Text>
+                    <Text style={styles.studentName}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
                     <Text style={styles.studentInstrument}>{student.instrument}</Text>
                   </View>
                   <View style={[styles.statusBadge, isPaid ? styles.paidBadge : styles.pendingBadge]}>
@@ -259,7 +259,7 @@ export default function FeePaymentsScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>{selectedStudent?.full_name}</Text>
+                <Text style={styles.modalTitle}>{selectedStudent?.full_name}{selectedStudent?.summer_class ? ' ☀️' : ''}</Text>
                 <Text style={styles.modalSubtitle}>{getMonthLabel(viewMonth)}</Text>
               </View>
               <TouchableOpacity style={styles.closeButton} onPress={() => setEditModal(false)}>

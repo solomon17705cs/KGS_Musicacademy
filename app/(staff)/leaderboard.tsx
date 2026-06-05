@@ -136,7 +136,7 @@ export default function AdminLeaderboard() {
                                 </View>
 
                                 <View style={styles.studentInfo}>
-                                    <Text style={styles.studentName}>{student.full_name}</Text>
+                                    <Text style={styles.studentName}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
                                     <Text style={styles.instrument}>{student.instrument}</Text>
                                 </View>
 

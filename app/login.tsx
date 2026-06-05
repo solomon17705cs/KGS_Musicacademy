@@ -14,7 +14,7 @@ import {
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { auth } from '@/lib/firebase';
-import { sendOTPviaSMS, verifyOTPandSignIn } from '@/lib/phoneAuth';
+import { sendOTPviaSMS, verifyOTPandSignIn, clearRecaptchaVerifier } from '@/lib/phoneAuth';
 import { Phone, Mail, Lock, ArrowRight } from 'lucide-react-native';
 
 type LoginMethod = 'email' | 'phone';
@@ -154,6 +154,7 @@ export default function LoginScreen() {
     setOtp('');
     setVerificationId(null);
     setError('');
+    clearRecaptchaVerifier();
   }
 
   return (
@@ -339,8 +340,8 @@ export default function LoginScreen() {
           </TouchableOpacity>
         </View>
 
-        {Platform.OS === 'web' && <View id="recaptcha-container" />}
       </ScrollView>
+      {Platform.OS === 'web' && <View id="recaptcha-container" />}
     </KeyboardAvoidingView>
   );
 }

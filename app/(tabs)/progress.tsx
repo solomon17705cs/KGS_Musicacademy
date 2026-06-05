@@ -180,7 +180,7 @@ export default function ProgressScreen() {
           const progress = await progressService.getLatestProgress(student.id);
           const history = await progressService.getProgressRecords(student.id);
           const realStreak = calculateRealStreak(history);
-          const currentMonthAttendance = await attendanceService.getCurrentMonthAttendance(student.id);
+          const currentMonthAttendance = await attendanceService.getCurrentMonthAttendance(student.id, student.summer_class);
           if (realStreak !== student.streak && (profile.role === 'admin' || profile.role === 'staff')) {
             try {
               await studentService.updateStudent(student.id, { streak: realStreak });
@@ -254,7 +254,7 @@ export default function ProgressScreen() {
         ) : null}
         <View style={{ flex: 1 }}>
           <Text style={styles.greetingText}>
-            {selectedStudent ? selectedStudent.full_name : `Hello, ${userFirstName}`}
+            {selectedStudent ? <>{selectedStudent.full_name}{selectedStudent.summer_class ? ' ☀️' : ''}</> : `Hello, ${userFirstName}`}
           </Text>
           <Text style={styles.welcomeSubtitle}>
             {selectedStudent ? selectedStudent.instrument : 'Welcome back to KGS'}
@@ -549,7 +549,7 @@ export default function ProgressScreen() {
                     <LinearGradient colors={['transparent', 'rgba(0,0,0,0.8)']} style={styles.cardImageOverlay} />
                     <View style={styles.cardHeaderOverlay}>
                       <View style={styles.cardHeaderInfo}>
-                        <Text style={styles.modernStudentName} numberOfLines={1}>{student.full_name}</Text>
+                        <Text style={styles.modernStudentName} numberOfLines={1}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
                         <Text style={styles.modernInstrumentText}>{student.instrument}</Text>
                       </View>
                       <View style={styles.cardStatusRow}>
