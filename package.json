@@ -2,6 +2,8 @@
   "name": "bolt-expo-starter",
   "main": "expo-router/entry",
   "version": "1.0.0",
+  "description": "KGS Music Academy - Music school management app",
+  "author": "KGS Music Academy",
   "private": true,
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start",
@@ -9,15 +11,63 @@
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "android": "expo run:android",
-    "ios": "expo run:ios"
+    "ios": "expo run:ios",
+    "electron:dev": "npm run build:web && electron electron/main.js",
+    "electron:start": "electron electron/main.js",
+    "electron:build:mac": "npm run build:web && electron-builder --mac --config",
+    "electron:build:win": "npm run build:web && electron-builder --win --x64 --config",
+    "electron:build:all": "npm run build:web && electron-builder --mac --win --x64 --config",
+    "icons": "icon-gen --input assets/images/icon.png --output assets/ --ico --icns"
   },
-  "dependencies": {
+  "build": {
+    "appId": "com.kgs.musicacademy",
+    "productName": "KGS Music Academy",
+    "directories": {
+      "output": "release"
+    },
+    "files": [
+      "dist/**/*",
+      "electron/**/*",
+      "package.json",
+      "assets/app.ico",
+      "assets/app.icns"
+    ],
+    "extraMetadata": {
+      "main": "electron/main.js"
+    },
+    "mac": {
+      "category": "public.app-category.education",
+      "target": "dmg",
+      "icon": "assets/app.icns"
+    },
+    "defaultArch": "x64",
+    "win": {
+      "target": "nsis",
+      "icon": "assets/app.ico"
+    },
+    "nsis": {
+      "oneClick": false,
+      "perMachine": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "KGS Music Academy"
+    }
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.2",
     "@expo/vector-icons": "^15.0.2",
     "@lucide/lab": "^0.1.2",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-native-community/datetimepicker": "8.4.4",
     "@react-navigation/bottom-tabs": "^7.2.0",
     "@react-navigation/native": "^7.0.14",
+    "@types/react": "~19.1.10",
+    "baseline-browser-mapping": "^2.10.0",
+    "electron": "^42.3.3",
+    "electron-builder": "^26.8.1",
+    "eslint": "^9.39.4",
+    "eslint-config-expo": "~10.0.0",
     "expo": "~54.0.33",
     "expo-blur": "~15.0.8",
     "expo-camera": "~17.0.10",
@@ -35,6 +85,7 @@
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
     "firebase": "^12.12.1",
+    "icon-gen": "^5.0.0",
     "lucide-react-native": "^1.14.0",
     "react": "19.1.0",
     "react-dom": "19.1.0",
@@ -46,14 +97,7 @@
     "react-native-svg": "15.12.1",
     "react-native-url-polyfill": "^2.0.0",
     "react-native-web": "^0.21.0",
-    "react-native-webview": "13.15.0"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.25.2",
-    "@types/react": "~19.1.10",
-    "baseline-browser-mapping": "^2.10.0",
-    "eslint": "^9.39.4",
-    "eslint-config-expo": "~10.0.0",
+    "react-native-webview": "13.15.0",
     "typescript": "~5.9.2"
   }
 }

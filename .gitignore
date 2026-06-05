@@ -9,3 +9,9 @@ expo-env.d.ts
 # Environment files (contain secrets)
 .env
 .env.production
+
+# Web build output (regenerated via npm run build:web)
+dist/
+
+# Electron builder output
+release/
