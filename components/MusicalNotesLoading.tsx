@@ -108,7 +108,7 @@ export default function MusicalNotesLoading({ text = 'Loading...' }: Props) {
                   {
                     translateY: translateY.current[i]?.interpolate({
                       inputRange: [0, 1],
-                      outputRange: [100, -100],
+                      outputRange: [200, -400],
                     }) ?? 0,
                   },
                   {

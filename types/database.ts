@@ -11,7 +11,7 @@ export type FeeStatus = 'paid' | 'pending' | 'overdue';
 
 export type PaymentMode = 'UPI' | 'cash' | 'bank_transfer';
 
-export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused';
+export type AttendanceStatus = 'present' | 'absent' | 'late' | 'excused' | 'double_present';
 
 export interface FeePayment {
   id: string;

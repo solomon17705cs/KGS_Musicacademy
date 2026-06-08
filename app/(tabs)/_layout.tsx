@@ -4,7 +4,6 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, useWindowDimensions, View, Text, StyleSheet } from 'react-native';
 import { useEffect, useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
-import * as NavigationBar from 'expo-navigation-bar';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationService } from '@/lib/firestore';
 
@@ -49,15 +48,6 @@ const styles = StyleSheet.create({
 export default function TabLayout() {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
-
-  useEffect(() => {
-    async function setupNavigationBar() {
-      await NavigationBar.setVisibilityAsync("hidden");
-    }
-    if (Platform.OS !== 'web') {
-      setupNavigationBar();
-    }
-  }, []);
 
   return (
     <Tabs

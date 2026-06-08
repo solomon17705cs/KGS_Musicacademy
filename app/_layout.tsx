@@ -4,7 +4,6 @@ import { StatusBar } from 'expo-status-bar';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
-import * as NavigationBar from 'expo-navigation-bar';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
@@ -49,13 +48,6 @@ function InitialLayout() {
 
 export default function RootLayout() {
   useFrameworkReady();
-
-  useEffect(() => {
-    async function setupNavigationBar() {
-      await NavigationBar.setVisibilityAsync("hidden");
-    }
-    setupNavigationBar();
-  }, []);
 
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>

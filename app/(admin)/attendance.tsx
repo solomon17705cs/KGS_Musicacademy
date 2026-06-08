@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   Modal,
+  Platform,
+  useWindowDimensions,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -94,6 +96,12 @@ export default function AttendanceScreen() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailRecords, setDetailRecords] = useState<AttendanceRecord[]>([]);
   const [allAttendanceMap, setAllAttendanceMap] = useState<Record<string, AttendanceRecord[]>>({});
+  const [headerHeight, setHeaderHeight] = useState(56);
+  const { width } = useWindowDimensions();
+  const isDesktop = Platform.OS === 'web' && width >= 1300;
+  const halfIdx = Math.ceil(students.length / 2);
+  const leftStudents = students.slice(0, halfIdx);
+  const rightStudents = students.slice(halfIdx);
 
   const weekDates = getWeekDates(weekStart);
   const weekStartStr = formatDate(weekDates[0]);
@@ -156,14 +164,22 @@ export default function AttendanceScreen() {
     await loadData();
   }
 
-  async function toggleAttendance(studentId: string, dateStr: string, isDetail = false) {
+  async function toggleAttendance(studentId: string, dateStr: string, isDetail = false, doublePresent = false) {
     const records = isDetail ? detailRecords : monthRecords;
     const existing = records.find(r => r.student_id === studentId && r.date === dateStr);
 
-    if (existing && existing.status === 'present') {
-      await attendanceService.clearAttendance(studentId, dateStr);
+    if (doublePresent) {
+      if (existing && existing.status === 'double_present') {
+        await attendanceService.clearAttendance(studentId, dateStr);
+      } else {
+        await attendanceService.markAttendance(studentId, dateStr, 'double_present');
+      }
     } else {
-      await attendanceService.markAttendance(studentId, dateStr, 'present');
+      if (existing && existing.status === 'present') {
+        await attendanceService.clearAttendance(studentId, dateStr);
+      } else {
+        await attendanceService.markAttendance(studentId, dateStr, 'present');
+      }
     }
     if (isDetail) {
       loadDetailData();
@@ -177,22 +193,24 @@ export default function AttendanceScreen() {
   }
 
   function getStudentMonthlyCount(studentId: string, excludeDate?: string, records?: AttendanceRecord[]): number {
-    return (records || monthRecords).filter(
-      r => r.student_id === studentId && r.status === 'present' && r.date !== excludeDate
-    ).length;
+    return (records || monthRecords).reduce((sum, r) => {
+      if (r.student_id !== studentId || r.date === excludeDate) return sum;
+      return sum + (r.status === 'double_present' ? 2 : 1);
+    }, 0);
   }
 
   function getStudentMonthlySummary(student: Student, records?: AttendanceRecord[]): { present: number; extra: number; percentage: number; total: number } {
     const total = student.summer_class ? 30 : 8;
     let recs: AttendanceRecord[];
     if (student.summer_class) {
-      recs = (allAttendanceMap[student.id] || []).filter(r => r.status === 'present');
+      recs = allAttendanceMap[student.id] || [];
     } else {
-      recs = (records || monthRecords).filter(r => r.student_id === student.id && r.status === 'present');
+      recs = (records || monthRecords).filter(r => r.student_id === student.id);
     }
-    const present = Math.min(recs.length, total);
-    const extra = Math.max(recs.length - total, 0);
-    return { present, extra, total, percentage: Math.round((recs.length / total) * 100) };
+    const count = recs.reduce((sum, r) => sum + (r.status === 'double_present' ? 2 : 1), 0);
+    const present = Math.min(count, total);
+    const extra = Math.max(count - total, 0);
+    return { present, extra, total, percentage: Math.round((count / total) * 100) };
   }
 
   function isExtraClass(studentId: string, dateStr: string, student?: Student, records?: AttendanceRecord[]): boolean {
@@ -246,6 +264,108 @@ export default function AttendanceScreen() {
   const futureMonth = isFutureMonth(detailMonth);
   const detailMonthName = detailMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
+  function renderTableHeader() {
+    return (
+      <View style={styles.tableHeader}>
+        <View style={styles.nameHeader}>
+          <Text style={styles.nameText}>Student</Text>
+        </View>
+        {weekDates.map((date, idx) => (
+          <View key={idx} style={styles.dayHeader}>
+            <Text style={styles.dayName}>{DAY_NAMES[idx]}</Text>
+            <Text style={styles.dayNum}>{date.getDate()}</Text>
+          </View>
+        ))}
+        <View style={styles.summaryHeader}>
+          <Text style={styles.summaryText}>Month %</Text>
+        </View>
+      </View>
+    );
+  }
+
+  function renderStudentRows(studentList: Student[]) {
+    return studentList.map((student) => {
+      const studentSummary = getStudentMonthlySummary(student);
+      return (
+        <View key={student.id} style={styles.tableRow}>
+          <TouchableOpacity style={styles.nameCell} onPress={() => openDetail(student)}>
+            <Text style={styles.studentName} numberOfLines={1}>
+              {student.full_name}{student.summer_class ? ' ☀️' : ''}
+            </Text>
+            <Text style={styles.instrumentText} numberOfLines={1}>
+              {student.instrument}
+            </Text>
+            <Text style={styles.viewDetailText}>View month →</Text>
+          </TouchableOpacity>
+
+          {weekDates.map((date, idx) => {
+            const dateStr = formatDate(date);
+            const record = getStatusForStudentDate(student.id, dateStr);
+            const isScheduled = (student.class_days || []).includes(DAY_NAMES[idx]);
+            const isFuture = date > new Date();
+            const isSunday = date.getDay() === 0;
+            const isExtra = record?.status === 'present' && isExtraClass(student.id, dateStr, student);
+            const isDouble = record?.status === 'double_present';
+
+            return (
+              <TouchableOpacity
+                key={idx}
+                style={[
+                  styles.statusCell,
+                  isExtra && styles.extraClassCell,
+                  isDouble && styles.doublePresentCell,
+                  record?.status === 'present' && !isExtra && styles.presentCell,
+                  isFuture && styles.futureCell,
+                  !record && !isSunday && !isScheduled && styles.unscheduledCell,
+                  isSunday && styles.sundayCell,
+                ]}
+                onPress={() => {
+                  if (!isFuture && !isSunday) {
+                    toggleAttendance(student.id, dateStr);
+                  }
+                }}
+                onContextMenu={(e) => {
+                  if (Platform.OS === 'web' && !isFuture && !isSunday) {
+                    e.preventDefault();
+                    toggleAttendance(student.id, dateStr, false, true);
+                  }
+                }}
+                onLongPress={() => {
+                  if (!isFuture && !isSunday) {
+                    toggleAttendance(student.id, dateStr, false, true);
+                  }
+                }}
+                disabled={isFuture || isSunday}>
+                {isSunday ? (
+                  <Text style={styles.sundayText}>-</Text>
+                ) : isDouble ? (
+                  <Text style={[styles.statusIcon, styles.doublePresentText]}>DP</Text>
+                ) : record && record.status === 'present' ? (
+                  <Text style={[styles.statusIcon, isExtra ? styles.extraText : styles.presentText]}>
+                    {isExtra ? 'E' : 'P'}
+                  </Text>
+                ) : (
+                  <Text style={styles.emptyText}>+</Text>
+                )}
+              </TouchableOpacity>
+            );
+          })}
+
+          <View style={[
+            styles.summaryCell,
+            studentSummary.percentage >= 100 && styles.goodSummary,
+            studentSummary.percentage > 0 && studentSummary.percentage < 100 && styles.warnSummary,
+          ]}>
+            <Text style={styles.summaryPercentage}>
+              {studentSummary.percentage > 0 ? `${studentSummary.percentage}%` : '—'}
+            </Text>
+            <Text style={styles.summaryCount}>{studentSummary.present}/{studentSummary.total} {studentSummary.extra > 0 && `+${studentSummary.extra}`}</Text>
+          </View>
+        </View>
+      );
+    });
+  }
+
   return (
     <View style={styles.container}>
       <View style={styles.header}>
@@ -271,98 +391,53 @@ export default function AttendanceScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView
-        horizontal
-        showsHorizontalScrollIndicator={false}
-        style={styles.scrollContainer}>
-        <View style={styles.table}>
-          <View style={styles.tableHeader}>
-            <View style={styles.nameHeader}>
-              <Text style={styles.nameText}>Student</Text>
-            </View>
-            {weekDates.map((date, idx) => (
-              <View key={idx} style={styles.dayHeader}>
-                <Text style={styles.dayName}>{DAY_NAMES[idx]}</Text>
-                <Text style={styles.dayNum}>{date.getDate()}</Text>
-              </View>
-            ))}
-            <View style={styles.summaryHeader}>
-              <Text style={styles.summaryText}>Month %</Text>
-            </View>
-          </View>
-
-          {students.map((student) => {
-            const studentSummary = getStudentMonthlySummary(student);
-            return (
-              <View key={student.id} style={styles.tableRow}>
-                <TouchableOpacity style={styles.nameCell} onPress={() => openDetail(student)}>
-                  <Text style={styles.studentName} numberOfLines={1}>
-                    {student.full_name}{student.summer_class ? ' ☀️' : ''}
-                  </Text>
-                  <Text style={styles.instrumentText} numberOfLines={1}>
-                    {student.instrument}
-                  </Text>
-                  <Text style={styles.viewDetailText}>View month →</Text>
-                </TouchableOpacity>
-
-                {weekDates.map((date, idx) => {
-                  const dateStr = formatDate(date);
-                  const record = getStatusForStudentDate(student.id, dateStr);
-                  const isScheduled = (student.class_days || []).includes(DAY_NAMES[idx]);
-                  const isFuture = date > new Date();
-                  const isSunday = date.getDay() === 0;
-                  const isExtra = record?.status === 'present' && isExtraClass(student.id, dateStr, student);
-
-                  return (
-                    <TouchableOpacity
-                      key={idx}
-                      style={[
-                        styles.statusCell,
-                        isExtra && styles.extraClassCell,
-                        record?.status === 'present' && !isExtra && styles.presentCell,
-                        isFuture && styles.futureCell,
-                        !record && !isSunday && !isScheduled && styles.unscheduledCell,
-                        isSunday && styles.sundayCell,
-                      ]}
-                      onPress={() => {
-                        if (!isFuture && !isSunday) {
-                          toggleAttendance(student.id, dateStr);
-                        }
-                      }}
-                      disabled={isFuture || isSunday}>
-                      {isSunday ? (
-                        <Text style={styles.sundayText}>-</Text>
-                      ) : record && record.status === 'present' ? (
-                        <Text style={[styles.statusIcon, isExtra ? styles.extraText : styles.presentText]}>
-                          {isExtra ? 'E' : 'P'}
-                        </Text>
-                      ) : (
-                        <Text style={styles.emptyText}>+</Text>
-                      )}
-                    </TouchableOpacity>
-                  );
-                })}
-
-                <View style={[
-                  styles.summaryCell,
-                  studentSummary.percentage >= 100 && styles.goodSummary,
-                  studentSummary.percentage > 0 && studentSummary.percentage < 100 && styles.warnSummary,
-                ]}>
-                  <Text style={styles.summaryPercentage}>
-                    {studentSummary.percentage > 0 ? `${studentSummary.percentage}%` : '—'}
-                  </Text>
-                  <Text style={styles.summaryCount}>{studentSummary.present}/{studentSummary.total} {studentSummary.extra > 0 && `+${studentSummary.extra}`}</Text>
+      {isDesktop ? (
+        <View style={styles.twoColumnLayout}>
+          <View style={styles.column}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollContainer}>
+              <ScrollView vertical stickyHeaderIndices={[0]} style={styles.tableBodyScroll}>
+                {renderTableHeader()}
+                <View style={styles.table}>
+                  {renderStudentRows(leftStudents)}
                 </View>
-              </View>
-            );
-          })}
+              </ScrollView>
+            </ScrollView>
+          </View>
+          <View style={styles.columnDivider} />
+          <View style={styles.column}>
+            <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollContainer}>
+              <ScrollView vertical stickyHeaderIndices={[0]} style={styles.tableBodyScroll}>
+                {renderTableHeader()}
+                <View style={styles.table}>
+                  {renderStudentRows(rightStudents)}
+                </View>
+              </ScrollView>
+            </ScrollView>
+          </View>
         </View>
-      </ScrollView>
+      ) : (
+        <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollContainer}>
+          <View>
+            <View style={[styles.mobileHeader, { height: headerHeight }]} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
+              {renderTableHeader()}
+            </View>
+            <ScrollView vertical style={{ paddingTop: headerHeight }}>
+              <View style={styles.table}>
+                {renderStudentRows(students)}
+              </View>
+            </ScrollView>
+          </View>
+        </ScrollView>
+      )}
 
       <View style={styles.legend}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, styles.presentDot]} />
           <Text style={styles.legendText}>Present</Text>
+        </View>
+        <View style={styles.legendItem}>
+          <View style={[styles.legendDot, styles.doublePresentDot]} />
+          <Text style={styles.legendText}>Double Present</Text>
         </View>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, styles.extraDot]} />
@@ -420,51 +495,66 @@ export default function AttendanceScreen() {
             </View>
 
             <ScrollView style={styles.modalBody}>
-                  {detailWeeks.map((weekDates, weekIdx) => (
-                    <View key={weekIdx} style={styles.modalWeekRow}>
-                      {weekDates.map((date, idx) => {
-                        const dateStr = formatDate(date);
-                        const record = detailRecords.find(r => r.student_id === selectedStudent?.id && r.date === dateStr);
-                        const isScheduled = (selectedStudent?.class_days || []).includes(DAY_NAMES[idx]);
-                        const isFuture = date > new Date();
-                        const isSunday = date.getDay() === 0;
-                        const isExtra = record?.status === 'present' && isExtraClass(selectedStudent!.id, dateStr, selectedStudent!, detailRecords);
-                        const sameMonth = date.getMonth() === detailMonth.getMonth();
+              {detailWeeks.map((weekDates, weekIdx) => (
+                <View key={weekIdx} style={styles.modalWeekRow}>
+                  {weekDates.map((date, idx) => {
+                    const dateStr = formatDate(date);
+                    const record = detailRecords.find(r => r.student_id === selectedStudent?.id && r.date === dateStr);
+                    const isScheduled = (selectedStudent?.class_days || []).includes(DAY_NAMES[idx]);
+                    const isFuture = date > new Date();
+                    const isSunday = date.getDay() === 0;
+                    const isExtra = record?.status === 'present' && isExtraClass(selectedStudent!.id, dateStr, selectedStudent!, detailRecords);
+                    const isDouble = record?.status === 'double_present';
+                    const sameMonth = date.getMonth() === detailMonth.getMonth();
 
-                        return (
-                          <View key={idx} style={styles.modalDayColumn}>
-                            <Text style={[styles.modalDayName, !sameMonth && styles.fadedText]}>{DAY_NAMES[idx]}</Text>
-                            <Text style={[styles.modalDayNum, !sameMonth && styles.fadedText]}>{date.getDate()}</Text>
-                            <TouchableOpacity
-                              style={[
-                                styles.modalStatusCell,
-                                !sameMonth && styles.fadedCell,
-                                isExtra && styles.extraClassCell,
-                                record?.status === 'present' && !isExtra && styles.presentCell,
-                                (isFuture || futureMonth) && styles.futureCell,
-                                !record && !isSunday && !isScheduled && styles.unscheduledCell,
-                                isSunday && styles.sundayCell,
-                              ]}
-                              onPress={() => {
-                                if (!isFuture && !futureMonth && sameMonth && !isSunday) {
-                                  toggleAttendance(selectedStudent!.id, dateStr, true);
-                                }
-                              }}
-                              disabled={isFuture || futureMonth || !sameMonth || isSunday}>
-                              {isSunday ? (
-                                <Text style={styles.sundayText}>-</Text>
-                              ) : record && record.status === 'present' ? (
-                                <Text style={[styles.statusIcon, isExtra ? styles.extraText : styles.presentText]}>
-                                  {isExtra ? 'E' : 'P'}
-                                </Text>
-                              ) : (
-                                <Text style={styles.emptyText}>+</Text>
-                              )}
-                            </TouchableOpacity>
-                          </View>
-                        );
-                      })}
-                    </View>
+                    return (
+                      <View key={idx} style={styles.modalDayColumn}>
+                        <Text style={[styles.modalDayName, !sameMonth && styles.fadedText]}>{DAY_NAMES[idx]}</Text>
+                        <Text style={[styles.modalDayNum, !sameMonth && styles.fadedText]}>{date.getDate()}</Text>
+                        <TouchableOpacity
+                          style={[
+                            styles.modalStatusCell,
+                            !sameMonth && styles.fadedCell,
+                            isExtra && styles.extraClassCell,
+                            isDouble && styles.doublePresentCell,
+                            record?.status === 'present' && !isExtra && styles.presentCell,
+                            (isFuture || futureMonth) && styles.futureCell,
+                            !record && !isSunday && !isScheduled && styles.unscheduledCell,
+                            isSunday && styles.sundayCell,
+                          ]}
+                          onPress={() => {
+                            if (!isFuture && !futureMonth && sameMonth && !isSunday) {
+                              toggleAttendance(selectedStudent!.id, dateStr, true);
+                            }
+                          }}
+                          onContextMenu={(e) => {
+                            if (Platform.OS === 'web' && !isFuture && !futureMonth && sameMonth && !isSunday) {
+                              e.preventDefault();
+                              toggleAttendance(selectedStudent!.id, dateStr, true, true);
+                            }
+                          }}
+                          onLongPress={() => {
+                            if (!isFuture && !futureMonth && sameMonth && !isSunday) {
+                              toggleAttendance(selectedStudent!.id, dateStr, true, true);
+                            }
+                          }}
+                          disabled={isFuture || futureMonth || !sameMonth || isSunday}>
+                          {isSunday ? (
+                            <Text style={styles.sundayText}>-</Text>
+                          ) : isDouble ? (
+                            <Text style={[styles.statusIcon, styles.doublePresentText]}>DP</Text>
+                          ) : record && record.status === 'present' ? (
+                            <Text style={[styles.statusIcon, isExtra ? styles.extraText : styles.presentText]}>
+                              {isExtra ? 'E' : 'P'}
+                            </Text>
+                          ) : (
+                            <Text style={styles.emptyText}>+</Text>
+                          )}
+                        </TouchableOpacity>
+                      </View>
+                    );
+                  })}
+                </View>
               ))}
             </ScrollView>
           </View>
@@ -555,9 +645,37 @@ const styles = StyleSheet.create({
   scrollContainer: {
     flex: 1,
   },
+  tableBodyScroll: {
+    flex: 1,
+  },
+  twoColumnLayout: {
+    flex: 1,
+    flexDirection: 'row',
+  },
+  column: {
+    flex: 1,
+    minWidth: 0,
+  },
+  columnDivider: {
+    width: 1,
+    backgroundColor: '#e2e8f0',
+    marginVertical: 12,
+  },
+  verticalScroll: {
+    flex: 1,
+  },
   table: {
     padding: 12,
     gap: 4,
+  },
+  mobileHeader: {
+    position: 'absolute',
+    top: 0,
+    left: 0,
+    zIndex: 10,
+    backgroundColor: '#f8fafc',
+    paddingHorizontal: 12,
+    paddingTop: 12,
   },
   tableHeader: {
     flexDirection: 'row',
@@ -662,6 +780,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef3c7',
     borderColor: '#f59e0b',
   },
+  doublePresentCell: {
+    backgroundColor: '#eef2ff',
+    borderColor: '#6366f1',
+  },
   statusIcon: {
     fontSize: 16,
     fontWeight: '800',
@@ -671,6 +793,10 @@ const styles = StyleSheet.create({
   },
   extraText: {
     color: '#d97706',
+  },
+  doublePresentText: {
+    color: '#6366f1',
+    fontSize: 14,
   },
   emptyText: {
     fontSize: 18,
@@ -725,6 +851,9 @@ const styles = StyleSheet.create({
   },
   presentDot: {
     backgroundColor: '#16a34a',
+  },
+  doublePresentDot: {
+    backgroundColor: '#6366f1',
   },
   extraDot: {
     backgroundColor: '#f59e0b',

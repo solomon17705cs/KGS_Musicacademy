@@ -125,6 +125,15 @@ export const studentService = {
     return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Student;
   },
 
+  async getStudentsByName(name: string): Promise<Student[]> {
+    const q = query(
+      collection(db, STUDENTS_COLLECTION),
+      where('full_name', '==', name)
+    );
+    const snapshot = await getDocs(q);
+    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+  },
+
   async createStudent(data: Omit<Student, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
     const docRef = await addDoc(collection(db, STUDENTS_COLLECTION), {
       ...data,
@@ -403,8 +412,12 @@ export const attendanceService = {
     const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
 
     if (summerClass) {
-      const present = records.filter(r => r.status === 'present' || r.status === 'late').length;
-      return `${present}/30`;
+      const count = records.reduce((sum, r) => {
+        if (r.status === 'present' || r.status === 'late') return sum + 1;
+        if (r.status === 'double_present') return sum + 2;
+        return sum;
+      }, 0);
+      return `${count}/30`;
     }
 
     const now = new Date();
@@ -414,9 +427,13 @@ export const attendanceService = {
     const endDate = `${year}-${String(month).padStart(2, '0')}-31`;
 
     const monthRecords = records.filter(r => r.date >= startDate && r.date <= endDate);
-    const present = monthRecords.filter(r => r.status === 'present' || r.status === 'late').length;
+    const count = monthRecords.reduce((sum, r) => {
+      if (r.status === 'present' || r.status === 'late') return sum + 1;
+      if (r.status === 'double_present') return sum + 2;
+      return sum;
+    }, 0);
 
-    return `${present}/8`;
+    return `${count}/8`;
   },
 
   async getMonthAttendanceForStudent(studentId: string, year: number, month: number): Promise<AttendanceRecord[]> {

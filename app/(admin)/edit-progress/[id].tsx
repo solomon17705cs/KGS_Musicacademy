@@ -378,6 +378,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                     <TextInput
                       style={styles.input}
                       placeholder="e.g., Grade 3"
+                      placeholderTextColor="#9ca3af"
                       value={theoryGrade}
                       onChangeText={(text) => {
                         setTheoryGrade(text);
@@ -446,6 +447,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                     <TextInput
                       style={styles.input}
                       placeholder="e.g., Grade 3"
+                      placeholderTextColor="#9ca3af"
                       value={practicalGrade}
                       onChangeText={(text) => {
                         setPracticalGrade(text);
@@ -517,6 +519,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                   <TextInput
                     style={styles.input}
                     placeholder="e.g., 2/2"
+                    placeholderTextColor="#9ca3af"
                     value={attendance}
                     onChangeText={setAttendance}
                     editable={!saving}
@@ -527,6 +530,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                   <TextInput
                     style={styles.input}
                     placeholder="0-100"
+                    placeholderTextColor="#9ca3af"
                     value={homeworkCompletion}
                     onChangeText={setHomeworkCompletion}
                     keyboardType="numeric"
@@ -541,6 +545,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                   <TextInput
                     style={styles.input}
                     placeholder="0-100"
+                    placeholderTextColor="#9ca3af"
                     value={practiceScore}
                     onChangeText={setPracticeScore}
                     keyboardType="numeric"
@@ -552,6 +557,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                   <TextInput
                     style={styles.input}
                     placeholder="0-100"
+                    placeholderTextColor="#9ca3af"
                     value={masteryLevel}
                     onChangeText={setMasteryLevel}
                     keyboardType="numeric"
@@ -574,6 +580,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                 <TextInput
                   style={styles.input}
                   placeholder="type homework"
+                  placeholderTextColor="#9ca3af"
                   value={weeklyGoal}
                   onChangeText={setWeeklyGoal}
                   editable={!saving}
@@ -673,6 +680,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                   <TextInput
                     style={styles.input}
                     placeholder="e.g. Grade 2"
+                    placeholderTextColor="#9ca3af"
                     value={newGradeName}
                     onChangeText={setNewGradeName}
                   />
@@ -682,6 +690,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                   <TextInput
                     style={styles.input}
                     placeholder="e.g. 85%"
+                    placeholderTextColor="#9ca3af"
                     value={newGradeMark}
                     onChangeText={setNewGradeMark}
                   />
@@ -777,6 +786,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
           <TextInput
             style={styles.textArea}
             placeholder="Enter brief notes or tap 'Template' for a guide, then tap 'AI Polish'..."
+            placeholderTextColor="#9ca3af"
             value={notes}
             onChangeText={setNotes}
             multiline

@@ -9,6 +9,7 @@ import {
     ActivityIndicator,
     KeyboardAvoidingView,
     Platform,
+    Alert,
     Modal,
     useWindowDimensions,
 } from 'react-native';
@@ -154,6 +155,32 @@ export default function AddStudentScreen() {
         setError('');
 
         try {
+            const allStudents = await studentService.getAllStudents();
+            const normalizedInput = fullName.trim().toLowerCase().replace(/\s+/g, ' ');
+            const existing = allStudents.filter(s => {
+                const storedName = (s.full_name || '').trim().toLowerCase().replace(/\s+/g, ' ');
+                return storedName === normalizedInput;
+            });
+            if (existing.length > 0) {
+                const confirmed = Platform.OS === 'web'
+                    ? confirm(`A student named "${fullName}" already exists. Add another?`)
+                    : await new Promise((resolve) => {
+                        Alert.alert(
+                            'Duplicate Student',
+                            `A student named "${fullName}" already exists.\n\n${existing.map(s => `  • ${s.instrument}${s.father_name ? ` (${s.father_name})` : ''}`).join('\n')}\n\nAdd another?`,
+                            [
+                                { text: 'Cancel', style: 'cancel', onPress: () => resolve(false) },
+                                { text: 'Add Anyway', style: 'destructive', onPress: () => resolve(true) },
+                            ]
+                        );
+                    });
+
+                if (!confirmed) {
+                    setLoading(false);
+                    return;
+                }
+            }
+
             await studentService.createStudent({
                 user_id: null,
                 father_name: fatherName.trim() || null,
@@ -163,7 +190,7 @@ export default function AddStudentScreen() {
                 mother_phone: motherPhone.trim() || null,
                 mother_email: motherEmail.toLowerCase().trim() || null,
                 parent_address: parentAddress.trim() || null,
-                full_name: fullName,
+                full_name: fullName.trim().replace(/\s+/g, ' '),
                 gender: gender || null,
                 date_of_birth: dob ? formatDateForDB(dob) : null,
                 enrollment_date: formatDateForDB(enrollmentDate) || '',

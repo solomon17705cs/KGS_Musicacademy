@@ -3,7 +3,18 @@ const http = require('http');
 const fs = require('fs');
 const path = require('path');
 
+const assetsPath = path.join(__dirname, '..', 'assets');
 const distPath = path.join(__dirname, '..', 'dist');
+
+function getAppIcon() {
+  if (process.platform === 'darwin') {
+    const icns = path.join(assetsPath, 'app.icns');
+    if (fs.existsSync(icns)) return icns;
+  }
+  const ico = path.join(assetsPath, 'app.ico');
+  if (fs.existsSync(ico)) return ico;
+  return path.join(distPath, 'favicon.ico');
+}
 
 const MIME_TYPES = {
   '.html': 'text/html',
@@ -50,7 +61,7 @@ function createWindow() {
       nodeIntegration: false,
     },
     title: 'KGS Music Academy',
-    icon: path.join(distPath, 'favicon.ico'),
+    icon: getAppIcon(),
   });
 
   mainWindow.loadURL('http://localhost:5173');
