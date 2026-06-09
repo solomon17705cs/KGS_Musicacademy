@@ -422,51 +422,53 @@ export default function AddStudentScreen() {
                                     </Modal>
                                 )}
 
-                                <View style={styles.inputGroup}>
+                                <View style={[styles.inputGroup, showGradeOptions && styles.inputGroupActive]}>
                                     <Text style={styles.label}>Grade Completed while Joining</Text>
-                                    <View style={styles.gradeSelectorContainer}>
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="Not completed"
-                                            placeholderTextColor="#94a3b8"
-                                            value={initialGrade}
-                                            onChangeText={(text) => {
-                                                setInitialGrade(text);
-                                                setShowGradeOptions(false);
-                                            }}
-                                            editable={!loading}
-                                            onFocus={() => setShowGradeOptions(true)}
-                                        />
-                                        <TouchableOpacity
-                                            style={styles.dropdownToggle}
-                                            onPress={() => setShowGradeOptions(!showGradeOptions)}
-                                            disabled={loading}>
-                                            <ChevronDown size={18} color={showGradeOptions ? '#1e40af' : '#64748b'} />
-                                        </TouchableOpacity>
-                                    </View>
-                                    {showGradeOptions && (
-                                        <View style={styles.gradeOptionsList}>
-                                            <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
-                                                {INITIAL_GRADE_OPTIONS.map((option) => (
-                                                    <TouchableOpacity
-                                                        key={option}
-                                                        style={[
-                                                            styles.gradeOption,
-                                                            initialGrade === option && styles.gradeOptionSelected,
-                                                        ]}
-                                                        onPress={() => {
-                                                            setInitialGrade(option);
-                                                            setShowGradeOptions(false);
-                                                        }}>
-                                                        <Text style={[
-                                                            styles.gradeOptionText,
-                                                            initialGrade === option && styles.gradeOptionTextSelected,
-                                                        ]}>{option}</Text>
-                                                    </TouchableOpacity>
-                                                ))}
-                                            </ScrollView>
+                                    <View style={styles.gradeWrapper}>
+                                        <View style={styles.gradeSelectorContainer}>
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="Not completed"
+                                                placeholderTextColor="#94a3b8"
+                                                value={initialGrade}
+                                                onChangeText={(text) => {
+                                                    setInitialGrade(text);
+                                                    setShowGradeOptions(false);
+                                                }}
+                                                editable={!loading}
+                                                onFocus={() => setShowGradeOptions(true)}
+                                            />
+                                            <TouchableOpacity
+                                                style={styles.dropdownToggle}
+                                                onPress={() => setShowGradeOptions(!showGradeOptions)}
+                                                disabled={loading}>
+                                                <ChevronDown size={18} color={showGradeOptions ? '#1e40af' : '#64748b'} />
+                                            </TouchableOpacity>
                                         </View>
-                                    )}
+                                        {showGradeOptions && (
+                                            <View style={styles.gradeOptionsList}>
+                                                <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
+                                                    {INITIAL_GRADE_OPTIONS.map((option) => (
+                                                        <TouchableOpacity
+                                                            key={option}
+                                                            style={[
+                                                                styles.gradeOption,
+                                                                initialGrade === option && styles.gradeOptionSelected,
+                                                            ]}
+                                                            onPress={() => {
+                                                                setInitialGrade(option);
+                                                                setShowGradeOptions(false);
+                                                            }}>
+                                                            <Text style={[
+                                                                styles.gradeOptionText,
+                                                                initialGrade === option && styles.gradeOptionTextSelected,
+                                                            ]}>{option}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </ScrollView>
+                                            </View>
+                                        )}
+                                    </View>
                                 </View>
 
                                 <View style={styles.inputGroup}>
@@ -788,6 +790,13 @@ const styles = StyleSheet.create({
     inputGroup: {
         marginBottom: 14,
     },
+    inputGroupActive: {
+        zIndex: 9999,
+        elevation: 10,
+    },
+    gradeWrapper: {
+        position: 'relative',
+    },
     label: {
         fontSize: 12,
         fontWeight: '600',
@@ -820,7 +829,10 @@ const styles = StyleSheet.create({
         borderRadius: 8,
     },
     gradeOptionsList: {
-        marginTop: 4,
+        position: 'absolute',
+        top: '100%',
+        left: 0,
+        right: 0,
         backgroundColor: '#fff',
         borderRadius: 12,
         borderWidth: 1,

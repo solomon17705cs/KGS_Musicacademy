@@ -360,51 +360,53 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
               <View style={{ flex: 1, marginRight: 8 }}>
                 <Text style={styles.subSectionTitle}>Theory</Text>
 
-                <View style={styles.inputGroup}>
+                <View style={[styles.inputGroup, showTheoryOptions && styles.inputGroupActive]}>
                   <Text style={styles.label}>Grade Level</Text>
-                  <View style={styles.gradeSelectorContainer}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g., Grade 3"
-                      placeholderTextColor="#9ca3af"
-                      value={theoryGrade}
-                      onChangeText={(text) => {
-                        setTheoryGrade(text);
-                        setShowTheoryOptions(false);
-                      }}
-                      editable={!saving}
-                      onFocus={() => setShowTheoryOptions(true)}
-                    />
-                    <TouchableOpacity
-                      style={styles.dropdownToggle}
-                      onPress={() => setShowTheoryOptions(!showTheoryOptions)}
-                      disabled={saving}>
-                      <ChevronDown size={18} color={showTheoryOptions ? '#1e40af' : '#64748b'} />
-                    </TouchableOpacity>
-                  </View>
-                  {showTheoryOptions && (
-                    <View style={styles.gradeOptionsList}>
-                      <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
-                        {THEORY_OPTIONS.map((option) => (
-                          <TouchableOpacity
-                            key={option}
-                            style={[
-                              styles.gradeOption,
-                              theoryGrade === option && styles.gradeOptionSelected,
-                            ]}
-                            onPress={() => {
-                              setTheoryGrade(option);
-                              setShowTheoryOptions(false);
-                            }}>
-                            <Text style={[
-                              styles.gradeOptionText,
-                              theoryGrade === option && styles.gradeOptionTextSelected,
-                            ]}>{option}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
+                  <View style={styles.gradeWrapper}>
+                    <View style={styles.gradeSelectorContainer}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="e.g., Grade 3"
+                        placeholderTextColor="#9ca3af"
+                        value={theoryGrade}
+                        onChangeText={(text) => {
+                          setTheoryGrade(text);
+                          setShowTheoryOptions(false);
+                        }}
+                        editable={!saving}
+                        onFocus={() => setShowTheoryOptions(true)}
+                      />
+                      <TouchableOpacity
+                        style={styles.dropdownToggle}
+                        onPress={() => setShowTheoryOptions(!showTheoryOptions)}
+                        disabled={saving}>
+                        <ChevronDown size={18} color={showTheoryOptions ? '#1e40af' : '#64748b'} />
+                      </TouchableOpacity>
                     </View>
-                  )}
+                    {showTheoryOptions && (
+                      <View style={styles.gradeOptionsList}>
+                        <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
+                          {THEORY_OPTIONS.map((option) => (
+                            <TouchableOpacity
+                              key={option}
+                              style={[
+                                styles.gradeOption,
+                                theoryGrade === option && styles.gradeOptionSelected,
+                              ]}
+                              onPress={() => {
+                                setTheoryGrade(option);
+                                setShowTheoryOptions(false);
+                              }}>
+                              <Text style={[
+                                styles.gradeOptionText,
+                                theoryGrade === option && styles.gradeOptionTextSelected,
+                              ]}>{option}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -447,51 +449,53 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
               <View style={{ flex: 1 }}>
                 <Text style={styles.subSectionTitle}>Practical</Text>
 
-                <View style={styles.inputGroup}>
+                <View style={[styles.inputGroup, showPracticalOptions && styles.inputGroupActive]}>
                   <Text style={styles.label}>Grade Level</Text>
-                  <View style={styles.gradeSelectorContainer}>
-                    <TextInput
-                      style={styles.input}
-                      placeholder="e.g., Grade 3"
-                      placeholderTextColor="#9ca3af"
-                      value={practicalGrade}
-                      onChangeText={(text) => {
-                        setPracticalGrade(text);
-                        setShowPracticalOptions(false);
-                      }}
-                      editable={!saving}
-                      onFocus={() => setShowPracticalOptions(true)}
-                    />
-                    <TouchableOpacity
-                      style={styles.dropdownToggle}
-                      onPress={() => setShowPracticalOptions(!showPracticalOptions)}
-                      disabled={saving}>
-                      <ChevronDown size={18} color={showPracticalOptions ? '#1e40af' : '#64748b'} />
-                    </TouchableOpacity>
-                  </View>
-                  {showPracticalOptions && (
-                    <View style={styles.gradeOptionsList}>
-                      <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
-                        {GRADE_OPTIONS.map((option) => (
-                          <TouchableOpacity
-                            key={option}
-                            style={[
-                              styles.gradeOption,
-                              practicalGrade === option && styles.gradeOptionSelected,
-                            ]}
-                            onPress={() => {
-                              setPracticalGrade(option);
-                              setShowPracticalOptions(false);
-                            }}>
-                            <Text style={[
-                              styles.gradeOptionText,
-                              practicalGrade === option && styles.gradeOptionTextSelected,
-                            ]}>{option}</Text>
-                          </TouchableOpacity>
-                        ))}
-                      </ScrollView>
+                  <View style={styles.gradeWrapper}>
+                    <View style={styles.gradeSelectorContainer}>
+                      <TextInput
+                        style={styles.input}
+                        placeholder="e.g., Grade 3"
+                        placeholderTextColor="#9ca3af"
+                        value={practicalGrade}
+                        onChangeText={(text) => {
+                          setPracticalGrade(text);
+                          setShowPracticalOptions(false);
+                        }}
+                        editable={!saving}
+                        onFocus={() => setShowPracticalOptions(true)}
+                      />
+                      <TouchableOpacity
+                        style={styles.dropdownToggle}
+                        onPress={() => setShowPracticalOptions(!showPracticalOptions)}
+                        disabled={saving}>
+                        <ChevronDown size={18} color={showPracticalOptions ? '#1e40af' : '#64748b'} />
+                      </TouchableOpacity>
                     </View>
-                  )}
+                    {showPracticalOptions && (
+                      <View style={styles.gradeOptionsList}>
+                        <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
+                          {GRADE_OPTIONS.map((option) => (
+                            <TouchableOpacity
+                              key={option}
+                              style={[
+                                styles.gradeOption,
+                                practicalGrade === option && styles.gradeOptionSelected,
+                              ]}
+                              onPress={() => {
+                                setPracticalGrade(option);
+                                setShowPracticalOptions(false);
+                              }}>
+                              <Text style={[
+                                styles.gradeOptionText,
+                                practicalGrade === option && styles.gradeOptionTextSelected,
+                              ]}>{option}</Text>
+                            </TouchableOpacity>
+                          ))}
+                        </ScrollView>
+                      </View>
+                    )}
+                  </View>
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -1005,6 +1009,13 @@ const styles = StyleSheet.create({
   inputGroup: {
     marginBottom: 12,
   },
+  inputGroupActive: {
+    zIndex: 9999,
+    elevation: 10,
+  },
+  gradeWrapper: {
+    position: 'relative',
+  },
   choiceButton: {
     flex: 1,
     flexDirection: 'row',
@@ -1092,7 +1103,10 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   gradeOptionsList: {
-    marginTop: 4,
+    position: 'absolute',
+    top: '100%',
+    left: 0,
+    right: 0,
     backgroundColor: '#fff',
     borderRadius: 12,
     borderWidth: 1,

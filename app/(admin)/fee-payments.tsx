@@ -11,12 +11,13 @@ import {
   Platform,
   useWindowDimensions,
   KeyboardAvoidingView,
+  Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService, feePaymentService } from '@/lib/firestore';
 import { Student, FeePayment, PaymentMode } from '@/types/database';
-import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Check, X } from 'lucide-react-native';
+import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Check, X, Search } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -41,6 +42,7 @@ export default function FeePaymentsScreen() {
   const [editPaidDate, setEditPaidDate] = useState('');
   const [editPaymentMode, setEditPaymentMode] = useState<PaymentMode | null>(null);
   const [editAmount, setEditAmount] = useState('');
+  const [search, setSearch] = useState('');
   const [showDatePicker, setShowDatePicker] = useState(false);
   const webDateRef = useRef<any>(null);
   const { width: screenWidth } = useWindowDimensions();
@@ -52,6 +54,15 @@ export default function FeePaymentsScreen() {
   useEffect(() => {
     loadData();
   }, [viewMonth]);
+
+  useEffect(() => {
+    if (!editModal) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setEditModal(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [editModal]);
 
   async function loadData() {
     try {
@@ -175,6 +186,13 @@ export default function FeePaymentsScreen() {
     }
   };
 
+  const filteredStudents = students.filter(s =>
+    (s.full_name || '').toLowerCase().includes(search.toLowerCase())
+  );
+
+  const paidCount = students.reduce((count, s) => count + (getPaymentForStudent(s).status === 'paid' ? 1 : 0), 0);
+  const pendingCount = students.length - paidCount;
+
   function getMonthLabel(date: Date): string {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
   }
@@ -206,6 +224,17 @@ export default function FeePaymentsScreen() {
         </View>
       </View>
 
+      <View style={styles.summaryRow}>
+        <View style={[styles.summaryChip, { backgroundColor: '#f0fdf4' }]}>
+          <View style={[styles.summaryDot, { backgroundColor: '#16a34a' }]} />
+          <Text style={[styles.summaryText, { color: '#16a34a' }]}>Paid: {paidCount}</Text>
+        </View>
+        <View style={[styles.summaryChip, { backgroundColor: '#fef2f2' }]}>
+          <View style={[styles.summaryDot, { backgroundColor: '#ef4444' }]} />
+          <Text style={[styles.summaryText, { color: '#ef4444' }]}>Pending: {pendingCount}</Text>
+        </View>
+      </View>
+
       <View style={styles.monthNav}>
         <TouchableOpacity
           style={[styles.navButton, !canGoPrev(viewMonth) && styles.navButtonDisabled]}
@@ -225,30 +254,55 @@ export default function FeePaymentsScreen() {
         </TouchableOpacity>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        <View style={styles.list}>
-          {students.map((student) => {
-            const payment = getPaymentForStudent(student);
-            const isPaid = payment?.status === 'paid';
-            return (
-              <View key={student.id} style={styles.studentCardWrapper}>
-                <TouchableOpacity
-                  style={styles.studentCard}
-                  onPress={() => openEditModal(student)}>
-                  <View style={styles.studentInfo}>
-                    <Text style={styles.studentName}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
-                    <Text style={styles.studentInstrument}>{student.instrument}</Text>
-                  </View>
-                  <View style={[styles.statusBadge, isPaid ? styles.paidBadge : styles.pendingBadge]}>
-                    <Text style={[styles.statusText, isPaid ? styles.paidText : styles.pendingText]}>
-                      {isPaid ? 'Paid' : 'Pending'}
-                    </Text>
-                  </View>
-                </TouchableOpacity>
-              </View>
-            );
-          })}
+      {students.length > 0 && (
+        <View style={styles.searchContainer}>
+          <Search size={18} color="#64748b" />
+          <TextInput
+            style={styles.searchInput}
+            placeholder="Search by name..."
+            value={search}
+            onChangeText={setSearch}
+            placeholderTextColor="#94a3b8"
+          />
+          {search ? (
+            <TouchableOpacity onPress={() => setSearch('')}>
+              <Text style={styles.clearText}>Clear</Text>
+            </TouchableOpacity>
+          ) : null}
         </View>
+      )}
+
+      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+        {filteredStudents.length === 0 ? (
+          <View style={styles.emptyContainer}>
+            <Text style={styles.emptyTitle}>No results found</Text>
+            <Text style={styles.emptyText}>No student matches "{search}"</Text>
+          </View>
+        ) : (
+          <View style={styles.list}>
+            {filteredStudents.map((student) => {
+              const payment = getPaymentForStudent(student);
+              const isPaid = payment?.status === 'paid';
+              return (
+                <View key={student.id} style={styles.studentCardWrapper}>
+                  <TouchableOpacity
+                    style={styles.studentCard}
+                    onPress={() => openEditModal(student)}>
+                    <View style={styles.studentInfo}>
+                      <Text style={styles.studentName}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
+                      <Text style={styles.studentInstrument}>{student.instrument}</Text>
+                    </View>
+                    <View style={[styles.statusBadge, isPaid ? styles.paidBadge : styles.pendingBadge]}>
+                      <Text style={[styles.statusText, isPaid ? styles.paidText : styles.pendingText]}>
+                        {isPaid ? 'Paid' : 'Pending'}
+                      </Text>
+                    </View>
+                  </TouchableOpacity>
+                </View>
+              );
+            })}
+          </View>
+        )}
       </ScrollView>
 
       {/* Edit Payment Modal */}
@@ -256,6 +310,7 @@ export default function FeePaymentsScreen() {
         <KeyboardAvoidingView
           behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
           style={styles.modalContainer}>
+          <Pressable style={{ flex: 1 }} onPress={() => setEditModal(false)} />
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View>
@@ -415,6 +470,32 @@ const styles = StyleSheet.create({
     color: '#64748b',
     marginTop: 2,
   },
+  summaryRow: {
+    flexDirection: 'row',
+    gap: 12,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    backgroundColor: '#fff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+  },
+  summaryChip: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 20,
+  },
+  summaryDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+  },
+  summaryText: {
+    fontSize: 13,
+    fontWeight: '700',
+  },
   monthNav: {
     flexDirection: 'row',
     alignItems: 'center',
@@ -511,7 +592,6 @@ const styles = StyleSheet.create({
   modalContainer: {
     flex: 1,
     backgroundColor: 'rgba(0,0,0,0.5)',
-    justifyContent: 'flex-end',
   },
   modalContent: {
     backgroundColor: '#fff',
@@ -654,5 +734,45 @@ const styles = StyleSheet.create({
     color: '#fff',
     fontSize: 16,
     fontWeight: '700',
+  },
+  searchContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fff',
+    marginHorizontal: 16,
+    marginTop: 12,
+    marginBottom: 8,
+    paddingHorizontal: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    gap: 8,
+  },
+  searchInput: {
+    flex: 1,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1e293b',
+  },
+  clearText: {
+    fontSize: 13,
+    color: '#3b82f6',
+    fontWeight: '600',
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    padding: 48,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: '600',
+    color: '#334155',
+    marginTop: 16,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#64748b',
+    textAlign: 'center',
+    marginTop: 8,
   },
 });
