@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
   KeyboardAvoidingView,
   Platform,
   Alert,
-  TouchableWithoutFeedback,
   Modal,
   useWindowDimensions,
 } from 'react-native';
@@ -56,10 +55,8 @@ export default function EditProgressScreen() {
   const [selectedGradeType, setSelectedGradeType] = useState<'theory' | 'practical'>('practical');
   const [recordingGrade, setRecordingGrade] = useState(false);
   const [polishing, setPolishing] = useState(false);
-  const [activeDropdown, setActiveDropdown] = useState<'theory' | 'practical' | null>(null);
-  const [dropdownRect, setDropdownRect] = useState<{ x: number; y: number; width: number } | null>(null);
-  const theoryContainerRef = useRef<View>(null);
-  const practicalContainerRef = useRef<View>(null);
+  const [showTheoryOptions, setShowTheoryOptions] = useState(false);
+  const [showPracticalOptions, setShowPracticalOptions] = useState(false);
   const { width: screenWidth } = useWindowDimensions();
   const isMobile = screenWidth < 768;
 
@@ -297,16 +294,6 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
     }
   }
 
-  function measureAndShow(type: 'theory' | 'practical') {
-    const ref = type === 'theory' ? theoryContainerRef : practicalContainerRef;
-    ref.current?.measureInWindow((x, y, width, height) => {
-      setDropdownRect({ x, y: y + height + 4, width });
-      setActiveDropdown(type);
-    });
-  }
-
-  const currentDropdownValue = activeDropdown === 'theory' ? theoryGrade : practicalGrade;
-
   if (loading) {
     return (
       <View style={styles.centerContainer}>
@@ -359,7 +346,6 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
         </TouchableOpacity>
       </View>
 
-      <TouchableWithoutFeedback onPress={() => setActiveDropdown(null)}>
         <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
           {error ? (
             <View style={styles.errorContainer}>
@@ -372,7 +358,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
               <View style={{ flex: 1, marginRight: 8 }}>
                 <Text style={styles.subSectionTitle}>Theory</Text>
 
-                <View style={styles.inputGroup} ref={theoryContainerRef}>
+                <View style={styles.inputGroup}>
                   <Text style={styles.label}>Grade Level</Text>
                   <View style={styles.gradeSelectorContainer}>
                     <TextInput
@@ -382,23 +368,41 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                       value={theoryGrade}
                       onChangeText={(text) => {
                         setTheoryGrade(text);
-                        if (activeDropdown) setActiveDropdown(null);
+                        setShowTheoryOptions(false);
                       }}
                       editable={!saving}
+                      onFocus={() => setShowTheoryOptions(true)}
                     />
                     <TouchableOpacity
                       style={styles.dropdownToggle}
-                      onPress={() => {
-                        if (activeDropdown === 'theory') {
-                          setActiveDropdown(null);
-                        } else {
-                          measureAndShow('theory');
-                        }
-                      }}
+                      onPress={() => setShowTheoryOptions(!showTheoryOptions)}
                       disabled={saving}>
-                      <ChevronDown size={18} color={activeDropdown === 'theory' ? '#1e40af' : '#64748b'} />
+                      <ChevronDown size={18} color={showTheoryOptions ? '#1e40af' : '#64748b'} />
                     </TouchableOpacity>
                   </View>
+                  {showTheoryOptions && (
+                    <View style={styles.gradeOptionsList}>
+                      <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
+                        {THEORY_OPTIONS.map((option) => (
+                          <TouchableOpacity
+                            key={option}
+                            style={[
+                              styles.gradeOption,
+                              theoryGrade === option && styles.gradeOptionSelected,
+                            ]}
+                            onPress={() => {
+                              setTheoryGrade(option);
+                              setShowTheoryOptions(false);
+                            }}>
+                            <Text style={[
+                              styles.gradeOptionText,
+                              theoryGrade === option && styles.gradeOptionTextSelected,
+                            ]}>{option}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -441,7 +445,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
               <View style={{ flex: 1 }}>
                 <Text style={styles.subSectionTitle}>Practical</Text>
 
-                <View style={styles.inputGroup} ref={practicalContainerRef}>
+                <View style={styles.inputGroup}>
                   <Text style={styles.label}>Grade Level</Text>
                   <View style={styles.gradeSelectorContainer}>
                     <TextInput
@@ -451,23 +455,41 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                       value={practicalGrade}
                       onChangeText={(text) => {
                         setPracticalGrade(text);
-                        if (activeDropdown) setActiveDropdown(null);
+                        setShowPracticalOptions(false);
                       }}
                       editable={!saving}
+                      onFocus={() => setShowPracticalOptions(true)}
                     />
                     <TouchableOpacity
                       style={styles.dropdownToggle}
-                      onPress={() => {
-                        if (activeDropdown === 'practical') {
-                          setActiveDropdown(null);
-                        } else {
-                          measureAndShow('practical');
-                        }
-                      }}
+                      onPress={() => setShowPracticalOptions(!showPracticalOptions)}
                       disabled={saving}>
-                      <ChevronDown size={18} color={activeDropdown === 'practical' ? '#1e40af' : '#64748b'} />
+                      <ChevronDown size={18} color={showPracticalOptions ? '#1e40af' : '#64748b'} />
                     </TouchableOpacity>
                   </View>
+                  {showPracticalOptions && (
+                    <View style={styles.gradeOptionsList}>
+                      <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
+                        {GRADE_OPTIONS.map((option) => (
+                          <TouchableOpacity
+                            key={option}
+                            style={[
+                              styles.gradeOption,
+                              practicalGrade === option && styles.gradeOptionSelected,
+                            ]}
+                            onPress={() => {
+                              setPracticalGrade(option);
+                              setShowPracticalOptions(false);
+                            }}>
+                            <Text style={[
+                              styles.gradeOptionText,
+                              practicalGrade === option && styles.gradeOptionTextSelected,
+                            ]}>{option}</Text>
+                          </TouchableOpacity>
+                        ))}
+                      </ScrollView>
+                    </View>
+                  )}
                 </View>
 
                 <View style={styles.inputGroup}>
@@ -812,38 +834,6 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
 
           <View style={styles.bottomPadding} />
         </ScrollView>
-      </TouchableWithoutFeedback>
-
-      {activeDropdown && dropdownRect && (
-        <View style={[
-          styles.floatingDropdown,
-          { top: dropdownRect.y, left: dropdownRect.x, width: dropdownRect.width },
-        ]}>
-          <ScrollView style={styles.floatingDropdownScroll} showsVerticalScrollIndicator={false}>
-            {(activeDropdown === 'theory' ? THEORY_OPTIONS : GRADE_OPTIONS).map((option) => (
-              <TouchableOpacity
-                key={option}
-                style={[
-                  styles.floatingDropdownOption,
-                  currentDropdownValue === option && styles.floatingDropdownOptionSelected,
-                ]}
-                onPress={() => {
-                  if (activeDropdown === 'theory') {
-                    setTheoryGrade(option);
-                  } else {
-                    setPracticalGrade(option);
-                  }
-                  setActiveDropdown(null);
-                }}>
-                <Text style={[
-                  styles.floatingDropdownOptionText,
-                  currentDropdownValue === option && styles.floatingDropdownOptionTextSelected,
-                ]}>{option}</Text>
-              </TouchableOpacity>
-            ))}
-          </ScrollView>
-        </View>
-      )}
     </KeyboardAvoidingView>
     </View>
   );
@@ -1099,37 +1089,36 @@ const styles = StyleSheet.create({
     justifyContent: 'center',
     borderRadius: 8,
   },
-  floatingDropdown: {
-    position: 'absolute',
+  gradeOptionsList: {
+    marginTop: 4,
     backgroundColor: '#fff',
     borderRadius: 12,
     borderWidth: 1,
     borderColor: '#e2e8f0',
-    zIndex: 1000,
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.15,
     shadowRadius: 8,
     elevation: 8,
   },
-  floatingDropdownScroll: {
+  gradeOptionsScroll: {
     maxHeight: 220,
   },
-  floatingDropdownOption: {
+  gradeOption: {
     paddingVertical: 12,
     paddingHorizontal: 16,
     borderBottomWidth: 1,
     borderBottomColor: '#f1f5f9',
   },
-  floatingDropdownOptionSelected: {
+  gradeOptionSelected: {
     backgroundColor: '#eff6ff',
   },
-  floatingDropdownOptionText: {
+  gradeOptionText: {
     fontSize: 14,
     color: '#475569',
     fontWeight: '500',
   },
-  floatingDropdownOptionTextSelected: {
+  gradeOptionTextSelected: {
     color: '#1e40af',
     fontWeight: '700',
   },

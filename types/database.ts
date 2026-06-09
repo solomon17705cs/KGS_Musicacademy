@@ -85,9 +85,15 @@ export interface Student {
   enrollment_date: string;
   instrument: string;
   initial_grade: string | null;
+  class_type: 'regular' | 'summer';
   class_days: string[];
   class_timing: string | null;
   summer_class: boolean;
+  class_day_batches: {
+    day1_batch: string | null;
+    day2_batch: string | null;
+    compensation_batch: string | null;
+  } | null;
   completed_grades: CompletedGrade[];
   streak: number;
   points: number;

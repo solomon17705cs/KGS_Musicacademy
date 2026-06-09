@@ -18,7 +18,9 @@ import { useRouter, useLocalSearchParams, useRootNavigationState } from 'expo-ro
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService } from '@/lib/firestore';
 import { Student } from '@/types/database';
-import { ArrowLeft, UserPlus, Calendar, Music, Phone, MapPin, Clock } from 'lucide-react-native';
+import { ArrowLeft, UserPlus, Calendar, Music, Phone, MapPin, ChevronDown } from 'lucide-react-native';
+
+const INITIAL_GRADE_OPTIONS = ['Not completed', 'Initial Grade', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
 
 const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const BATCH_OPTIONS = ['Batch 1', 'Batch 2', 'Batch 3'];
@@ -99,9 +101,12 @@ export default function EditStudentScreen() {
     const [enrollmentDate, setEnrollmentDate] = useState('');
     const [dob, setDob] = useState('');
     const [initialGrade, setInitialGrade] = useState('');
-    const [classDays, setClassDays] = useState<string[]>([]);
-    const [classTiming, setClassTiming] = useState<string | null>(null);
-    const [summerClass, setSummerClass] = useState(false);
+    const [classType, setClassType] = useState<'regular' | 'summer'>('regular');
+    const [classSlots, setClassSlots] = useState<Array<{ day: string | null; batch: string | null }>>([
+        { day: null, batch: null },
+        { day: null, batch: null },
+        { day: null, batch: null },
+    ]);
 
     const [fatherName, setFatherName] = useState('');
     const [fatherPhone, setFatherPhone] = useState('');
@@ -111,15 +116,23 @@ export default function EditStudentScreen() {
     const [motherEmail, setMotherEmail] = useState('');
     const [parentAddress, setParentAddress] = useState('');
 
+    const [showGradeOptions, setShowGradeOptions] = useState(false);
+
     const { width } = useWindowDimensions();
     const isMobile = width < 768;
 
-    const toggleDay = (day: string) => {
-        if (classDays.includes(day)) {
-            setClassDays(classDays.filter(d => d !== day));
-        } else if (classDays.length < 3) {
-            setClassDays([...classDays, day]);
-        }
+    const handleSlotDaySelect = (slotIndex: number, day: string) => {
+        const takenDays = classSlots.map((slot, i) => i !== slotIndex ? slot.day : null).filter(Boolean);
+        if (takenDays.includes(day)) return;
+        const newSlots = [...classSlots];
+        newSlots[slotIndex] = { ...newSlots[slotIndex], day, batch: null };
+        setClassSlots(newSlots);
+    };
+
+    const handleSlotBatchSelect = (slotIndex: number, batch: string) => {
+        const newSlots = [...classSlots];
+        newSlots[slotIndex] = { ...newSlots[slotIndex], batch };
+        setClassSlots(newSlots);
     };
 
     const formatDateForDB = (dateStr: string) => {
@@ -156,9 +169,12 @@ export default function EditStudentScreen() {
             setEnrollmentDate(studentData.enrollment_date ? toDDMMYYYY(new Date(studentData.enrollment_date)) : '');
             setDob(studentData.date_of_birth ? toDDMMYYYY(new Date(studentData.date_of_birth)) : '');
             setInitialGrade(studentData.initial_grade || '');
-            setClassDays(studentData.class_days || []);
-            setClassTiming(studentData.class_timing || null);
-            setSummerClass(studentData.summer_class || false);
+            setClassType(studentData.class_type || (studentData.summer_class ? 'summer' : 'regular'));
+            setClassSlots([
+                { day: studentData.class_days?.[0] || null, batch: studentData.class_day_batches?.day1_batch || null },
+                { day: studentData.class_days?.[1] || null, batch: studentData.class_day_batches?.day2_batch || null },
+                { day: studentData.class_days?.[2] || null, batch: studentData.class_day_batches?.compensation_batch || null },
+            ]);
             setFatherName(studentData.father_name || '');
             setFatherPhone(studentData.father_phone || '');
             setFatherEmail(studentData.father_email || '');
@@ -208,9 +224,15 @@ export default function EditStudentScreen() {
                 enrollment_date: formatDateForDB(enrollmentDate) || '',
                 date_of_birth: dob ? formatDateForDB(dob) : null,
                 initial_grade: initialGrade || null,
-                class_days: classDays,
-                class_timing: classTiming || null,
-                summer_class: summerClass,
+                class_type: classType,
+                class_days: classType === 'regular' ? classSlots.map(s => s.day).filter((d): d is string => d !== null) : [],
+                class_timing: null,
+                summer_class: classType === 'summer',
+                class_day_batches: classType === 'regular' ? {
+                    day1_batch: classSlots[0].batch || null,
+                    day2_batch: classSlots[1].batch || null,
+                    compensation_batch: classSlots[2].batch || null,
+                } : null,
                 father_name: fatherName.trim() || null,
                 father_phone: fatherPhone.trim() || null,
                 father_email: fatherEmail.toLowerCase().trim() || null,
@@ -249,7 +271,7 @@ export default function EditStudentScreen() {
             <KeyboardAvoidingView
                 behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
                 style={styles.formContainer}>
-                <ScrollView contentContainerStyle={styles.scrollContent}>
+                <ScrollView contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
                     {error ? (
                         <View style={styles.errorContainer}>
                             <Text style={styles.errorText}>{error}</Text>
@@ -416,81 +438,136 @@ export default function EditStudentScreen() {
                                 )}
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Initial Grade</Text>
-                                    <TextInput
-                                        style={styles.input}
-                                        placeholder="e.g. Grade 1"
-                                        placeholderTextColor="#94a3b8"
-                                        value={initialGrade}
-                                        onChangeText={setInitialGrade}
-                                        editable={!saving}
-                                    />
-                                </View>
-
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Class Days (max 3)</Text>
-                                    <View style={styles.daySelector}>
-                                        {DAYS_OF_WEEK.map(day => (
-                                            <TouchableOpacity
-                                                key={day}
-                                                style={[
-                                                    styles.dayButton,
-                                                    classDays.includes(day) && styles.dayButtonActive,
-                                                ]}
-                                                onPress={() => toggleDay(day)}
-                                                disabled={saving && !classDays.includes(day)}>
-                                                <Text style={[
-                                                    styles.dayButtonText,
-                                                    classDays.includes(day) && styles.dayButtonTextActive,
-                                                ]}>
-                                                    {day}
-                                                </Text>
-                                            </TouchableOpacity>
-                                        ))}
+                                    <Text style={styles.label}>Grade Completed while Joining</Text>
+                                    <View style={styles.gradeSelectorContainer}>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Not completed"
+                                            placeholderTextColor="#94a3b8"
+                                            value={initialGrade}
+                                            onChangeText={(text) => {
+                                                setInitialGrade(text);
+                                                setShowGradeOptions(false);
+                                            }}
+                                            editable={!saving}
+                                            onFocus={() => setShowGradeOptions(true)}
+                                        />
+                                        <TouchableOpacity
+                                            style={styles.dropdownToggle}
+                                            onPress={() => setShowGradeOptions(!showGradeOptions)}
+                                            disabled={saving}>
+                                            <ChevronDown size={18} color={showGradeOptions ? '#1e40af' : '#64748b'} />
+                                        </TouchableOpacity>
                                     </View>
+                                    {showGradeOptions && (
+                                        <View style={styles.gradeOptionsList}>
+                                            <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
+                                                {INITIAL_GRADE_OPTIONS.map((option) => (
+                                                    <TouchableOpacity
+                                                        key={option}
+                                                        style={[
+                                                            styles.gradeOption,
+                                                            initialGrade === option && styles.gradeOptionSelected,
+                                                        ]}
+                                                        onPress={() => {
+                                                            setInitialGrade(option);
+                                                            setShowGradeOptions(false);
+                                                        }}>
+                                                        <Text style={[
+                                                            styles.gradeOptionText,
+                                                            initialGrade === option && styles.gradeOptionTextSelected,
+                                                        ]}>{option}</Text>
+                                                    </TouchableOpacity>
+                                                ))}
+                                            </ScrollView>
+                                        </View>
+                                    )}
                                 </View>
 
                                 <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Summer Class</Text>
-                                    <TouchableOpacity
-                                        style={[
-                                            styles.timingButton,
-                                            summerClass && styles.timingButtonActive,
-                                        ]}
-                                        onPress={() => setSummerClass(!summerClass)}
-                                        disabled={saving}>
-                                        <Text style={[
-                                            styles.timingButtonText,
-                                            summerClass && styles.timingButtonTextActive,
-                                        ]}>
-                                            {summerClass ? '☀️ Summer Class' : 'Summer Class'}
-                                        </Text>
-                                    </TouchableOpacity>
-                                </View>
-
-                                <View style={styles.inputGroup}>
-                                    <Text style={styles.label}>Class Timing</Text>
-                                    <View style={styles.timingSelector}>
-                                        {BATCH_OPTIONS.map(batch => (
+                                    <Text style={styles.label}>Class Type</Text>
+                                    <View style={styles.genderRow}>
+                                        {(['regular', 'summer'] as const).map(type => (
                                             <TouchableOpacity
-                                                key={batch}
-                                                style={[
-                                                    styles.timingButton,
-                                                    classTiming === batch && styles.timingButtonActive,
-                                                ]}
-                                                onPress={() => setClassTiming(batch)}
+                                                key={type}
+                                                style={[styles.genderBtn, classType === type && styles.genderBtnActive]}
+                                                onPress={() => setClassType(type)}
                                                 disabled={saving}>
-                                                <Clock size={14} color={classTiming === batch ? '#fff' : '#64748b'} />
-                                                <Text style={[
-                                                    styles.timingButtonText,
-                                                    classTiming === batch && styles.timingButtonTextActive,
-                                                ]}>
-                                                    {batch}
+                                                <Text style={[styles.genderBtnText, classType === type && styles.genderBtnTextActive]}>
+                                                    {type.charAt(0).toUpperCase() + type.slice(1)}
                                                 </Text>
                                             </TouchableOpacity>
                                         ))}
                                     </View>
                                 </View>
+
+                                {classType === 'regular' && (
+                                    <>
+                                        {['Class Day 1', 'Class Day 2', 'Compensation Day'].map((label, idx) => (
+                                            <View key={label} style={styles.inputGroup}>
+                                                <Text style={styles.label}>{label}</Text>
+                                                <View style={styles.daySelector}>
+                                                    {DAYS_OF_WEEK.map(day => {
+                                                        const isTaken = classSlots.some((slot, i) => i !== idx && slot.day === day);
+                                                        return (
+                                                            <TouchableOpacity
+                                                                key={day}
+                                                                style={[
+                                                                    styles.dayButton,
+                                                                    classSlots[idx].day === day && styles.dayButtonActive,
+                                                                    isTaken && { opacity: 0.3 },
+                                                                ]}
+                                                                onPress={() => handleSlotDaySelect(idx, day)}
+                                                                disabled={saving || isTaken}>
+                                                                <Text style={[
+                                                                    styles.dayButtonText,
+                                                                    classSlots[idx].day === day && styles.dayButtonTextActive,
+                                                                ]}>
+                                                                    {day}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        );
+                                                    })}
+                                                </View>
+                                                <View style={[styles.timingSelector, { marginTop: 8 }]}>
+                                                    {BATCH_OPTIONS.map(batch => (
+                                                        <TouchableOpacity
+                                                            key={batch}
+                                                            style={[
+                                                                styles.timingButton,
+                                                                classSlots[idx].batch === batch && styles.timingButtonActive,
+                                                            ]}
+                                                            onPress={() => handleSlotBatchSelect(idx, batch)}
+                                                            disabled={saving}>
+                                                            <Text style={[
+                                                                styles.timingButtonText,
+                                                                classSlots[idx].batch === batch && styles.timingButtonTextActive,
+                                                            ]}>
+                                                                {batch}
+                                                            </Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </View>
+                                            </View>
+                                        ))}
+                                    </>
+                                )}
+
+                                {classType === 'summer' && (
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Summer Class</Text>
+                                        <TouchableOpacity
+                                            style={[
+                                                styles.timingButton,
+                                                styles.timingButtonActive,
+                                            ]}
+                                            disabled>
+                                            <Text style={[styles.timingButtonText, styles.timingButtonTextActive]}>
+                                                ☀️ Summer Class
+                                            </Text>
+                                        </TouchableOpacity>
+                                    </View>
+                                )}
                             </View>
 
                             <View style={styles.card}>
@@ -768,81 +845,136 @@ export default function EditStudentScreen() {
                                     )}
 
                                     <View style={styles.inputGroup}>
-                                        <Text style={styles.label}>Initial Grade</Text>
-                                        <TextInput
-                                            style={styles.input}
-                                            placeholder="e.g. Grade 1"
-                                            placeholderTextColor="#94a3b8"
-                                            value={initialGrade}
-                                            onChangeText={setInitialGrade}
-                                            editable={!saving}
-                                        />
-                                    </View>
-
-                                    <View style={styles.inputGroup}>
-                                        <Text style={styles.label}>Class Days (max 3)</Text>
-                                        <View style={styles.daySelector}>
-                                            {DAYS_OF_WEEK.map(day => (
-                                                <TouchableOpacity
-                                                    key={day}
-                                                    style={[
-                                                        styles.dayButton,
-                                                        classDays.includes(day) && styles.dayButtonActive,
-                                                    ]}
-                                                    onPress={() => toggleDay(day)}
-                                                    disabled={saving && !classDays.includes(day)}>
-                                                    <Text style={[
-                                                        styles.dayButtonText,
-                                                        classDays.includes(day) && styles.dayButtonTextActive,
-                                                    ]}>
-                                                        {day}
-                                                    </Text>
-                                                </TouchableOpacity>
-                                            ))}
+                                        <Text style={styles.label}>Grade Completed while Joining</Text>
+                                        <View style={styles.gradeSelectorContainer}>
+                                            <TextInput
+                                                style={styles.input}
+                                                placeholder="Not completed"
+                                                placeholderTextColor="#94a3b8"
+                                                value={initialGrade}
+                                                onChangeText={(text) => {
+                                                    setInitialGrade(text);
+                                                    setShowGradeOptions(false);
+                                                }}
+                                                editable={!saving}
+                                                onFocus={() => setShowGradeOptions(true)}
+                                            />
+                                            <TouchableOpacity
+                                                style={styles.dropdownToggle}
+                                                onPress={() => setShowGradeOptions(!showGradeOptions)}
+                                                disabled={saving}>
+                                                <ChevronDown size={18} color={showGradeOptions ? '#1e40af' : '#64748b'} />
+                                            </TouchableOpacity>
                                         </View>
+                                        {showGradeOptions && (
+                                            <View style={styles.gradeOptionsList}>
+                                                <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
+                                                    {INITIAL_GRADE_OPTIONS.map((option) => (
+                                                        <TouchableOpacity
+                                                            key={option}
+                                                            style={[
+                                                                styles.gradeOption,
+                                                                initialGrade === option && styles.gradeOptionSelected,
+                                                            ]}
+                                                            onPress={() => {
+                                                                setInitialGrade(option);
+                                                                setShowGradeOptions(false);
+                                                            }}>
+                                                            <Text style={[
+                                                                styles.gradeOptionText,
+                                                                initialGrade === option && styles.gradeOptionTextSelected,
+                                                            ]}>{option}</Text>
+                                                        </TouchableOpacity>
+                                                    ))}
+                                                </ScrollView>
+                                            </View>
+                                        )}
                                     </View>
 
                                     <View style={styles.inputGroup}>
-                                        <Text style={styles.label}>Summer Class</Text>
-                                        <TouchableOpacity
-                                            style={[
-                                                styles.timingButton,
-                                                summerClass && styles.timingButtonActive,
-                                            ]}
-                                            onPress={() => setSummerClass(!summerClass)}
-                                            disabled={saving}>
-                                            <Text style={[
-                                                styles.timingButtonText,
-                                                summerClass && styles.timingButtonTextActive,
-                                            ]}>
-                                                {summerClass ? '☀️ Summer Class' : 'Summer Class'}
-                                            </Text>
-                                        </TouchableOpacity>
-                                    </View>
-
-                                    <View style={styles.inputGroup}>
-                                        <Text style={styles.label}>Class Timing</Text>
-                                        <View style={styles.timingSelector}>
-                                            {BATCH_OPTIONS.map(batch => (
+                                        <Text style={styles.label}>Class Type</Text>
+                                        <View style={styles.genderRow}>
+                                            {(['regular', 'summer'] as const).map(type => (
                                                 <TouchableOpacity
-                                                    key={batch}
-                                                    style={[
-                                                        styles.timingButton,
-                                                        classTiming === batch && styles.timingButtonActive,
-                                                    ]}
-                                                    onPress={() => setClassTiming(batch)}
+                                                    key={type}
+                                                    style={[styles.genderBtn, classType === type && styles.genderBtnActive]}
+                                                    onPress={() => setClassType(type)}
                                                     disabled={saving}>
-                                                    <Clock size={14} color={classTiming === batch ? '#fff' : '#64748b'} />
-                                                    <Text style={[
-                                                        styles.timingButtonText,
-                                                        classTiming === batch && styles.timingButtonTextActive,
-                                                    ]}>
-                                                        {batch}
+                                                    <Text style={[styles.genderBtnText, classType === type && styles.genderBtnTextActive]}>
+                                                        {type.charAt(0).toUpperCase() + type.slice(1)}
                                                     </Text>
                                                 </TouchableOpacity>
                                             ))}
                                         </View>
                                     </View>
+
+                                    {classType === 'regular' && (
+                                        <>
+                                            {['Class Day 1', 'Class Day 2', 'Compensation Day'].map((label, idx) => (
+                                                <View key={label} style={styles.inputGroup}>
+                                                    <Text style={styles.label}>{label}</Text>
+                                                    <View style={styles.daySelector}>
+                                                        {DAYS_OF_WEEK.map(day => {
+                                                            const isTaken = classSlots.some((slot, i) => i !== idx && slot.day === day);
+                                                            return (
+                                                                <TouchableOpacity
+                                                                    key={day}
+                                                                    style={[
+                                                                        styles.dayButton,
+                                                                        classSlots[idx].day === day && styles.dayButtonActive,
+                                                                        isTaken && { opacity: 0.3 },
+                                                                    ]}
+                                                                    onPress={() => handleSlotDaySelect(idx, day)}
+                                                                    disabled={saving || isTaken}>
+                                                                    <Text style={[
+                                                                        styles.dayButtonText,
+                                                                        classSlots[idx].day === day && styles.dayButtonTextActive,
+                                                                    ]}>
+                                                                        {day}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            );
+                                                        })}
+                                                    </View>
+                                                    <View style={[styles.timingSelector, { marginTop: 8 }]}>
+                                                        {BATCH_OPTIONS.map(batch => (
+                                                            <TouchableOpacity
+                                                                key={batch}
+                                                                style={[
+                                                                    styles.timingButton,
+                                                                    classSlots[idx].batch === batch && styles.timingButtonActive,
+                                                                ]}
+                                                                onPress={() => handleSlotBatchSelect(idx, batch)}
+                                                                disabled={saving}>
+                                                                <Text style={[
+                                                                    styles.timingButtonText,
+                                                                    classSlots[idx].batch === batch && styles.timingButtonTextActive,
+                                                                ]}>
+                                                                    {batch}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+                                                </View>
+                                            ))}
+                                        </>
+                                    )}
+
+                                    {classType === 'summer' && (
+                                        <View style={styles.inputGroup}>
+                                            <Text style={styles.label}>Summer Class</Text>
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.timingButton,
+                                                    styles.timingButtonActive,
+                                                ]}
+                                                disabled>
+                                                <Text style={[styles.timingButtonText, styles.timingButtonTextActive]}>
+                                                    ☀️ Summer Class
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
                                 </View>
                             </View>
 
@@ -1082,6 +1214,55 @@ const styles = StyleSheet.create({
         fontSize: 14,
         color: '#1e293b',
     },
+    gradeSelectorContainer: {
+        flexDirection: 'row',
+        alignItems: 'center',
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        borderRadius: 10,
+        backgroundColor: '#fff',
+        paddingRight: 4,
+    },
+    dropdownToggle: {
+        width: 36,
+        height: 36,
+        alignItems: 'center',
+        justifyContent: 'center',
+        borderRadius: 8,
+    },
+    gradeOptionsList: {
+        marginTop: 4,
+        backgroundColor: '#fff',
+        borderRadius: 12,
+        borderWidth: 1,
+        borderColor: '#e2e8f0',
+        shadowColor: '#000',
+        shadowOffset: { width: 0, height: 4 },
+        shadowOpacity: 0.15,
+        shadowRadius: 8,
+        elevation: 8,
+    },
+    gradeOptionsScroll: {
+        maxHeight: 220,
+    },
+    gradeOption: {
+        paddingVertical: 12,
+        paddingHorizontal: 16,
+        borderBottomWidth: 1,
+        borderBottomColor: '#f1f5f9',
+    },
+    gradeOptionSelected: {
+        backgroundColor: '#eff6ff',
+    },
+    gradeOptionText: {
+        fontSize: 14,
+        color: '#475569',
+        fontWeight: '500',
+    },
+    gradeOptionTextSelected: {
+        color: '#1e40af',
+        fontWeight: '700',
+    },
     genderRow: {
         flexDirection: 'row',
         gap: 8,
@@ -1167,15 +1348,16 @@ const styles = StyleSheet.create({
     daySelector: {
         flexDirection: 'row',
         flexWrap: 'wrap',
-        gap: 6,
+        gap: 8,
     },
     dayButton: {
-        paddingHorizontal: 12,
-        paddingVertical: 8,
+        flex: 1,
+        paddingVertical: 12,
         borderRadius: 8,
         borderWidth: 1,
         borderColor: '#e2e8f0',
         backgroundColor: '#f8fafc',
+        alignItems: 'center',
     },
     dayButtonActive: {
         backgroundColor: '#1e40af',
