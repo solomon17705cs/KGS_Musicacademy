@@ -20,7 +20,7 @@ import { sendProgressNotification } from '@/lib/notifications';
 import { generateProgressReport } from '@/lib/ai';
 import { calculateProgressScore } from '@/lib/scoreCalculator';
 import { Student, ProgressRecord, ProgressStatus } from '@/types/database';
-import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock, Award, Trophy, Sparkles, ChevronDown, FileText, Edit2, XCircle, Star, Calendar } from 'lucide-react-native';
+import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock, Award, Trophy, Sparkles, ChevronDown, FileText, Edit2, XCircle, Star } from 'lucide-react-native';
 
 const GRADE_OPTIONS = ['Basic', 'Initial', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
 const THEORY_OPTIONS = ['Basic', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
@@ -37,7 +37,6 @@ export default function EditProgressScreen() {
   const [theoryStatus, setTheoryStatus] = useState<ProgressStatus>('good');
   const [practicalStatus, setPracticalStatus] = useState<ProgressStatus>('good');
   const [notes, setNotes] = useState('');
-  const [attendance, setAttendance] = useState('2/2');
   const [homeworkCompletion, setHomeworkCompletion] = useState('100');
   const [practiceScore, setPracticeScore] = useState('0');
   const [weeklyGoal, setWeeklyGoal] = useState('');
@@ -89,7 +88,6 @@ export default function EditProgressScreen() {
         setPracticalGrade(progressData.practical_grade);
         setTheoryStatus(progressData.theory_status);
         setPracticalStatus(progressData.practical_status);
-        setAttendance(progressData.attendance || '2/2');
         setHomeworkCompletion(String(progressData.homework_completion ?? 100));
         setPracticeScore(String(progressData.practice_score ?? 0));
         setWeeklyGoal(progressData.weekly_goal || '');
@@ -130,7 +128,6 @@ export default function EditProgressScreen() {
         practical_grade: practicalGrade,
         theory_status: theoryStatus,
         practical_status: practicalStatus,
-        attendance: attendance,
         homework_completion: parseInt(homeworkCompletion) || 0,
         practice_score: parseInt(practiceScore) || 0,
         weekly_goal: weeklyGoal,
@@ -147,9 +144,6 @@ export default function EditProgressScreen() {
 
       let newStreak = student.streak || 0;
       let pointsToAdd = 10;
-
-      if (attendance === '2/2') pointsToAdd += 20;
-      else if (attendance === '1/2') pointsToAdd += 10;
 
       const hwPerc = parseInt(homeworkCompletion) || 0;
       pointsToAdd += Math.floor(hwPerc / 2);
@@ -331,12 +325,6 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
           onPress={() => router.push(`/(admin)/edit-student/${student?.id}`)}
           disabled={saving}>
           <Edit2 size={24} color="#1e40af" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.attendanceButton}
-          onPress={() => router.push('/(admin)/attendance')}
-          disabled={saving}>
-          <Calendar size={24} color="#16a34a" />
         </TouchableOpacity>
         <TouchableOpacity
           style={styles.deleteButton}
@@ -541,17 +529,6 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
 
               <View style={styles.row}>
                 <View style={{ flex: 1 }}>
-                  <Text style={styles.label}>Attendance</Text>
-                  <TextInput
-                    style={styles.input}
-                    placeholder="e.g., 2/2"
-                    placeholderTextColor="#9ca3af"
-                    value={attendance}
-                    onChangeText={setAttendance}
-                    editable={!saving}
-                  />
-                </View>
-                <View style={{ flex: 1, marginLeft: 8 }}>
                   <Text style={styles.label}>Homework %</Text>
                   <TextInput
                     style={styles.input}
@@ -563,10 +540,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                     editable={!saving}
                   />
                 </View>
-              </View>
-
-              <View style={styles.row}>
-                <View style={{ flex: 1 }}>
+                <View style={{ flex: 1, marginLeft: 8 }}>
                   <Text style={styles.label}>Practice Score</Text>
                   <TextInput
                     style={styles.input}
@@ -578,7 +552,10 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
                     editable={!saving}
                   />
                 </View>
-                <View style={{ flex: 1, marginLeft: 8 }}>
+              </View>
+
+              <View style={styles.row}>
+                <View style={{ flex: 1 }}>
                   <Text style={styles.label}>Mastery %</Text>
                   <TextInput
                     style={styles.input}
@@ -885,14 +862,6 @@ const styles = StyleSheet.create({
     height: 40,
     borderRadius: 20,
     backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  attendanceButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f0fdf4',
     alignItems: 'center',
     justifyContent: 'center',
   },
