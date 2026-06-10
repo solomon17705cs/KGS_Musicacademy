@@ -14,7 +14,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { studentService, progressService, attendanceService } from '@/lib/firestore';
 import { Student, ProgressRecord } from '@/types/database';
 import {
-  Users,
   LogOut,
   TrendingUp,
   Plus,
@@ -25,6 +24,7 @@ import {
   Calendar,
   Search,
   DollarSign,
+  Layers,
 } from 'lucide-react-native';
 
 export default function AdminDashboard() {
@@ -121,9 +121,10 @@ export default function AdminDashboard() {
         <View style={styles.headerTop}>
           <View style={styles.titleArea}>
             <Text style={styles.headerTitle} numberOfLines={1}>Admin Dashboard</Text>
-            <Text style={styles.headerSubtitle}>
-              KGS Music Academy
-            </Text>
+            <View style={styles.headerSubtitleRow}>
+              <Text style={styles.headerSubtitle}>KGS Music Academy</Text>
+              <Text style={styles.studentCount}>({students.length} students)</Text>
+            </View>
           </View>
           <TouchableOpacity
             style={styles.signOutButton}
@@ -161,28 +162,29 @@ export default function AdminDashboard() {
               <Text style={styles.quickActionText}>Fee Payments</Text>
             </TouchableOpacity>
           </View>
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[styles.quickActionBtn, { backgroundColor: '#059669' }]}
+              onPress={() => router.push('/(admin)/class-days')}>
+              <Layers size={20} color="#fff" />
+              <Text style={styles.quickActionText}>Class Days</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.streakChip, { backgroundColor: '#fef3c7' }]}
+              onPress={() => router.push('/(admin)/leaderboard')}>
+              <Trophy size={16} color="#b45309" />
+              <Text style={[styles.streakChipNumber, { color: '#b45309' }]}>
+                {students.length > 0
+                  ? Math.max(...students.map((s) => s.streak || 0))
+                  : 0}
+              </Text>
+              <Text style={[styles.streakChipLabel, { color: '#b45309' }]}>
+                Best Streak
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Users size={24} color="#1e40af" />
-            <Text style={styles.statNumber}>{students.length}</Text>
-            <Text style={styles.statLabel}>Total Students</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: '#fef3c7' }]}
-            onPress={() => router.push('/(admin)/leaderboard')}>
-            <Trophy size={24} color="#b45309" />
-            <Text style={[styles.statNumber, { color: '#b45309' }]}>
-              {students.length > 0
-                ? Math.max(...students.map((s) => s.streak || 0))
-                : 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: '#b45309' }]}>
-              Best Streak
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {students.length > 0 && (
@@ -391,7 +393,17 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 13,
     color: '#64748b',
+  },
+  headerSubtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginTop: 2,
+  },
+  studentCount: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
   },
   quickActions: {
     gap: 10,
@@ -428,29 +440,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
   },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: 12,
-  },
-  statCard: {
+  streakChip: {
     flex: 1,
-    backgroundColor: '#dbeafe',
-    borderRadius: 12,
-    padding: 16,
+    flexDirection: 'row',
     alignItems: 'center',
+    justifyContent: 'center',
+    paddingVertical: 14,
+    borderRadius: 14,
+    gap: 6,
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.15,
+    shadowRadius: 6,
+    elevation: 3,
   },
-  statNumber: {
-    fontSize: 32,
-    fontWeight: '700',
-    color: '#1e40af',
-    marginTop: 8,
+  streakChipNumber: {
+    fontSize: 18,
+    fontWeight: '800',
   },
-  statLabel: {
+  streakChipLabel: {
     fontSize: 13,
-    color: '#1e40af',
-    fontWeight: '600',
-    marginTop: 4,
+    fontWeight: '700',
   },
+
   content: {
     flex: 1,
   },

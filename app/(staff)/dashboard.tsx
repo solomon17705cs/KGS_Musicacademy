@@ -14,7 +14,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { studentService, progressService, attendanceService } from '@/lib/firestore';
 import { Student, ProgressRecord } from '@/types/database';
 import {
-  Users,
   LogOut,
   TrendingUp,
   ChevronRight,
@@ -23,6 +22,8 @@ import {
   Bell,
   Calendar,
   Search,
+  Layers,
+  DollarSign,
 } from 'lucide-react-native';
 
 export default function StaffDashboard() {
@@ -119,9 +120,10 @@ export default function StaffDashboard() {
         <View style={styles.headerTop}>
           <View style={styles.titleArea}>
             <Text style={styles.headerTitle} numberOfLines={1}>Staff Dashboard</Text>
-            <Text style={styles.headerSubtitle}>
-              KGS Music Academy
-            </Text>
+            <View style={styles.headerSubtitleRow}>
+              <Text style={styles.headerSubtitle}>KGS Music Academy</Text>
+              <Text style={styles.studentCount}>({students.length} students)</Text>
+            </View>
           </View>
           <TouchableOpacity
             style={styles.signOutButton}
@@ -145,28 +147,29 @@ export default function StaffDashboard() {
               <Text style={styles.quickActionText}>Attendance</Text>
             </TouchableOpacity>
           </View>
+          <View style={styles.actionRow}>
+            <TouchableOpacity
+              style={[styles.quickActionBtn, { backgroundColor: '#059669' }]}
+              onPress={() => router.push('/(staff)/class-days')}>
+              <Layers size={20} color="#fff" />
+              <Text style={styles.quickActionText}>Class Days</Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[styles.streakChip, { backgroundColor: '#fef3c7' }]}
+              onPress={() => router.push('/(staff)/leaderboard')}>
+              <Trophy size={16} color="#b45309" />
+              <Text style={[styles.streakChipNumber, { color: '#b45309' }]}>
+                {students.length > 0
+                  ? Math.max(...students.map((s) => s.streak || 0))
+                  : 0}
+              </Text>
+              <Text style={[styles.streakChipLabel, { color: '#b45309' }]}>
+                Best Streak
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
 
-        <View style={styles.statsContainer}>
-          <View style={styles.statCard}>
-            <Users size={24} color="#1e40af" />
-            <Text style={styles.statNumber}>{students.length}</Text>
-            <Text style={styles.statLabel}>Total Students</Text>
-          </View>
-          <TouchableOpacity
-            style={[styles.statCard, { backgroundColor: '#fef3c7' }]}
-            onPress={() => router.push('/(staff)/leaderboard')}>
-            <Trophy size={24} color="#b45309" />
-            <Text style={[styles.statNumber, { color: '#b45309' }]}>
-              {students.length > 0
-                ? Math.max(...students.map((s) => s.streak || 0))
-                : 0}
-            </Text>
-            <Text style={[styles.statLabel, { color: '#b45309' }]}>
-              Best Streak
-            </Text>
-          </TouchableOpacity>
-        </View>
       </View>
 
       {students.length > 0 && (
@@ -337,7 +340,17 @@ const styles = StyleSheet.create({
   headerSubtitle: {
     fontSize: 14,
     color: '#64748b',
+  },
+  headerSubtitleRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
     marginTop: 2,
+  },
+  studentCount: {
+    fontSize: 12,
+    color: '#64748b',
+    fontWeight: '600',
   },
   signOutButton: {
     width: 40,
@@ -346,6 +359,23 @@ const styles = StyleSheet.create({
     backgroundColor: '#fee2e2',
     alignItems: 'center',
     justifyContent: 'center',
+  },
+  streakChip: {
+    flex: 1,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: 6,
+    paddingVertical: 10,
+    borderRadius: 10,
+  },
+  streakChipNumber: {
+    fontSize: 16,
+    fontWeight: '800',
+  },
+  streakChipLabel: {
+    fontSize: 12,
+    fontWeight: '700',
   },
   quickActions: {
     gap: 8,
@@ -369,28 +399,7 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
-  statsContainer: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  statCard: {
-    flex: 1,
-    backgroundColor: '#eff6ff',
-    borderRadius: 12,
-    padding: 12,
-    alignItems: 'center',
-  },
-  statNumber: {
-    fontSize: 28,
-    fontWeight: '800',
-    color: '#1e40af',
-    marginVertical: 4,
-  },
-  statLabel: {
-    fontSize: 12,
-    color: '#1e40af',
-    fontWeight: '500',
-  },
+
   searchContainer: {
     flexDirection: 'row',
     alignItems: 'center',
