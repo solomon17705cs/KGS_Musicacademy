@@ -138,8 +138,6 @@ export default function StaffDashboard() {
               <Bell size={20} color="#fff" />
               <Text style={styles.quickActionText}>Notifications</Text>
             </TouchableOpacity>
-          </View>
-          <View style={styles.actionRow}>
             <TouchableOpacity
               style={[styles.quickActionBtn, { backgroundColor: '#0891b2' }]}
               onPress={() => router.push('/(staff)/attendance')}>
