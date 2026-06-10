@@ -1,6 +1,6 @@
 import { Platform } from 'react-native';
 import { requestPushToken, onForegroundMessage } from './firebase';
-import { pushTokenService } from './firestore';
+import { profileService, notificationService, pushTokenService } from './firestore';
 
 let Notifications: any = null;
 let Device: any = null;
@@ -114,12 +114,24 @@ export async function initializePushNotifications(userId: string): Promise<strin
       return null;
     }
 
-    const token = await requestPushToken();
-    if (token) {
-      await pushTokenService.saveToken(userId, token);
-      console.log('Push token saved for user:', userId);
+    const fcmToken = await requestPushToken();
+    if (fcmToken) {
+      await pushTokenService.saveToken(userId, fcmToken, 'fcm');
     }
-    return token;
+
+    let expoToken: string | null = null;
+    try {
+      const result = await Notifications.getExpoPushTokenAsync();
+      expoToken = result?.data || null;
+      if (expoToken) {
+        await pushTokenService.saveToken(userId, expoToken, 'expo');
+      }
+    } catch (e) {
+      console.log('Expo push token not available:', e);
+    }
+
+    console.log('Push tokens saved for user:', userId);
+    return expoToken || fcmToken;
   } catch (e) {
     console.log('Failed to initialize push notifications:', e);
     return null;
@@ -151,20 +163,50 @@ export async function sendProgressNotification(
   staffName: string,
   instrument: string
 ): Promise<void> {
-  if (!Notifications) {
-    console.log('Push notifications require a development build');
-    return;
-  }
-  
   try {
-    await Notifications.scheduleNotificationAsync({
-      content: {
-        title: `Progress Updated - ${student.full_name}`,
-        body: `Your ${instrument} progress has been updated by ${staffName}. Check the app for details.`,
-        data: { studentId: student.id },
-      },
-      trigger: null,
-    });
+    const parentEmails = new Set<string>();
+    if (student.father_email) parentEmails.add(student.father_email.toLowerCase().trim());
+    if (student.mother_email) parentEmails.add(student.mother_email.toLowerCase().trim());
+
+    if (parentEmails.size === 0) return;
+
+    const title = `Progress Updated - ${student.full_name}`;
+    const body = `${student.full_name}'s ${instrument} progress has been updated by ${staffName}. Check the app for details.`;
+
+    for (const email of parentEmails) {
+      const parentProfile = await profileService.getProfileByEmail(email);
+      if (!parentProfile) continue;
+
+      const pushEnabled = parentProfile.notification_settings?.push_enabled ?? false;
+
+      await notificationService.createNotification({
+        userId: parentProfile.id,
+        title,
+        body,
+        data: { studentId: student.id, type: 'progress_update' },
+        read: false,
+      });
+
+      if (pushEnabled) {
+        try {
+          const tokens = await pushTokenService.getTokensByUser(parentProfile.id);
+          for (const token of tokens) {
+            fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: token,
+                title,
+                body,
+                data: { studentId: student.id, type: 'progress_update' },
+              }),
+            }).catch(() => {});
+          }
+        } catch (pushErr) {
+          console.log('Failed to send push notification:', pushErr);
+        }
+      }
+    }
   } catch (e) {
     console.log('Failed to send progress notification:', e);
   }

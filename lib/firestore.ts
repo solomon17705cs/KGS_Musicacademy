@@ -70,6 +70,14 @@ export const profileService = {
     const snapshot = await getDocs(collection(db, PROFILES_COLLECTION));
     return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Profile));
   },
+
+  async getProfileByEmail(email: string): Promise<Profile | null> {
+    const normalizedEmail = email.toLowerCase().trim();
+    const q = query(collection(db, PROFILES_COLLECTION), where('email', '==', normalizedEmail), limit(1));
+    const snapshot = await getDocs(q);
+    if (snapshot.empty) return null;
+    return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Profile;
+  },
 };
 
 export const studentService = {
@@ -283,7 +291,7 @@ export const notificationService = {
 const PUSH_TOKENS_COLLECTION = 'push_tokens';
 
 export const pushTokenService = {
-  async saveToken(userId: string, token: string): Promise<void> {
+  async saveToken(userId: string, token: string, platform: string = 'mobile'): Promise<void> {
     const existingQuery = query(
       collection(db, PUSH_TOKENS_COLLECTION),
       where('userId', '==', userId),
@@ -297,7 +305,7 @@ export const pushTokenService = {
         userId,
         token,
         createdAt: serverTimestamp(),
-        platform: 'mobile',
+        platform,
       });
     }
   },
