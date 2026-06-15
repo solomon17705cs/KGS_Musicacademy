@@ -68,6 +68,10 @@ export default function AdminLeaderboard() {
         }
     };
 
+    const displayStudents = students.filter(s =>
+        leaderboardType === 'points' ? (s.points || 0) > 0 : (s.streak || 0) > 0
+    );
+
     if (loading) {
         return (
             <View style={styles.centerContainer}>
@@ -124,7 +128,7 @@ export default function AdminLeaderboard() {
                     </View>
                 ) : (
                     <View style={styles.listContainer}>
-                        {students.map((student, index) => (
+                        {displayStudents.map((student, index) => (
                             <View
                                 key={student.id}
                                 style={[
@@ -157,7 +161,7 @@ export default function AdminLeaderboard() {
                             </View>
                         ))}
 
-                        {students.length === 0 && (
+                        {displayStudents.length === 0 && (
                             <View style={styles.emptyContainer}>
                                 <Trophy size={64} color="#cbd5e1" />
                                 <Text style={styles.emptyTitle}>No Data Yet</Text>

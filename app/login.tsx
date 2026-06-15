@@ -354,6 +354,7 @@ const styles = StyleSheet.create({
   scrollContent: {
     flexGrow: 1,
     padding: 24,
+    paddingBottom: Platform.OS === 'android' ? 80 : 24,
   },
   header: {
     alignItems: 'center',

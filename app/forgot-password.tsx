@@ -151,6 +151,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     justifyContent: 'center',
     padding: 24,
+    paddingBottom: Platform.OS === 'android' ? 80 : 24,
   },
   header: {
     alignItems: 'center',

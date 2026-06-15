@@ -198,6 +198,7 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     padding: 24,
+    paddingBottom: Platform.OS === 'android' ? 80 : 24,
   },
   errorContainer: {
     backgroundColor: '#fee2e2',

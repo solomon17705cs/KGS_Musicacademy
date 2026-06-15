@@ -1150,6 +1150,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         padding: 20,
+        paddingBottom: Platform.OS === 'android' ? 80 : 20,
         gap: 16,
     },
     errorContainer: {

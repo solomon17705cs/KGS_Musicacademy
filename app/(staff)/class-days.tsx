@@ -15,7 +15,7 @@ import { studentService } from '@/lib/firestore';
 import { Student } from '@/types/database';
 import { ArrowLeft, ChevronLeft, ChevronRight, Users, Clock } from 'lucide-react-native';
 
-const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 function getTodayDayName(): string {
   return DAY_NAMES[(new Date().getDay() + 6) % 7];
@@ -23,38 +23,57 @@ function getTodayDayName(): string {
 
 const BATCHES = ['Batch 1', 'Batch 2', 'Batch 3'];
 
+const INSTRUMENT_CAPS: Record<string, number> = {
+  'keyboard': 20,
+  'piano': 3,
+  'violin': 4,
+  'guitar': 5,
+  'drum kit': 2,
+  'drums': 2,
+};
+
+function isBatchOverCapacity(students: Student[]): boolean {
+  const counts: Record<string, number> = {};
+  for (const s of students) {
+    const inst = (s.instrument || '').toLowerCase().trim();
+    counts[inst] = (counts[inst] || 0) + 1;
+  }
+  for (const [inst, count] of Object.entries(counts)) {
+    const cap = INSTRUMENT_CAPS[inst];
+    if (cap !== undefined && count > cap) return true;
+  }
+  return false;
+}
+
 function getInstrumentAbbrev(name: string): string {
   const map: Record<string, string> = {
-    'keyboard': 'K',
+    'keyboard': 'EK',
     'piano': 'P',
     'violin': 'Vi',
-    'guitar': 'Gu',
-    'drums': 'Dr',
+    'guitar': 'PG',
+    'drum kit': 'DK',
     'flute': 'Fl',
-    'saxophone': 'Sa',
-    'trumpet': 'Tr',
-    'cello': 'Ce',
-    'clarinet': 'Cl',
     'ukulele': 'Uk',
-    'harmonium': 'Ha',
-    'tabla': 'Ta',
-    'voice': 'Vo',
-    'singing': 'Vo',
   };
   const key = name.toLowerCase().trim();
   return map[key] || key.slice(0, 2);
 }
 
-function getInstrumentCounts(students: Student[]): string {
+function getInstrumentCountEntries(students: Student[]): { text: string; overCap: boolean }[] {
   const counts: Record<string, number> = {};
   for (const s of students) {
-    const inst = s.instrument || 'Unknown';
+    const inst = (s.instrument || '').toLowerCase().trim();
     counts[inst] = (counts[inst] || 0) + 1;
   }
   return Object.entries(counts)
     .sort((a, b) => b[1] - a[1])
-    .map(([name, count]) => `${getInstrumentAbbrev(name)}:${count}`)
-    .join(', ');
+    .map(([name, count]) => {
+      const cap = INSTRUMENT_CAPS[name];
+      return {
+        text: `${getInstrumentAbbrev(name)}:${count}`,
+        overCap: cap !== undefined && count > cap,
+      };
+    });
 }
 
 export default function StaffClassDays() {
@@ -101,26 +120,33 @@ export default function StaffClassDays() {
   const currentDay = DAY_NAMES[selectedDayIdx];
 
   const dayStudents = useMemo(() => {
-    const result: { batch: string; student: Student }[] = [];
+    const result: { batch: string; student: Student; isCompensation: boolean }[] = [];
     for (const s of students) {
       if (s.class_days?.[0] === currentDay && s.class_day_batches?.day1_batch) {
-        result.push({ batch: s.class_day_batches.day1_batch, student: s });
+        result.push({ batch: s.class_day_batches.day1_batch, student: s, isCompensation: false });
       }
       if (s.class_days?.[1] === currentDay && s.class_day_batches?.day2_batch) {
-        result.push({ batch: s.class_day_batches.day2_batch, student: s });
+        result.push({ batch: s.class_day_batches.day2_batch, student: s, isCompensation: false });
+      }
+      if (s.class_days?.[2] === currentDay && s.class_day_batches?.compensation_batch) {
+        result.push({ batch: s.class_day_batches.compensation_batch, student: s, isCompensation: true });
       }
     }
     return result;
   }, [students, currentDay]);
 
   const batchedGroups = useMemo(() => {
-    return BATCHES.map(batch => ({
-      batch,
-      students: dayStudents.filter(s => s.batch === batch).map(s => s.student),
-    }));
+    return BATCHES.map(batch => {
+      const entries = dayStudents.filter(s => s.batch === batch);
+      return {
+        batch,
+        entries,
+        overCapacity: isBatchOverCapacity(entries.map(e => e.student)),
+      };
+    });
   }, [dayStudents]);
 
-  const hasStudents = batchedGroups.some(g => g.students.length > 0);
+  const hasStudents = batchedGroups.some(g => g.entries.length > 0);
   const emptyDay = !hasStudents && dayStudents.length === 0;
 
   if (loading) {
@@ -195,28 +221,43 @@ export default function StaffClassDays() {
                     <View style={styles.wideBatchTitle}>
                       <Clock size={14} color="#1e40af" />
                       <Text style={styles.wideBatchLabel}>{group.batch}</Text>
-                      <Text style={styles.instrumentCounts}>{getInstrumentCounts(group.students)}</Text>
-                      <Text style={styles.batchCount}>{group.students.length}</Text>
+                      <Text style={styles.instrumentCounts}>
+                        {getInstrumentCountEntries(group.entries.map(e => e.student)).map((item, i) => [
+                          i > 0 ? <Text key={`s${i}`}>, </Text> : null,
+                          <Text key={i} style={item.overCap && styles.instrumentCountsOverCap}>{item.text}</Text>,
+                        ]).flat()}
+                      </Text>
+                      <Text style={[styles.batchCount, group.overCapacity && styles.batchCountOverCap]}>{group.entries.length}</Text>
                     </View>
-                    {group.students.length > 0 ? (
+                    {group.entries.length > 0 ? (
                       <View style={styles.studentList}>
-                        {group.students.map((student) => (
-                          <View key={student.id} style={styles.studentRow}>
-                            <View style={styles.studentAvatar}>
-                              <Text style={styles.avatarText}>
-                                {(student.full_name || '?').charAt(0)}
-                              </Text>
+                        {group.entries.map((entry) => {
+                          const student = entry.student;
+                          return (
+                            <View key={student.id} style={styles.studentRow}>
+                              <View style={styles.studentAvatar}>
+                                <Text style={styles.avatarText}>
+                                  {(student.full_name || '?').charAt(0)}
+                                </Text>
+                              </View>
+                              <View style={styles.studentInfo}>
+                                <View style={styles.nameRow}>
+                                  <Text style={styles.studentName} numberOfLines={1}>
+                                    {student.full_name}{student.summer_class ? ' ☀️' : ''}
+                                  </Text>
+                                  {entry.isCompensation && (
+                                    <View style={styles.compBadge}>
+                                      <Text style={styles.compBadgeText}>Comp</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={styles.studentDetail}>
+                                  {student.instrument}
+                                </Text>
+                              </View>
                             </View>
-                            <View style={styles.studentInfo}>
-                              <Text style={styles.studentName}>
-                                {student.full_name}{student.summer_class ? ' ☀️' : ''}
-                              </Text>
-                              <Text style={styles.studentDetail}>
-                                {student.instrument}
-                              </Text>
-                            </View>
-                          </View>
-                        ))}
+                          );
+                        })}
                       </View>
                     ) : (
                       <Text style={styles.emptyBatchText}>No students</Text>
@@ -241,27 +282,42 @@ export default function StaffClassDays() {
                   <View style={styles.batchHeader}>
                     <Clock size={14} color="#1e40af" />
                     <Text style={styles.batchLabel}>{group.batch}</Text>
-                    <Text style={styles.instrumentCounts}>{getInstrumentCounts(group.students)}</Text>
-                    <Text style={styles.batchCount}>{group.students.length}</Text>
+                    <Text style={styles.instrumentCounts}>
+                      {getInstrumentCountEntries(group.entries.map(e => e.student)).map((item, i) => [
+                        i > 0 ? <Text key={`s${i}`}>, </Text> : null,
+                        <Text key={i} style={item.overCap && styles.instrumentCountsOverCap}>{item.text}</Text>,
+                      ]).flat()}
+                    </Text>
+                    <Text style={[styles.batchCount, group.overCapacity && styles.batchCountOverCap]}>{group.entries.length}</Text>
                   </View>
                   <View style={styles.studentList}>
-                    {group.students.map((student) => (
-                      <View key={student.id} style={styles.studentRow}>
-                        <View style={styles.studentAvatar}>
-                          <Text style={styles.avatarText}>
-                            {(student.full_name || '?').charAt(0)}
-                          </Text>
+                    {group.entries.map((entry) => {
+                      const student = entry.student;
+                      return (
+                        <View key={student.id} style={styles.studentRow}>
+                          <View style={styles.studentAvatar}>
+                            <Text style={styles.avatarText}>
+                              {(student.full_name || '?').charAt(0)}
+                            </Text>
+                          </View>
+                          <View style={styles.studentInfo}>
+                            <View style={styles.nameRow}>
+                              <Text style={styles.studentName} numberOfLines={1}>
+                                {student.full_name}{student.summer_class ? ' ☀️' : ''}
+                              </Text>
+                              {entry.isCompensation && (
+                                <View style={styles.compBadge}>
+                                  <Text style={styles.compBadgeText}>Comp</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.studentDetail}>
+                              {student.instrument}
+                            </Text>
+                          </View>
                         </View>
-                        <View style={styles.studentInfo}>
-                          <Text style={styles.studentName}>
-                            {student.full_name}{student.summer_class ? ' ☀️' : ''}
-                          </Text>
-                          <Text style={styles.studentDetail}>
-                            {student.instrument}
-                          </Text>
-                        </View>
-                      </View>
-                    ))}
+                      );
+                    })}
                   </View>
                 </View>
               ))}
@@ -445,8 +501,11 @@ const styles = StyleSheet.create({
   instrumentCounts: {
     fontSize: 12,
     fontWeight: '800',
-    color: '#e11d48',
+    color: '#00F900',
     letterSpacing: 0.5,
+  },
+  instrumentCountsOverCap: {
+    color: '#dc2626',
   },
   batchCount: {
     fontSize: 12,
@@ -457,6 +516,10 @@ const styles = StyleSheet.create({
     paddingVertical: 2,
     borderRadius: 8,
     overflow: 'hidden',
+  },
+  batchCountOverCap: {
+    color: '#fff',
+    backgroundColor: '#dc2626',
   },
   studentList: {
     paddingHorizontal: 16,
@@ -536,5 +599,21 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#64748b',
     marginTop: 1,
+  },
+  nameRow: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
+  },
+  compBadge: {
+    backgroundColor: '#fef3c7',
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 4,
+  },
+  compBadgeText: {
+    fontSize: 10,
+    fontWeight: '700',
+    color: '#b45309',
   },
 });

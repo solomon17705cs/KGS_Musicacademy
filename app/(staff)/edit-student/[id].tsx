@@ -22,7 +22,7 @@ import { ArrowLeft, UserPlus, Calendar, Music, Phone, MapPin, ChevronDown } from
 
 const INITIAL_GRADE_OPTIONS = ['Not completed', 'Initial Grade', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
 
-const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+const DAYS_OF_WEEK = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const BATCH_OPTIONS = ['Batch 1', 'Batch 2', 'Batch 3'];
 
 function formatDDMMYYYY(text: string): string {
@@ -1150,6 +1150,7 @@ const styles = StyleSheet.create({
     },
     scrollContent: {
         padding: 20,
+        paddingBottom: Platform.OS === 'android' ? 80 : 20,
         gap: 16,
     },
     errorContainer: {
