@@ -137,7 +137,9 @@ export default function StaffClassDays() {
 
   const batchedGroups = useMemo(() => {
     return BATCHES.map(batch => {
-      const entries = dayStudents.filter(s => s.batch === batch);
+      const entries = dayStudents
+        .filter(s => s.batch === batch)
+        .sort((a, b) => (a.student.instrument || '').localeCompare(b.student.instrument || ''));
       return {
         batch,
         entries,

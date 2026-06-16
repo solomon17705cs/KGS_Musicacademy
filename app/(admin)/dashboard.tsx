@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useRef } from 'react';
 import {
   View,
   Text,
@@ -36,6 +36,7 @@ export default function AdminDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const hasLoaded = useRef(false);
 
   useEffect(() => {
     if (authLoading || !rootNavigationState?.key) return;
@@ -49,13 +50,14 @@ export default function AdminDashboard() {
   useFocusEffect(
     useCallback(() => {
       if (profile?.role === 'admin') {
-        setLoading(true);
-        loadStudents();
+        loadStudents(!hasLoaded.current);
+        hasLoaded.current = true;
       }
     }, [rootNavigationState?.key, profile?.role])
   );
 
-  async function loadStudents() {
+  async function loadStudents(showLoader: boolean) {
+    if (showLoader) setLoading(true);
     try {
       setError('');
       const allStudents = await studentService.getAllStudents();
@@ -72,16 +74,16 @@ export default function AdminDashboard() {
 
       setStudents(studentsWithProgress);
     } catch (err: any) {
-      setError(err.message || 'Failed to load students');
+      if (showLoader) setError(err.message || 'Failed to load students');
     } finally {
-      setLoading(false);
+      if (showLoader) setLoading(false);
       setRefreshing(false);
     }
   }
 
   async function onRefresh() {
     setRefreshing(true);
-    await loadStudents();
+    await loadStudents(true);
   }
 
   async function handleSignOut() {

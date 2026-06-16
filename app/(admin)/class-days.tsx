@@ -47,21 +47,13 @@ function isBatchOverCapacity(students: Student[]): boolean {
 
 function getInstrumentAbbrev(name: string): string {
   const map: Record<string, string> = {
-    'keyboard': 'K',
+    'keyboard': 'EK',
     'piano': 'P',
     'violin': 'Vi',
-    'guitar': 'Gu',
-    'drums': 'Dr',
+    'guitar': 'PG',
+    'drums': 'DK',
     'flute': 'Fl',
-    'saxophone': 'Sa',
-    'trumpet': 'Tr',
-    'cello': 'Ce',
-    'clarinet': 'Cl',
     'ukulele': 'Uk',
-    'harmonium': 'Ha',
-    'tabla': 'Ta',
-    'voice': 'Vo',
-    'singing': 'Vo',
   };
   const key = name.toLowerCase().trim();
   return map[key] || key.slice(0, 2);
@@ -145,7 +137,9 @@ export default function AdminClassDays() {
 
   const batchedGroups = useMemo(() => {
     return BATCHES.map(batch => {
-      const entries = dayStudents.filter(s => s.batch === batch);
+      const entries = dayStudents
+        .filter(s => s.batch === batch)
+        .sort((a, b) => (a.student.instrument || '').localeCompare(b.student.instrument || ''));
       return {
         batch,
         entries,
@@ -242,28 +236,28 @@ export default function AdminClassDays() {
                         {group.entries.map((entry) => {
                           const student = entry.student;
                           return (
-                          <View key={student.id} style={styles.studentRow}>
-                            <View style={styles.studentAvatar}>
-                              <Text style={styles.avatarText}>
-                                {(student.full_name || '?').charAt(0)}
-                              </Text>
-                            </View>
-                            <View style={styles.studentInfo}>
-                              <View style={styles.nameRow}>
-                                <Text style={styles.studentName} numberOfLines={1}>
-                                  {student.full_name}{student.summer_class ? ' ☀️' : ''}
+                            <View key={student.id} style={styles.studentRow}>
+                              <View style={styles.studentAvatar}>
+                                <Text style={styles.avatarText}>
+                                  {(student.full_name || '?').charAt(0)}
                                 </Text>
-                                {entry.isCompensation && (
-                                  <View style={styles.compBadge}>
-                                    <Text style={styles.compBadgeText}>Comp</Text>
-                                  </View>
-                                )}
                               </View>
-                              <Text style={styles.studentDetail}>
-                                {student.instrument}
-                              </Text>
+                              <View style={styles.studentInfo}>
+                                <View style={styles.nameRow}>
+                                  <Text style={styles.studentName} numberOfLines={1}>
+                                    {student.full_name}{student.summer_class ? ' ☀️' : ''}
+                                  </Text>
+                                  {entry.isCompensation && (
+                                    <View style={styles.compBadge}>
+                                      <Text style={styles.compBadgeText}>Comp</Text>
+                                    </View>
+                                  )}
+                                </View>
+                                <Text style={styles.studentDetail}>
+                                  {student.instrument}
+                                </Text>
+                              </View>
                             </View>
-                          </View>
                           );
                         })}
                       </View>
@@ -302,28 +296,28 @@ export default function AdminClassDays() {
                     {group.entries.map((entry) => {
                       const student = entry.student;
                       return (
-                      <View key={student.id} style={styles.studentRow}>
-                        <View style={styles.studentAvatar}>
-                          <Text style={styles.avatarText}>
-                            {(student.full_name || '?').charAt(0)}
-                          </Text>
-                        </View>
-                        <View style={styles.studentInfo}>
-                          <View style={styles.nameRow}>
-                            <Text style={styles.studentName} numberOfLines={1}>
-                              {student.full_name}{student.summer_class ? ' ☀️' : ''}
+                        <View key={student.id} style={styles.studentRow}>
+                          <View style={styles.studentAvatar}>
+                            <Text style={styles.avatarText}>
+                              {(student.full_name || '?').charAt(0)}
                             </Text>
-                            {entry.isCompensation && (
-                              <View style={styles.compBadge}>
-                                <Text style={styles.compBadgeText}>Comp</Text>
-                              </View>
-                            )}
                           </View>
-                          <Text style={styles.studentDetail}>
-                            {student.instrument}
-                          </Text>
+                          <View style={styles.studentInfo}>
+                            <View style={styles.nameRow}>
+                              <Text style={styles.studentName} numberOfLines={1}>
+                                {student.full_name}{student.summer_class ? ' ☀️' : ''}
+                              </Text>
+                              {entry.isCompensation && (
+                                <View style={styles.compBadge}>
+                                  <Text style={styles.compBadgeText}>Comp</Text>
+                                </View>
+                              )}
+                            </View>
+                            <Text style={styles.studentDetail}>
+                              {student.instrument}
+                            </Text>
+                          </View>
                         </View>
-                      </View>
                       );
                     })}
                   </View>

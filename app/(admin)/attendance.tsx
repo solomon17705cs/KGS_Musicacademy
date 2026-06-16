@@ -10,12 +10,13 @@ import {
   Modal,
   Platform,
   useWindowDimensions,
+  TextInput,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService, attendanceService } from '@/lib/firestore';
 import { Student, AttendanceRecord } from '@/types/database';
-import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, X } from 'lucide-react-native';
+import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Search, X } from 'lucide-react-native';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -97,11 +98,43 @@ export default function AttendanceScreen() {
   const [detailRecords, setDetailRecords] = useState<AttendanceRecord[]>([]);
   const [allAttendanceMap, setAllAttendanceMap] = useState<Record<string, AttendanceRecord[]>>({});
   const [headerHeight, setHeaderHeight] = useState(56);
+  const [searchText, setSearchText] = useState('');
+  const [searchFocused, setSearchFocused] = useState(false);
+  const searchOpen = searchFocused || searchText.length > 0;
+
+  function parseName(name: string) {
+    const m = name.match(/^((?:[A-Z]\.\s*)+)(.+)/);
+    if (m) return { initials: m[1].trim(), rest: m[2].trim() };
+    return { initials: '', rest: name };
+  }
+
+  function displayName(name: string): string {
+    const { initials, rest } = parseName(name);
+    return initials ? `${rest}. ${initials}` : name;
+  }
+
+  function sortStudents(list: Student[]): Student[] {
+    return [...list].sort((a, b) => {
+      const aName = a.full_name || '';
+      const bName = b.full_name || '';
+      const aInit = aName.includes('.');
+      const bInit = bName.includes('.');
+      if (aInit && !bInit) return 1;
+      if (!aInit && bInit) return -1;
+      const aFirst = parseName(aName).rest.split(' ')[0].toLowerCase();
+      const bFirst = parseName(bName).rest.split(' ')[0].toLowerCase();
+      return aFirst.localeCompare(bFirst);
+    });
+  }
+
   const { width } = useWindowDimensions();
   const isDesktop = Platform.OS === 'web' && width >= 1300;
-  const halfIdx = Math.ceil(students.length / 2);
-  const leftStudents = students.slice(0, halfIdx);
-  const rightStudents = students.slice(halfIdx);
+  const filteredStudents = students.filter(s =>
+    (s.full_name || '').toLowerCase().includes(searchText.toLowerCase())
+  );
+  const halfIdx = Math.ceil(filteredStudents.length / 2);
+  const leftStudents = filteredStudents.slice(0, halfIdx);
+  const rightStudents = filteredStudents.slice(halfIdx);
 
   const weekDates = getWeekDates(weekStart);
   const weekStartStr = formatDate(weekDates[0]);
@@ -127,7 +160,7 @@ export default function AttendanceScreen() {
         attendanceService.getWeekAttendance(weekStartStr, weekEndStr),
         attendanceService.getWeekAttendance(monthStartStr, monthEndStr),
       ]);
-      setStudents(allStudents);
+      setStudents(sortStudents(allStudents));
       setWeekRecords(weekRecs);
       setMonthRecords(monthRecs);
 
@@ -290,7 +323,7 @@ export default function AttendanceScreen() {
         <View key={student.id} style={styles.tableRow}>
           <TouchableOpacity style={styles.nameCell} onPress={() => openDetail(student)}>
             <Text style={styles.studentName} numberOfLines={1}>
-              {student.full_name}{student.summer_class ? ' ☀️' : ''}
+              {displayName(student.full_name || '')}{student.summer_class ? ' ☀️' : ''}
             </Text>
             <Text style={styles.instrumentText} numberOfLines={1}>
               {student.instrument}
@@ -376,6 +409,23 @@ export default function AttendanceScreen() {
           <Text style={styles.headerTitle}>Attendance</Text>
           <Text style={styles.headerSubtitle}>Tap cells to toggle status. Tap student name for monthly view.</Text>
         </View>
+        <View style={styles.searchArea}>
+          {searchOpen ? (
+            <TextInput
+              style={styles.searchInput}
+              placeholder="Search student..."
+              placeholderTextColor="#94a3b8"
+              value={searchText}
+              onChangeText={setSearchText}
+              onBlur={() => { if (!searchText) setSearchFocused(false); }}
+              autoFocus
+            />
+          ) : (
+            <TouchableOpacity style={styles.searchIconBtn} onPress={() => setSearchFocused(true)}>
+              <Search size={20} color="#64748b" />
+            </TouchableOpacity>
+          )}
+        </View>
       </View>
 
       <View style={styles.weekNav}>
@@ -423,7 +473,7 @@ export default function AttendanceScreen() {
             </View>
             <ScrollView vertical style={{ paddingTop: headerHeight }}>
               <View style={styles.table}>
-                {renderStudentRows(students)}
+                {renderStudentRows(filteredStudents)}
               </View>
             </ScrollView>
           </View>
@@ -455,7 +505,7 @@ export default function AttendanceScreen() {
           <View style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View>
-                <Text style={styles.modalTitle}>{selectedStudent?.full_name}</Text>
+                <Text style={styles.modalTitle}>{displayName(selectedStudent?.full_name || '')}</Text>
                 <Text style={styles.modalSubtitle}>{selectedStudent?.instrument}</Text>
               </View>
               <TouchableOpacity style={styles.closeButton} onPress={closeDetail}>
@@ -609,6 +659,26 @@ const styles = StyleSheet.create({
     fontSize: 13,
     color: '#64748b',
     marginTop: 2,
+  },
+  searchArea: {
+    marginLeft: 'auto',
+  },
+  searchIconBtn: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: '#f1f5f9',
+    alignItems: 'center',
+    justifyContent: 'center',
+  },
+  searchInput: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    fontSize: 14,
+    color: '#1e293b',
+    minWidth: 180,
   },
   weekNav: {
     flexDirection: 'row',
