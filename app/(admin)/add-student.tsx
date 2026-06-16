@@ -264,8 +264,8 @@ export default function AddStudentScreen() {
                         </Text>
                     </View>
 
-                    <View style={[styles.row, isMobile && styles.rowMobile]}>
-                        <View style={styles.column}>
+                    {isMobile ? (
+                        <>
                             <View style={styles.card}>
                                 <View style={styles.cardHeader}>
                                     <UserPlus size={20} color="#1e40af" />
@@ -313,7 +313,7 @@ export default function AddStudentScreen() {
                                     />
                                 </View>
 
-<View style={styles.row}>
+                                <View style={[styles.row, isMobile && styles.rowMobile]}>
                                     <View style={[styles.inputGroup, { flex: 1 }]}>
                                         <Text style={styles.label}>Joining Date *</Text>
                                         <View style={styles.dateInputRow}>
@@ -335,7 +335,7 @@ export default function AddStudentScreen() {
                                             </TouchableOpacity>
                                         </View>
                                     </View>
-                                    <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                                    <View style={[styles.inputGroup, { flex: 1, marginLeft: isMobile ? 0 : 8 }]}>
                                         <Text style={styles.label}>Date of Birth</Text>
                                         <View style={styles.dateInputRow}>
                                             <TextInput
@@ -377,49 +377,69 @@ export default function AddStudentScreen() {
                                 )}
 
                                 {Platform.OS !== 'web' && showEnrollmentPicker && (
-                                    <Modal visible={showEnrollmentPicker} transparent animationType="fade">
-                                        <View style={styles.modalOverlay}>
-                                            <View style={styles.modalContent}>
-                                                <Text style={styles.modalTitle}>Select Joining Date</Text>
-                                                <DateTimePicker
-                                                    value={parseDDMMYYYY(enrollmentDate) || new Date()}
-                                                    mode="date"
-                                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                                    onChange={(_, selectedDate) => {
-                                                        if (selectedDate) {
-                                                            setEnrollmentDate(toDDMMYYYY(selectedDate));
-                                                        }
-                                                    }}
-                                                />
-                                                <TouchableOpacity style={styles.modalButton} onPress={() => setShowEnrollmentPicker(false)}>
-                                                    <Text style={styles.modalButtonText}>Done</Text>
-                                                </TouchableOpacity>
+                                    Platform.OS === 'ios' ? (
+                                        <Modal visible={showEnrollmentPicker} transparent animationType="fade">
+                                            <View style={styles.modalOverlay}>
+                                                <View style={styles.modalContent}>
+                                                    <DateTimePicker
+                                                        value={parseDDMMYYYY(enrollmentDate) || new Date()}
+                                                        mode="date"
+                                                        display="spinner"
+                                                        onChange={(_, selectedDate) => {
+                                                            if (selectedDate) setEnrollmentDate(toDDMMYYYY(selectedDate));
+                                                            setShowEnrollmentPicker(false);
+                                                        }}
+                                                    />
+                                                    <TouchableOpacity style={styles.modalButton} onPress={() => setShowEnrollmentPicker(false)}>
+                                                        <Text style={styles.modalButtonText}>Done</Text>
+                                                    </TouchableOpacity>
+                                                </View>
                                             </View>
-                                        </View>
-                                    </Modal>
+                                        </Modal>
+                                    ) : (
+                                        <DateTimePicker
+                                            value={parseDDMMYYYY(enrollmentDate) || new Date()}
+                                            mode="date"
+                                            display="default"
+                                            onChange={(_, selectedDate) => {
+                                                setShowEnrollmentPicker(false);
+                                                if (selectedDate) setEnrollmentDate(toDDMMYYYY(selectedDate));
+                                            }}
+                                        />
+                                    )
                                 )}
 
                                 {Platform.OS !== 'web' && showDobPicker && (
-                                    <Modal visible={showDobPicker} transparent animationType="fade">
-                                        <View style={styles.modalOverlay}>
-                                            <View style={styles.modalContent}>
-                                                <Text style={styles.modalTitle}>Select Date of Birth</Text>
-                                                <DateTimePicker
-                                                    value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
-                                                    mode="date"
-                                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                                    onChange={(_, selectedDate) => {
-                                                        if (selectedDate) {
-                                                            setDob(toDDMMYYYY(selectedDate));
-                                                        }
-                                                    }}
-                                                />
-                                                <TouchableOpacity style={styles.modalButton} onPress={() => setShowDobPicker(false)}>
-                                                    <Text style={styles.modalButtonText}>Done</Text>
-                                                </TouchableOpacity>
+                                    Platform.OS === 'ios' ? (
+                                        <Modal visible={showDobPicker} transparent animationType="fade">
+                                            <View style={styles.modalOverlay}>
+                                                <View style={styles.modalContent}>
+                                                    <DateTimePicker
+                                                        value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
+                                                        mode="date"
+                                                        display="spinner"
+                                                        onChange={(_, selectedDate) => {
+                                                            if (selectedDate) setDob(toDDMMYYYY(selectedDate));
+                                                            setShowDobPicker(false);
+                                                        }}
+                                                    />
+                                                    <TouchableOpacity style={styles.modalButton} onPress={() => setShowDobPicker(false)}>
+                                                        <Text style={styles.modalButtonText}>Done</Text>
+                                                    </TouchableOpacity>
+                                                </View>
                                             </View>
-                                        </View>
-                                    </Modal>
+                                        </Modal>
+                                    ) : (
+                                        <DateTimePicker
+                                            value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
+                                            mode="date"
+                                            display="default"
+                                            onChange={(_, selectedDate) => {
+                                                setShowDobPicker(false);
+                                                if (selectedDate) setDob(toDDMMYYYY(selectedDate));
+                                            }}
+                                        />
+                                    )
                                 )}
 
                                 <View style={[styles.inputGroup, showGradeOptions && styles.inputGroupActive]}>
@@ -556,9 +576,7 @@ export default function AddStudentScreen() {
                                     </View>
                                 )}
                             </View>
-                        </View>
 
-                        <View style={styles.column}>
                             <View style={styles.card}>
                                 <View style={styles.cardHeader}>
                                     <UserPlus size={20} color="#1e40af" />
@@ -671,8 +689,438 @@ export default function AddStudentScreen() {
                                     />
                                 </View>
                             </View>
+                        </>
+                    ) : (
+                        <View style={styles.row}>
+                            <View style={styles.column}>
+                                <View style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <UserPlus size={20} color="#1e40af" />
+                                        <Text style={styles.cardTitle}>Student Details</Text>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Full Name *</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Student Name"
+                                            placeholderTextColor="#94a3b8"
+                                            value={fullName}
+                                            onChangeText={setFullName}
+                                            editable={!loading}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Gender</Text>
+                                        <View style={styles.genderRow}>
+                                            {(['male', 'female'] as const).map(g => (
+                                                <TouchableOpacity
+                                                    key={g}
+                                                    style={[styles.genderBtn, gender === g && styles.genderBtnActive]}
+                                                    onPress={() => setGender(g)}
+                                                    disabled={loading}>
+                                                    <Text style={[styles.genderBtnText, gender === g && styles.genderBtnTextActive]}>
+                                                        {g.charAt(0).toUpperCase() + g.slice(1)}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Instrument *</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="e.g. Piano, Violin"
+                                            placeholderTextColor="#94a3b8"
+                                            value={instrument}
+                                            onChangeText={setInstrument}
+                                            editable={!loading}
+                                        />
+                                    </View>
+
+                                    <View style={[styles.row, isMobile && styles.rowMobile]}>
+                                        <View style={[styles.inputGroup, { flex: 1 }]}>
+                                            <Text style={styles.label}>Joining Date *</Text>
+                                            <View style={styles.dateInputRow}>
+                                                <TextInput
+                                                    style={[styles.input, styles.dateInput]}
+                                                    placeholder="DD-MM-YYYY"
+                                                    placeholderTextColor="#94a3b8"
+                                                    value={enrollmentDate}
+                                                    onChangeText={(text) => setEnrollmentDate(formatDDMMYYYY(text))}
+                                                    keyboardType="numeric"
+                                                    maxLength={10}
+                                                    editable={!loading}
+                                                />
+                                                <TouchableOpacity
+                                                    style={styles.calendarButton}
+                                                    onPress={() => openWebPicker('enrollment')}
+                                                    disabled={loading}>
+                                                    <Calendar size={18} color="#1e40af" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                        <View style={[styles.inputGroup, { flex: 1, marginLeft: 8 }]}>
+                                            <Text style={styles.label}>Date of Birth</Text>
+                                            <View style={styles.dateInputRow}>
+                                                <TextInput
+                                                    style={[styles.input, styles.dateInput]}
+                                                    placeholder="DD-MM-YYYY"
+                                                    placeholderTextColor="#94a3b8"
+                                                    value={dob}
+                                                    onChangeText={(text) => setDob(formatDDMMYYYY(text))}
+                                                    keyboardType="numeric"
+                                                    maxLength={10}
+                                                    editable={!loading}
+                                                />
+                                                <TouchableOpacity
+                                                    style={styles.calendarButton}
+                                                    onPress={() => openWebPicker('dob')}
+                                                    disabled={loading}>
+                                                    <Calendar size={18} color="#1e40af" />
+                                                </TouchableOpacity>
+                                            </View>
+                                        </View>
+                                    </View>
+
+                                    {Platform.OS === 'web' && (
+                                        <input
+                                            ref={webEnrollmentRef as any}
+                                            type="date"
+                                            style={{ position: 'absolute', top: '20px', left: '30%', opacity: 0, width: '200px', height: '30px', zIndex: -1 }}
+                                            onChange={(e) => handleWebDateChange('enrollment', e.target.value)}
+                                        />
+                                    )}
+
+                                    {Platform.OS === 'web' && (
+                                        <input
+                                            ref={webDobRef as any}
+                                            type="date"
+                                            style={{ position: 'absolute', top: '20px', left: '70%', opacity: 0, width: '200px', height: '30px', zIndex: -1 }}
+                                            onChange={(e) => handleWebDateChange('dob', e.target.value)}
+                                        />
+                                    )}
+
+                                    {Platform.OS !== 'web' && showEnrollmentPicker && (
+                                        Platform.OS === 'ios' ? (
+                                            <Modal visible={showEnrollmentPicker} transparent animationType="fade">
+                                                <View style={styles.modalOverlay}>
+                                                    <View style={styles.modalContent}>
+                                                        <DateTimePicker
+                                                            value={parseDDMMYYYY(enrollmentDate) || new Date()}
+                                                            mode="date"
+                                                            display="spinner"
+                                                            onChange={(_, selectedDate) => {
+                                                                if (selectedDate) setEnrollmentDate(toDDMMYYYY(selectedDate));
+                                                                setShowEnrollmentPicker(false);
+                                                            }}
+                                                        />
+                                                        <TouchableOpacity style={styles.modalButton} onPress={() => setShowEnrollmentPicker(false)}>
+                                                            <Text style={styles.modalButtonText}>Done</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                </View>
+                                            </Modal>
+                                        ) : (
+                                            <DateTimePicker
+                                                value={parseDDMMYYYY(enrollmentDate) || new Date()}
+                                                mode="date"
+                                                display="default"
+                                                onChange={(_, selectedDate) => {
+                                                    setShowEnrollmentPicker(false);
+                                                    if (selectedDate) setEnrollmentDate(toDDMMYYYY(selectedDate));
+                                                }}
+                                            />
+                                        )
+                                    )}
+
+                                    {Platform.OS !== 'web' && showDobPicker && (
+                                        Platform.OS === 'ios' ? (
+                                            <Modal visible={showDobPicker} transparent animationType="fade">
+                                                <View style={styles.modalOverlay}>
+                                                    <View style={styles.modalContent}>
+                                                        <DateTimePicker
+                                                            value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
+                                                            mode="date"
+                                                            display="spinner"
+                                                            onChange={(_, selectedDate) => {
+                                                                if (selectedDate) setDob(toDDMMYYYY(selectedDate));
+                                                                setShowDobPicker(false);
+                                                            }}
+                                                        />
+                                                        <TouchableOpacity style={styles.modalButton} onPress={() => setShowDobPicker(false)}>
+                                                            <Text style={styles.modalButtonText}>Done</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
+                                                </View>
+                                            </Modal>
+                                        ) : (
+                                            <DateTimePicker
+                                                value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
+                                                mode="date"
+                                                display="default"
+                                                onChange={(_, selectedDate) => {
+                                                    setShowDobPicker(false);
+                                                    if (selectedDate) setDob(toDDMMYYYY(selectedDate));
+                                                }}
+                                            />
+                                        )
+                                    )}
+
+                                    <View style={[styles.inputGroup, showGradeOptions && styles.inputGroupActive]}>
+                                        <Text style={styles.label}>Grade Completed while Joining</Text>
+                                        <View style={styles.gradeWrapper}>
+                                            <View style={styles.gradeSelectorContainer}>
+                                                <TextInput
+                                                    style={styles.input}
+                                                    placeholder="Not completed"
+                                                    placeholderTextColor="#94a3b8"
+                                                    value={initialGrade}
+                                                    onChangeText={(text) => {
+                                                        setInitialGrade(text);
+                                                        setShowGradeOptions(false);
+                                                    }}
+                                                    editable={!loading}
+                                                    onFocus={() => setShowGradeOptions(true)}
+                                                />
+                                                <TouchableOpacity
+                                                    style={styles.dropdownToggle}
+                                                    onPress={() => setShowGradeOptions(!showGradeOptions)}
+                                                    disabled={loading}>
+                                                    <ChevronDown size={18} color={showGradeOptions ? '#1e40af' : '#64748b'} />
+                                                </TouchableOpacity>
+                                            </View>
+                                            {showGradeOptions && (
+                                                <View style={styles.gradeOptionsList}>
+                                                    <ScrollView style={styles.gradeOptionsScroll} showsVerticalScrollIndicator={false}>
+                                                        {INITIAL_GRADE_OPTIONS.map((option) => (
+                                                            <TouchableOpacity
+                                                                key={option}
+                                                                style={[
+                                                                    styles.gradeOption,
+                                                                    initialGrade === option && styles.gradeOptionSelected,
+                                                                ]}
+                                                                onPress={() => {
+                                                                    setInitialGrade(option);
+                                                                    setShowGradeOptions(false);
+                                                                }}>
+                                                                <Text style={[
+                                                                    styles.gradeOptionText,
+                                                                    initialGrade === option && styles.gradeOptionTextSelected,
+                                                                ]}>{option}</Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </ScrollView>
+                                                </View>
+                                            )}
+                                        </View>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Class Type</Text>
+                                        <View style={styles.genderRow}>
+                                            {(['regular', 'summer'] as const).map(type => (
+                                                <TouchableOpacity
+                                                    key={type}
+                                                    style={[styles.genderBtn, classType === type && styles.genderBtnActive]}
+                                                    onPress={() => setClassType(type)}
+                                                    disabled={loading}>
+                                                    <Text style={[styles.genderBtnText, classType === type && styles.genderBtnTextActive]}>
+                                                        {type.charAt(0).toUpperCase() + type.slice(1)}
+                                                    </Text>
+                                                </TouchableOpacity>
+                                            ))}
+                                        </View>
+                                    </View>
+
+                                    {classType === 'regular' && (
+                                        <>
+                                            {['Class Day 1', 'Class Day 2', 'Compensation Day'].map((label, idx) => (
+                                                <View key={label} style={styles.inputGroup}>
+                                                    <Text style={styles.label}>{label}</Text>
+                                                    <View style={styles.daySelector}>
+                                                        {DAYS_OF_WEEK.map(day => {
+                                                            const isTaken = classSlots.some((slot, i) => i !== idx && slot.day === day);
+                                                            return (
+                                                                <TouchableOpacity
+                                                                    key={day}
+                                                                    style={[
+                                                                        styles.dayButton,
+                                                                        classSlots[idx].day === day && styles.dayButtonActive,
+                                                                        isTaken && { opacity: 0.3 },
+                                                                    ]}
+                                                                    onPress={() => handleSlotDaySelect(idx, day)}
+                                                                    disabled={loading || isTaken}>
+                                                                    <Text style={[
+                                                                        styles.dayButtonText,
+                                                                        classSlots[idx].day === day && styles.dayButtonTextActive,
+                                                                    ]}>
+                                                                        {day}
+                                                                    </Text>
+                                                                </TouchableOpacity>
+                                                            );
+                                                        })}
+                                                    </View>
+                                                    <View style={[styles.timingSelector, { marginTop: 8 }]}>
+                                                        {BATCH_OPTIONS.map(batch => (
+                                                            <TouchableOpacity
+                                                                key={batch}
+                                                                style={[
+                                                                    styles.timingButton,
+                                                                    classSlots[idx].batch === batch && styles.timingButtonActive,
+                                                                ]}
+                                                                onPress={() => handleSlotBatchSelect(idx, batch)}
+                                                                disabled={loading}>
+                                                                <Text style={[
+                                                                    styles.timingButtonText,
+                                                                    classSlots[idx].batch === batch && styles.timingButtonTextActive,
+                                                                ]}>
+                                                                    {batch}
+                                                                </Text>
+                                                            </TouchableOpacity>
+                                                        ))}
+                                                    </View>
+                                                </View>
+                                            ))}
+                                        </>
+                                    )}
+
+                                    {classType === 'summer' && (
+                                        <View style={styles.inputGroup}>
+                                            <Text style={styles.label}>Summer Class</Text>
+                                            <TouchableOpacity
+                                                style={[
+                                                    styles.timingButton,
+                                                    styles.timingButtonActive,
+                                                ]}
+                                                disabled>
+                                                <Text style={[styles.timingButtonText, styles.timingButtonTextActive]}>
+                                                    ☀️ Summer Class
+                                                </Text>
+                                            </TouchableOpacity>
+                                        </View>
+                                    )}
+                                </View>
+                            </View>
+
+                            <View style={styles.column}>
+                                <View style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <UserPlus size={20} color="#1e40af" />
+                                        <Text style={styles.cardTitle}>Father's Details</Text>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Father Name</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Father's Name"
+                                            placeholderTextColor="#94a3b8"
+                                            value={fatherName}
+                                            onChangeText={setFatherName}
+                                            editable={!loading}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Father Phone</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Phone"
+                                            placeholderTextColor="#94a3b8"
+                                            value={fatherPhone}
+                                            onChangeText={setFatherPhone}
+                                            keyboardType="phone-pad"
+                                            editable={!loading}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Father Email</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="father@email.com"
+                                            placeholderTextColor="#94a3b8"
+                                            value={fatherEmail}
+                                            onChangeText={setFatherEmail}
+                                            keyboardType="email-address"
+                                            autoCapitalize="none"
+                                            editable={!loading}
+                                        />
+                                    </View>
+                                </View>
+
+                                <View style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <UserPlus size={20} color="#1e40af" />
+                                        <Text style={styles.cardTitle}>Mother's Details</Text>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Mother Name</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Mother's Name"
+                                            placeholderTextColor="#94a3b8"
+                                            value={motherName}
+                                            onChangeText={setMotherName}
+                                            editable={!loading}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Mother Phone</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="Phone"
+                                            placeholderTextColor="#94a3b8"
+                                            value={motherPhone}
+                                            onChangeText={setMotherPhone}
+                                            keyboardType="phone-pad"
+                                            editable={!loading}
+                                        />
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <Text style={styles.label}>Mother Email</Text>
+                                        <TextInput
+                                            style={styles.input}
+                                            placeholder="mother@email.com"
+                                            placeholderTextColor="#94a3b8"
+                                            value={motherEmail}
+                                            onChangeText={setMotherEmail}
+                                            keyboardType="email-address"
+                                            autoCapitalize="none"
+                                            editable={!loading}
+                                        />
+                                    </View>
+                                </View>
+
+                                <View style={styles.card}>
+                                    <View style={styles.cardHeader}>
+                                        <MapPin size={20} color="#1e40af" />
+                                        <Text style={styles.cardTitle}>Address</Text>
+                                    </View>
+
+                                    <View style={styles.inputGroup}>
+                                        <TextInput
+                                            style={[styles.input, styles.addressInput]}
+                                            placeholder="Enter full address"
+                                            placeholderTextColor="#94a3b8"
+                                            value={parentAddress}
+                                            onChangeText={setParentAddress}
+                                            multiline
+                                            numberOfLines={3}
+                                            textAlignVertical="top"
+                                            editable={!loading}
+                                        />
+                                    </View>
+                                </View>
+                            </View>
                         </View>
-                    </View>
+                    )}
 
                     <TouchableOpacity
                         style={[styles.submitButton, loading && styles.buttonDisabled]}

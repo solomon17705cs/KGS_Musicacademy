@@ -45,12 +45,14 @@ export default function StaffDashboard() {
     }
   }, [profile, authLoading, rootNavigationState?.key]);
 
-  useEffect(() => {
-    if (profile?.role === 'staff') {
-      setLoading(true);
-      loadStudents();
-    }
-  }, [rootNavigationState?.key, profile?.role]);
+  useFocusEffect(
+    useCallback(() => {
+      if (profile?.role === 'staff') {
+        setLoading(true);
+        loadStudents();
+      }
+    }, [rootNavigationState?.key, profile?.role])
+  );
 
   async function loadStudents() {
     try {

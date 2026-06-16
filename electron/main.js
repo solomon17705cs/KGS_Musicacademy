@@ -37,8 +37,22 @@ const server = http.createServer((req, res) => {
   const filePath = path.join(distPath, req.url === '/' ? 'index.html' : req.url);
   fs.readFile(filePath, (err, data) => {
     if (err) {
-      res.writeHead(404);
-      res.end('Not Found');
+      const hasExt = path.extname(req.url) !== '';
+      if (hasExt) {
+        res.writeHead(404);
+        res.end('Not Found');
+        return;
+      }
+      const indexPath = path.join(distPath, 'index.html');
+      fs.readFile(indexPath, (err2, data2) => {
+        if (err2) {
+          res.writeHead(404);
+          res.end('Not Found');
+          return;
+        }
+        res.writeHead(200, { 'Content-Type': 'text/html' });
+        res.end(data2);
+      });
       return;
     }
     const ext = path.extname(filePath).toLowerCase();

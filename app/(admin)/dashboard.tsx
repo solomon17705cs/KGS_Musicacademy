@@ -46,12 +46,14 @@ export default function AdminDashboard() {
     }
   }, [profile, authLoading, rootNavigationState?.key]);
 
-  useEffect(() => {
-    if (profile?.role === 'admin') {
-      setLoading(true);
-      loadStudents();
-    }
-  }, [rootNavigationState?.key, profile?.role]);
+  useFocusEffect(
+    useCallback(() => {
+      if (profile?.role === 'admin') {
+        setLoading(true);
+        loadStudents();
+      }
+    }, [rootNavigationState?.key, profile?.role])
+  );
 
   async function loadStudents() {
     try {

@@ -392,49 +392,69 @@ export default function EditStudentScreen() {
                                 )}
 
                                 {Platform.OS !== 'web' && showEnrollmentPicker && (
-                                    <Modal visible={showEnrollmentPicker} transparent animationType="fade">
-                                        <View style={styles.modalOverlay}>
-                                            <View style={styles.modalContent}>
-                                                <Text style={styles.modalTitle}>Select Joining Date</Text>
-                                                <DateTimePicker
-                                                    value={parseDDMMYYYY(enrollmentDate) || new Date()}
-                                                    mode="date"
-                                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                                    onChange={(_, selectedDate) => {
-                                                        if (selectedDate) {
-                                                            setEnrollmentDate(toDDMMYYYY(selectedDate));
-                                                        }
-                                                    }}
-                                                />
-                                                <TouchableOpacity style={styles.modalButton} onPress={() => setShowEnrollmentPicker(false)}>
-                                                    <Text style={styles.modalButtonText}>Done</Text>
-                                                </TouchableOpacity>
+                                    Platform.OS === 'ios' ? (
+                                        <Modal visible={showEnrollmentPicker} transparent animationType="fade">
+                                            <View style={styles.modalOverlay}>
+                                                <View style={styles.modalContent}>
+                                                    <DateTimePicker
+                                                        value={parseDDMMYYYY(enrollmentDate) || new Date()}
+                                                        mode="date"
+                                                        display="spinner"
+                                                        onChange={(_, selectedDate) => {
+                                                            if (selectedDate) setEnrollmentDate(toDDMMYYYY(selectedDate));
+                                                            setShowEnrollmentPicker(false);
+                                                        }}
+                                                    />
+                                                    <TouchableOpacity style={styles.modalButton} onPress={() => setShowEnrollmentPicker(false)}>
+                                                        <Text style={styles.modalButtonText}>Done</Text>
+                                                    </TouchableOpacity>
+                                                </View>
                                             </View>
-                                        </View>
-                                    </Modal>
+                                        </Modal>
+                                    ) : (
+                                        <DateTimePicker
+                                            value={parseDDMMYYYY(enrollmentDate) || new Date()}
+                                            mode="date"
+                                            display="default"
+                                            onChange={(_, selectedDate) => {
+                                                setShowEnrollmentPicker(false);
+                                                if (selectedDate) setEnrollmentDate(toDDMMYYYY(selectedDate));
+                                            }}
+                                        />
+                                    )
                                 )}
 
                                 {Platform.OS !== 'web' && showDobPicker && (
-                                    <Modal visible={showDobPicker} transparent animationType="fade">
-                                        <View style={styles.modalOverlay}>
-                                            <View style={styles.modalContent}>
-                                                <Text style={styles.modalTitle}>Select Date of Birth</Text>
-                                                <DateTimePicker
-                                                    value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
-                                                    mode="date"
-                                                    display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                                    onChange={(_, selectedDate) => {
-                                                        if (selectedDate) {
-                                                            setDob(toDDMMYYYY(selectedDate));
-                                                        }
-                                                    }}
-                                                />
-                                                <TouchableOpacity style={styles.modalButton} onPress={() => setShowDobPicker(false)}>
-                                                    <Text style={styles.modalButtonText}>Done</Text>
-                                                </TouchableOpacity>
+                                    Platform.OS === 'ios' ? (
+                                        <Modal visible={showDobPicker} transparent animationType="fade">
+                                            <View style={styles.modalOverlay}>
+                                                <View style={styles.modalContent}>
+                                                    <DateTimePicker
+                                                        value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
+                                                        mode="date"
+                                                        display="spinner"
+                                                        onChange={(_, selectedDate) => {
+                                                            if (selectedDate) setDob(toDDMMYYYY(selectedDate));
+                                                            setShowDobPicker(false);
+                                                        }}
+                                                    />
+                                                    <TouchableOpacity style={styles.modalButton} onPress={() => setShowDobPicker(false)}>
+                                                        <Text style={styles.modalButtonText}>Done</Text>
+                                                    </TouchableOpacity>
+                                                </View>
                                             </View>
-                                        </View>
-                                    </Modal>
+                                        </Modal>
+                                    ) : (
+                                        <DateTimePicker
+                                            value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
+                                            mode="date"
+                                            display="default"
+                                            onChange={(_, selectedDate) => {
+                                                setShowDobPicker(false);
+                                                if (selectedDate) setDob(toDDMMYYYY(selectedDate));
+                                            }}
+                                        />
+                                    )
                                 )}
 
                                 <View style={styles.inputGroup}>
@@ -799,49 +819,69 @@ export default function EditStudentScreen() {
                                     )}
 
                                     {Platform.OS !== 'web' && showEnrollmentPicker && (
-                                        <Modal visible={showEnrollmentPicker} transparent animationType="fade">
-                                            <View style={styles.modalOverlay}>
-                                                <View style={styles.modalContent}>
-                                                    <Text style={styles.modalTitle}>Select Joining Date</Text>
-                                                    <DateTimePicker
-                                                        value={parseDDMMYYYY(enrollmentDate) || new Date()}
-                                                        mode="date"
-                                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                                        onChange={(_, selectedDate) => {
-                                                            if (selectedDate) {
-                                                                setEnrollmentDate(toDDMMYYYY(selectedDate));
-                                                            }
-                                                        }}
-                                                    />
-                                                    <TouchableOpacity style={styles.modalButton} onPress={() => setShowEnrollmentPicker(false)}>
-                                                        <Text style={styles.modalButtonText}>Done</Text>
-                                                    </TouchableOpacity>
+                                        Platform.OS === 'ios' ? (
+                                            <Modal visible={showEnrollmentPicker} transparent animationType="fade">
+                                                <View style={styles.modalOverlay}>
+                                                    <View style={styles.modalContent}>
+                                                        <DateTimePicker
+                                                            value={parseDDMMYYYY(enrollmentDate) || new Date()}
+                                                            mode="date"
+                                                            display="spinner"
+                                                            onChange={(_, selectedDate) => {
+                                                                if (selectedDate) setEnrollmentDate(toDDMMYYYY(selectedDate));
+                                                                setShowEnrollmentPicker(false);
+                                                            }}
+                                                        />
+                                                        <TouchableOpacity style={styles.modalButton} onPress={() => setShowEnrollmentPicker(false)}>
+                                                            <Text style={styles.modalButtonText}>Done</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
                                                 </View>
-                                            </View>
-                                        </Modal>
+                                            </Modal>
+                                        ) : (
+                                            <DateTimePicker
+                                                value={parseDDMMYYYY(enrollmentDate) || new Date()}
+                                                mode="date"
+                                                display="default"
+                                                onChange={(_, selectedDate) => {
+                                                    setShowEnrollmentPicker(false);
+                                                    if (selectedDate) setEnrollmentDate(toDDMMYYYY(selectedDate));
+                                                }}
+                                            />
+                                        )
                                     )}
 
                                     {Platform.OS !== 'web' && showDobPicker && (
-                                        <Modal visible={showDobPicker} transparent animationType="fade">
-                                            <View style={styles.modalOverlay}>
-                                                <View style={styles.modalContent}>
-                                                    <Text style={styles.modalTitle}>Select Date of Birth</Text>
-                                                    <DateTimePicker
-                                                        value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
-                                                        mode="date"
-                                                        display={Platform.OS === 'ios' ? 'spinner' : 'default'}
-                                                        onChange={(_, selectedDate) => {
-                                                            if (selectedDate) {
-                                                                setDob(toDDMMYYYY(selectedDate));
-                                                            }
-                                                        }}
-                                                    />
-                                                    <TouchableOpacity style={styles.modalButton} onPress={() => setShowDobPicker(false)}>
-                                                        <Text style={styles.modalButtonText}>Done</Text>
-                                                    </TouchableOpacity>
+                                        Platform.OS === 'ios' ? (
+                                            <Modal visible={showDobPicker} transparent animationType="fade">
+                                                <View style={styles.modalOverlay}>
+                                                    <View style={styles.modalContent}>
+                                                        <DateTimePicker
+                                                            value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
+                                                            mode="date"
+                                                            display="spinner"
+                                                            onChange={(_, selectedDate) => {
+                                                                if (selectedDate) setDob(toDDMMYYYY(selectedDate));
+                                                                setShowDobPicker(false);
+                                                            }}
+                                                        />
+                                                        <TouchableOpacity style={styles.modalButton} onPress={() => setShowDobPicker(false)}>
+                                                            <Text style={styles.modalButtonText}>Done</Text>
+                                                        </TouchableOpacity>
+                                                    </View>
                                                 </View>
-                                            </View>
-                                        </Modal>
+                                            </Modal>
+                                        ) : (
+                                            <DateTimePicker
+                                                value={parseDDMMYYYY(dob) || new Date(2000, 0, 1)}
+                                                mode="date"
+                                                display="default"
+                                                onChange={(_, selectedDate) => {
+                                                    setShowDobPicker(false);
+                                                    if (selectedDate) setDob(toDDMMYYYY(selectedDate));
+                                                }}
+                                            />
+                                        )
                                     )}
 
                                     <View style={styles.inputGroup}>
