@@ -63,7 +63,7 @@ export default function RootLayout() {
       <SafeAreaProvider>
         <AuthProvider>
           <InitialLayout />
-          <StatusBar style="auto" />
+          <StatusBar style="dark" />
         </AuthProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
