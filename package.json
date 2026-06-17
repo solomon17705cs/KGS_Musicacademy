@@ -1,7 +1,7 @@
 {
   "name": "bolt-expo-starter",
   "main": "expo-router/entry",
-  "version": "1.3.1",
+  "version": "1.3.2",
   "description": "KGS Music Academy - Music school management app",
   "author": "KGS Music Academy",
   "private": true,
