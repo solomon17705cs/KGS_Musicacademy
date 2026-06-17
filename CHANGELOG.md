@@ -25,3 +25,18 @@ All notable changes to KGS Music Academy will be documented here.
 
 ### Changed
 - Students without any points won't be displayed in the leaderboard
+
+## [1.3.1] — 2026-06-16
+
+### Added
+- Admin/staff: Attendance name sorting
+- Admin/staff: Attendance page searching functionality
+- Admin/staff: class days page sorted with instrument
+
+### Changed
+- Students without any points won't be displayed in the leaderboard
+
+## [1.3.2] — 2026-06-17
+
+### Changed
+- Parent: loading page - music note with different color 
