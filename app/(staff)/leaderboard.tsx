@@ -9,6 +9,7 @@ import {
     RefreshControl,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { studentService } from '@/lib/firestore';
 import { Student } from '@/types/database';
 import {
@@ -28,6 +29,7 @@ export default function AdminLeaderboard() {
     const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState('');
     const [leaderboardType, setLeaderboardType] = useState<'streak' | 'points'>('streak');
+    const insets = useSafeAreaInsets();
 
     useEffect(() => {
         loadLeaderboard();
@@ -83,7 +85,7 @@ export default function AdminLeaderboard() {
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
                 <TouchableOpacity
                     onPress={() => router.back()}
                     style={styles.backButton}>
@@ -197,7 +199,7 @@ const styles = StyleSheet.create({
     header: {
         backgroundColor: '#fff',
         padding: 20,
-        paddingTop: 60,
+        paddingTop: 0,
         flexDirection: 'row',
         alignItems: 'center',
         justifyContent: 'space-between',

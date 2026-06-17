@@ -7,6 +7,7 @@ import {
   ScrollView,
   Image,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { User, Mail, Shield, LogOut, ChevronRight, Bell, HelpCircle } from 'lucide-react-native';
@@ -15,6 +16,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 export default function StaffProfileScreen() {
   const { profile, signOut } = useAuth();
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   async function handleSignOut() {
     try {
@@ -41,7 +43,7 @@ export default function StaffProfileScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.headerTitle}>My Profile</Text>
       </View>
 
@@ -136,7 +138,7 @@ const styles = StyleSheet.create({
   },
   topHeader: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,

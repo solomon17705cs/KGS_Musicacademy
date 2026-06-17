@@ -8,6 +8,7 @@ import {
   Image,
   ActivityIndicator,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { studentService, progressService, attendanceService } from '@/lib/firestore';
 import { Student, ProgressRecord } from '@/types/database';
@@ -74,6 +75,7 @@ export default function FullReportScreen() {
   const [progressRecords, setProgressRecords] = useState<ProgressRecord[]>([]);
   const [currentMonthAttendance, setCurrentMonthAttendance] = useState<string>('');
   const [loading, setLoading] = useState(true);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     async function loadData() {
@@ -119,7 +121,7 @@ export default function FullReportScreen() {
   if (!student) {
     return (
       <View style={styles.container}>
-        <View style={styles.header}>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
           <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
             <ArrowLeft size={24} color="#1e293b" />
           </TouchableOpacity>
@@ -136,7 +138,7 @@ export default function FullReportScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
           <ArrowLeft size={24} color="#1e293b" />
         </TouchableOpacity>
@@ -301,7 +303,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 16,
     flexDirection: 'row',

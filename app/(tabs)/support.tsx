@@ -7,11 +7,13 @@ import {
   TouchableOpacity,
   Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { ArrowLeft, Mail, Phone, MessageCircle, Clock, Globe } from 'lucide-react-native';
 
 export default function SupportScreen() {
   const router = useRouter();
+  const insets = useSafeAreaInsets();
 
   const contactInfo = [
     {
@@ -36,7 +38,7 @@ export default function SupportScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}>
@@ -125,7 +127,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,

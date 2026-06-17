@@ -9,6 +9,7 @@ import {
   RefreshControl,
   TextInput,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useRootNavigationState, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService, progressService, attendanceService } from '@/lib/firestore';
@@ -35,6 +36,7 @@ export default function StaffDashboard() {
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
   const [search, setSearch] = useState('');
+  const insets = useSafeAreaInsets();
   const hasLoaded = useRef(false);
 
   useEffect(() => {
@@ -120,7 +122,7 @@ export default function StaffDashboard() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <View style={styles.headerTop}>
           <View style={styles.titleArea}>
             <Text style={styles.headerTitle} numberOfLines={1}>Staff Dashboard</Text>
@@ -320,7 +322,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,

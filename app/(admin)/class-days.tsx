@@ -9,6 +9,7 @@ import {
   RefreshControl,
   useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService } from '@/lib/firestore';
@@ -85,6 +86,7 @@ export default function AdminClassDays() {
   const [error, setError] = useState('');
   const [selectedDayIdx, setSelectedDayIdx] = useState(() => DAY_NAMES.indexOf(getTodayDayName()));
   const { width: screenWidth } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isWide = screenWidth > 1300;
 
   useEffect(() => {
@@ -162,7 +164,7 @@ export default function AdminClassDays() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <ArrowLeft size={24} color="#1e293b" />
         </TouchableOpacity>
@@ -350,7 +352,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,

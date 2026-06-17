@@ -9,6 +9,7 @@ import {
   Platform,
   Alert,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { profileService } from '@/lib/firestore';
@@ -19,6 +20,7 @@ export default function NotificationManageScreen() {
   const { profile, user } = useAuth();
   const [loading, setLoading] = useState(false);
   const [pushEnabled, setPushEnabled] = useState(profile?.notification_settings?.push_enabled ?? true);
+  const insets = useSafeAreaInsets();
 
   async function togglePush(value: boolean) {
     if (!user) return;
@@ -39,7 +41,7 @@ export default function NotificationManageScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}>
@@ -89,7 +91,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 20,
     flexDirection: 'row',

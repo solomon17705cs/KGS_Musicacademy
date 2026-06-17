@@ -9,6 +9,7 @@ import {
   useWindowDimensions,
   Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService } from '@/lib/firestore';
@@ -20,6 +21,7 @@ export default function ProfileScreen() {
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+  const insets = useSafeAreaInsets();
   const [linkedStudents, setLinkedStudents] = useState<number | null>(null);
 
   useEffect(() => {
@@ -66,7 +68,7 @@ export default function ProfileScreen() {
 
   return (
     <View style={styles.container(isMobile)}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <Text style={styles.headerTitle}>Profile</Text>
       </View>
 
@@ -188,7 +190,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,

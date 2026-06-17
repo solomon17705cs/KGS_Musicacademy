@@ -20,6 +20,7 @@ import { sendProgressNotification } from '@/lib/notifications';
 import { generateProgressReport } from '@/lib/ai';
 import { calculateProgressScore } from '@/lib/scoreCalculator';
 import { Student, ProgressRecord, ProgressStatus } from '@/types/database';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock, Award, Trophy, Sparkles, ChevronDown, FileText, Edit2, XCircle, Star } from 'lucide-react-native';
 
 const GRADE_OPTIONS = ['Basic', 'Initial', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
@@ -58,6 +59,7 @@ export default function EditProgressScreen() {
   const [showPracticalOptions, setShowPracticalOptions] = useState(false);
   const { width: screenWidth } = useWindowDimensions();
   const isMobile = screenWidth < 768;
+  const insets = useSafeAreaInsets();
 
   const statusOptions: ProgressStatus[] = [
     'excellent',
@@ -310,7 +312,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container(isMobile)}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}>
@@ -840,7 +842,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,

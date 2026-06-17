@@ -13,6 +13,7 @@ import {
     Modal,
     useWindowDimensions,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useRouter, useLocalSearchParams, useRootNavigationState } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -120,6 +121,7 @@ export default function EditStudentScreen() {
 
     const { width } = useWindowDimensions();
     const isMobile = width < 768;
+    const insets = useSafeAreaInsets();
 
     const handleSlotDaySelect = (slotIndex: number, day: string) => {
         const takenDays = classSlots.map((slot, i) => i !== slotIndex ? slot.day : null).filter(Boolean);
@@ -261,7 +263,7 @@ export default function EditStudentScreen() {
 
     return (
         <View style={styles.container}>
-            <View style={styles.header}>
+            <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
                 <TouchableOpacity onPress={() => router.back()} style={styles.backButton}>
                     <ArrowLeft size={24} color="#1e293b" />
                 </TouchableOpacity>
@@ -1172,7 +1174,7 @@ const styles = StyleSheet.create({
         flexDirection: 'row',
         alignItems: 'center',
         padding: 24,
-        paddingTop: 60,
+        paddingTop: 0,
         backgroundColor: '#fff',
         borderBottomWidth: 1,
         borderBottomColor: '#e2e8f0',

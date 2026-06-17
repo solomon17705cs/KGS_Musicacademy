@@ -12,6 +12,7 @@ import {
   Platform,
 } from 'react-native';
 import { useRouter } from 'expo-router';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendBroadcastNotification } from '@/lib/notifications';
 import { ArrowLeft, Send, Users, Bell } from 'lucide-react-native';
@@ -25,6 +26,7 @@ export default function AdminNotificationsScreen() {
   const [targetAudience, setTargetAudience] = useState<'all' | 'student' | 'admin'>('all');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const insets = useSafeAreaInsets();
 
   async function handleSendNotification() {
     if (!title.trim() || !message.trim()) {
@@ -54,7 +56,7 @@ export default function AdminNotificationsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}>
@@ -163,7 +165,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 20,
     borderBottomWidth: 1,

@@ -11,6 +11,7 @@ import {
   BackHandler,
   Linking,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'expo-router';
 import { studentService, progressService, notificationService, attendanceService } from '@/lib/firestore';
@@ -120,6 +121,7 @@ export default function ProgressScreen() {
   const [selectedStudent, setSelectedStudent] = useState<StudentWithData | null>(null);
   const [unreadCount, setUnreadCount] = useState(0);
   const [showActivationBanner, setShowActivationBanner] = useState(true);
+  const insets = useSafeAreaInsets();
 
   useEffect(() => {
     if (!profile || !user) return;
@@ -244,7 +246,7 @@ export default function ProgressScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.topHeader}>
+      <View style={[styles.topHeader, { paddingTop: insets.top + 12 }]}>
         {selectedStudent ? (
           <TouchableOpacity 
             style={styles.backButtonHeader}
@@ -678,7 +680,7 @@ export default function ProgressScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#fff' },
-  topHeader: { paddingTop: 60, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+  topHeader: { paddingTop: 0, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
   backButtonHeader: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
   contentContainerSelected: { paddingBottom: 100 },
   greetingText: { fontSize: 28, fontWeight: '800', color: '#0f172a' },

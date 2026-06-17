@@ -17,6 +17,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService, feePaymentService } from '@/lib/firestore';
 import { Student, FeePayment, PaymentMode } from '@/types/database';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Check, X, Search } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 
@@ -47,6 +48,7 @@ export default function FeePaymentsScreen() {
   const webDateRef = useRef<any>(null);
   const { width: screenWidth } = useWindowDimensions();
   const isMobile = screenWidth < 768;
+  const insets = useSafeAreaInsets();
 
   const currentMonth = viewMonth.getMonth();
   const currentYear = viewMonth.getFullYear();
@@ -214,7 +216,7 @@ export default function FeePaymentsScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
           <ArrowLeft size={24} color="#1e293b" />
         </TouchableOpacity>
@@ -442,7 +444,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,

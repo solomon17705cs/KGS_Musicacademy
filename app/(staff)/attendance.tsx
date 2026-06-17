@@ -11,7 +11,9 @@ import {
   Platform,
   useWindowDimensions,
   TextInput,
+  Keyboard,
 } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService, attendanceService } from '@/lib/firestore';
@@ -128,6 +130,7 @@ export default function AttendanceScreen() {
   }
 
   const { width } = useWindowDimensions();
+  const insets = useSafeAreaInsets();
   const isDesktop = Platform.OS === 'web' && width >= 900;
   const filteredStudents = students.filter(s =>
     (s.full_name || '').toLowerCase().includes(searchText.toLowerCase())
@@ -397,8 +400,8 @@ export default function AttendanceScreen() {
 
   return (
     <View style={styles.container}>
-      <View style={styles.header}>
-        <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
+      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+        <TouchableOpacity style={styles.backButton} onPress={() => { Keyboard.dismiss(); router.back(); }}>
           <ArrowLeft size={24} color="#1e293b" />
         </TouchableOpacity>
         <View style={styles.headerContent}>
@@ -565,7 +568,7 @@ export default function AttendanceScreen() {
                                 isDouble && styles.doublePresentCell,
                                 record?.status === 'present' && !isExtra && styles.presentCell,
                                 (isFuture || futureMonth) && styles.futureCell,
-                                !record && !isSunday && !isScheduled && styles.unscheduledCell,
+                  !isSunday && !isScheduled && styles.unscheduledCell,
                                 isSunday && styles.sundayCell,
                               ]}
                               onPress={() => {
@@ -628,7 +631,7 @@ const styles = StyleSheet.create({
   },
   header: {
     backgroundColor: '#fff',
-    paddingTop: 60,
+    paddingTop: 0,
     paddingHorizontal: 20,
     paddingBottom: 16,
     borderBottomWidth: 1,
