@@ -17,7 +17,7 @@ interface AuthContextType {
     email: string,
     password: string,
     fullName: string,
-    role: 'parent' | 'student' | 'admin' | 'staff'
+    role: 'parent' | 'admin' | 'staff'
   ) => Promise<{ error: any }>;
   signOut: () => Promise<void>;
 }
@@ -68,7 +68,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       setUser(firebaseUser);
       if (firebaseUser) {
         let userProfile = await profileService.getProfile(firebaseUser.uid);
-        
+
         if (!userProfile && firebaseUser.email) {
           const normalizedEmail = firebaseUser.email.toLowerCase();
           const students = await studentService.getStudentsByParentEmail(normalizedEmail);
@@ -85,7 +85,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         if (!userProfile && firebaseUser.phoneNumber) {
           const students = await studentService.getStudentsByParentPhone(firebaseUser.phoneNumber);
-          const parentName = students.length > 0 
+          const parentName = students.length > 0
             ? students[0].father_name || students[0].mother_name || 'Parent'
             : 'Parent';
           await profileService.createProfile(firebaseUser.uid, {
@@ -96,7 +96,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           });
           userProfile = await profileService.getProfile(firebaseUser.uid);
         }
-        
+
         setProfile(userProfile);
         await cacheProfile(userProfile);
       } else {
@@ -125,7 +125,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     email: string,
     password: string,
     fullName: string,
-    role: 'parent' | 'student' | 'admin' | 'staff'
+    role: 'parent' | 'admin' | 'staff'
   ) {
     try {
       const { user } = await createUserWithEmailAndPassword(auth, email, password);
