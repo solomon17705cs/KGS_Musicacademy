@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useRef } from 'react';
 import {
   View,
   Text,
@@ -54,7 +54,23 @@ export default function FeePaymentsScreen() {
   const currentYear = viewMonth.getFullYear();
 
   useEffect(() => {
-    loadData();
+    const unsubStudents = studentService.subscribeToStudents((allStudents) => {
+      setStudents(allStudents);
+    });
+    return () => unsubStudents();
+  }, []);
+
+  useEffect(() => {
+    setLoading(true);
+    const unsubPayments = feePaymentService.subscribeToMonthPayments(
+      currentMonth + 1,
+      currentYear,
+      (monthPayments) => {
+        setPayments(monthPayments);
+        setLoading(false);
+      }
+    );
+    return () => unsubPayments();
   }, [viewMonth]);
 
   useEffect(() => {
@@ -66,23 +82,8 @@ export default function FeePaymentsScreen() {
     return () => window.removeEventListener('keydown', handler);
   }, [editModal]);
 
-  async function loadData() {
-    try {
-      const [allStudents, monthPayments] = await Promise.all([
-        studentService.getAllStudents(),
-        feePaymentService.getMonthPayments(currentMonth + 1, currentYear),
-      ]);
-      setStudents(allStudents);
-      setPayments(monthPayments);
-    } catch (err) {
-      console.error('Failed to load fee data:', err);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function getPaymentForStudent(student: Student): FeePayment | undefined {
-    const payment = payments.find(p => p.student_id === student.id && p.month === currentMonth + 1 && p.year === currentYear);
+  function getPaymentForStudent(student: Student): FeePayment {
+    const payment = paymentByStudentId[student.id];
     if (!payment) {
       return {
         id: `${student.id}_${currentMonth + 1}_${currentYear}`,
@@ -153,20 +154,21 @@ export default function FeePaymentsScreen() {
 
   async function savePayment() {
     if (!selectedStudent) return;
-    await feePaymentService.setPayment(
-      selectedStudent.id,
-      currentMonth + 1,
-      currentYear,
-      editStatus,
-      editPaidDate || null,
-      editPaymentMode,
-      editAmount ? parseFloat(editAmount) : 0,
-    );
-    await studentService.updateStudent(selectedStudent.id, {
-      fee_status: editStatus === 'paid' ? 'paid' : 'pending',
-    });
+    await Promise.all([
+      feePaymentService.setPayment(
+        selectedStudent.id,
+        currentMonth + 1,
+        currentYear,
+        editStatus,
+        editPaidDate || null,
+        editPaymentMode,
+        editAmount ? parseFloat(editAmount) : 0,
+      ),
+      studentService.updateStudent(selectedStudent.id, {
+        fee_status: editStatus === 'paid' ? 'paid' : 'pending',
+      }),
+    ]);
     setEditModal(false);
-    loadData();
   }
 
   const handlePrevMonth = () => {
@@ -188,12 +190,26 @@ export default function FeePaymentsScreen() {
     }
   };
 
-  const filteredStudents = students.filter(s =>
-    (s.full_name || '').toLowerCase().includes(search.toLowerCase())
+  const paymentByStudentId = useMemo(() => {
+    const map: Record<string, FeePayment> = {};
+    payments.forEach(p => { map[p.student_id] = p; });
+    return map;
+  }, [payments]);
+
+  const filteredStudents = useMemo(() =>
+    students.filter(s =>
+      (s.full_name || '').toLowerCase().includes(search.toLowerCase())
+    ),
+    [students, search]
   );
 
-  const paidCount = students.reduce((count, s) => count + (getPaymentForStudent(s).status === 'paid' ? 1 : 0), 0);
-  const pendingCount = students.length - paidCount;
+  const { paidCount, pendingCount } = useMemo(() => {
+    const paid = students.reduce(
+      (count, s) => count + (getPaymentForStudent(s).status === 'paid' ? 1 : 0),
+      0
+    );
+    return { paidCount: paid, pendingCount: students.length - paid };
+  }, [students, paymentByStudentId]);
 
   function getMonthLabel(date: Date): string {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });

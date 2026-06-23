@@ -17,6 +17,26 @@ import {
 } from 'firebase/firestore';
 import { db } from './firebase';
 import { Profile, Student, ProgressRecord, Notification, AttendanceRecord, FeePayment } from '@/types/database';
+import { cacheService } from './cache';
+
+const CACHE_TTL = {
+  STUDENTS: 2 * 60 * 1000,
+  STUDENT: 2 * 60 * 1000,
+  ATTENDANCE: 30 * 1000,
+  ATTENDANCE_ALL: 30 * 1000,
+  PROGRESS: 60 * 1000,
+  PROFILE: 5 * 60 * 1000,
+  FEE_PAYMENTS: 60 * 1000,
+  NOTIFICATIONS: 60 * 1000,
+};
+
+async function withCache<T>(cacheKey: string, fetcher: () => Promise<T>, ttl: number): Promise<T> {
+  const cached = await cacheService.getFresh<T>(cacheKey, ttl);
+  if (cached) return cached.data;
+  const data = await fetcher();
+  await cacheService.set(cacheKey, data);
+  return data;
+}
 
 const PROFILES_COLLECTION = 'profiles';
 const STUDENTS_COLLECTION = 'students';
@@ -34,10 +54,12 @@ const parseDate = (dateStr: string): Date => {
 
 export const profileService = {
   async getProfile(userId: string): Promise<Profile | null> {
-    const docRef = doc(db, PROFILES_COLLECTION, userId);
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return null;
-    return { id: docSnap.id, ...docSnap.data() } as Profile;
+    return withCache(`profile_${userId}`, async () => {
+      const docRef = doc(db, PROFILES_COLLECTION, userId);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) return null;
+      return { id: docSnap.id, ...docSnap.data() } as Profile;
+    }, CACHE_TTL.PROFILE);
   },
 
   async createProfile(userId: string, data: Omit<Profile, 'id' | 'created_at' | 'updated_at'>): Promise<void> {
@@ -46,6 +68,7 @@ export const profileService = {
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     });
+    await cacheService.clearByPrefix('profile_');
   },
 
   async updateProfile(userId: string, data: Partial<Profile>): Promise<void> {
@@ -53,6 +76,7 @@ export const profileService = {
       ...data,
       updated_at: serverTimestamp(),
     });
+    await cacheService.clearByPrefix('profile_');
   },
 
   subscribeToProfile(userId: string, callback: (profile: Profile | null) => void) {
@@ -67,8 +91,10 @@ export const profileService = {
   },
 
   async getAllProfiles(): Promise<Profile[]> {
-    const snapshot = await getDocs(collection(db, PROFILES_COLLECTION));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Profile));
+    return withCache('profiles_all', async () => {
+      const snapshot = await getDocs(collection(db, PROFILES_COLLECTION));
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Profile));
+    }, CACHE_TTL.PROFILE);
   },
 
   async getProfileByEmail(email: string): Promise<Profile | null> {
@@ -82,15 +108,19 @@ export const profileService = {
 
 export const studentService = {
   async getStudent(studentId: string): Promise<Student | null> {
-    const docRef = doc(db, STUDENTS_COLLECTION, studentId);
-    const docSnap = await getDoc(docRef);
-    if (!docSnap.exists()) return null;
-    return { id: docSnap.id, ...docSnap.data() } as Student;
+    return withCache(`student_${studentId}`, async () => {
+      const docRef = doc(db, STUDENTS_COLLECTION, studentId);
+      const docSnap = await getDoc(docRef);
+      if (!docSnap.exists()) return null;
+      return { id: docSnap.id, ...docSnap.data() } as Student;
+    }, CACHE_TTL.STUDENT);
   },
 
   async getAllStudents(): Promise<Student[]> {
-    const snapshot = await getDocs(collection(db, STUDENTS_COLLECTION));
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+    return withCache('students_all', async () => {
+      const snapshot = await getDocs(collection(db, STUDENTS_COLLECTION));
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+    }, CACHE_TTL.STUDENTS);
   },
 
   async getStudentsByParentEmail(parentEmail: string): Promise<Student[]> {
@@ -148,6 +178,7 @@ export const studentService = {
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     });
+    await cacheService.clearByPrefix('students_');
     return docRef.id;
   },
 
@@ -156,16 +187,22 @@ export const studentService = {
       ...data,
       updated_at: serverTimestamp(),
     });
+    await cacheService.clearByPrefix('students_');
+    await cacheService.clearByPrefix(`student_${studentId}`);
   },
 
   async deleteStudent(studentId: string): Promise<void> {
     await deleteDoc(doc(db, STUDENTS_COLLECTION, studentId));
+    await cacheService.clearByPrefix('students_');
+    await cacheService.clearByPrefix(`student_${studentId}`);
   },
 
   async getLeaderboard(field: 'streak' | 'points'): Promise<Student[]> {
-    const q = query(collection(db, STUDENTS_COLLECTION), orderBy(field, 'desc'));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+    return withCache(`leaderboard_${field}`, async () => {
+      const q = query(collection(db, STUDENTS_COLLECTION), orderBy(field, 'desc'));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Student));
+    }, CACHE_TTL.STUDENTS);
   },
 
   subscribeToStudents(callback: (students: Student[]) => void) {
@@ -178,23 +215,25 @@ export const studentService = {
 
 export const progressService = {
   async getProgressRecords(studentId: string): Promise<ProgressRecord[]> {
-    const q = query(
-      collection(db, PROGRESS_COLLECTION),
-      where('student_id', '==', studentId)
-    );
-    const snapshot = await getDocs(q);
-    const records = snapshot.docs.map(doc => {
-      const data = doc.data();
-      return {
-        id: doc.id,
-        ...data,
-        created_at: data.created_at?.toDate?.()?.toISOString() ?? data.created_at,
-        updated_at: data.updated_at?.toDate?.()?.toISOString() ?? data.updated_at,
-      } as ProgressRecord;
-    });
-    return records.sort((a, b) =>
-      new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    );
+    return withCache(`progress_${studentId}`, async () => {
+      const q = query(
+        collection(db, PROGRESS_COLLECTION),
+        where('student_id', '==', studentId)
+      );
+      const snapshot = await getDocs(q);
+      const records = snapshot.docs.map(doc => {
+        const data = doc.data();
+        return {
+          id: doc.id,
+          ...data,
+          created_at: data.created_at?.toDate?.()?.toISOString() ?? data.created_at,
+          updated_at: data.updated_at?.toDate?.()?.toISOString() ?? data.updated_at,
+        } as ProgressRecord;
+      });
+      return records.sort((a, b) =>
+        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+      );
+    }, CACHE_TTL.PROGRESS);
   },
 
   async getLatestProgress(studentId: string): Promise<ProgressRecord | null> {
@@ -208,6 +247,7 @@ export const progressService = {
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     });
+    await cacheService.clearByPrefix('progress_');
     return docRef.id;
   },
 
@@ -216,10 +256,12 @@ export const progressService = {
       ...data,
       updated_at: serverTimestamp(),
     });
+    await cacheService.clearByPrefix('progress_');
   },
 
   async deleteProgressRecord(recordId: string): Promise<void> {
     await deleteDoc(doc(db, PROGRESS_COLLECTION, recordId));
+    await cacheService.clearByPrefix('progress_');
   },
 
   subscribeToProgress(studentId: string, callback: (records: ProgressRecord[]) => void) {
@@ -250,30 +292,36 @@ export const notificationService = {
       ...data,
       sent_at: serverTimestamp(),
     });
+    await cacheService.clearByPrefix('notifications_');
     return docRef.id;
   },
 
   async getUserNotifications(userId: string): Promise<Notification[]> {
-    const q = query(
-      collection(db, NOTIFICATIONS_COLLECTION),
-      where('userId', '==', userId),
-      orderBy('sent_at', 'desc')
-    );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+    return withCache(`notifications_${userId}`, async () => {
+      const q = query(
+        collection(db, NOTIFICATIONS_COLLECTION),
+        where('userId', '==', userId),
+        orderBy('sent_at', 'desc')
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as Notification));
+    }, CACHE_TTL.NOTIFICATIONS);
   },
 
   async markAsRead(notificationId: string): Promise<void> {
     await updateDoc(doc(db, NOTIFICATIONS_COLLECTION, notificationId), { read: true });
+    await cacheService.clearByPrefix('notifications_');
   },
 
   async getNotificationById(notificationId: string): Promise<Notification | null> {
-    const docRef = doc(db, NOTIFICATIONS_COLLECTION, notificationId);
-    const docSnap = await getDoc(docRef);
-    if (docSnap.exists()) {
-      return { id: docSnap.id, ...docSnap.data() } as Notification;
-    }
-    return null;
+    return withCache(`notification_${notificationId}`, async () => {
+      const docRef = doc(db, NOTIFICATIONS_COLLECTION, notificationId);
+      const docSnap = await getDoc(docRef);
+      if (docSnap.exists()) {
+        return { id: docSnap.id, ...docSnap.data() } as Notification;
+      }
+      return null;
+    }, CACHE_TTL.NOTIFICATIONS);
   },
 
   subscribeToNotifications(userId: string, callback: (notifications: Notification[]) => void) {
@@ -351,11 +399,13 @@ export const attendanceService = {
       notes: '',
       updated_at: serverTimestamp(),
     }, { merge: true });
+    await cacheService.clearByPrefix('attendance_');
   },
 
   async clearAttendance(studentId: string, date: string): Promise<void> {
     const docId = `${studentId}_${date}`;
     await deleteDoc(doc(db, ATTENDANCE_COLLECTION, docId));
+    await cacheService.clearByPrefix('attendance_');
   },
 
   async getAttendanceRecord(studentId: string, date: string): Promise<AttendanceRecord | null> {
@@ -371,10 +421,15 @@ export const attendanceService = {
   },
 
   async getWeekAttendance(startDate: string, endDate: string): Promise<AttendanceRecord[]> {
-    const q = query(collection(db, ATTENDANCE_COLLECTION));
-    const snapshot = await getDocs(q);
-    const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
-    return all.filter(r => r.date >= startDate && r.date <= endDate);
+    return withCache(`attendance_week_${startDate}_${endDate}`, async () => {
+      const q = query(
+        collection(db, ATTENDANCE_COLLECTION),
+        where('date', '>=', startDate),
+        where('date', '<=', endDate)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
+    }, CACHE_TTL.ATTENDANCE);
   },
 
   async getAttendanceSummary(studentId: string, enrollmentDate?: string, summerClass: boolean = false): Promise<{ total: number; present: number; absent: number; late: number; excused: number; percentage: number }> {
@@ -402,22 +457,30 @@ export const attendanceService = {
     return { total, present, absent, late, excused, percentage };
   },
 
-  async getAllAttendanceForStudent(studentId: string): Promise<AttendanceRecord[]> {
+  subscribeToMonthAttendance(startDate: string, endDate: string, callback: (records: AttendanceRecord[]) => void) {
     const q = query(
       collection(db, ATTENDANCE_COLLECTION),
-      where('student_id', '==', studentId)
+      where('date', '>=', startDate),
+      where('date', '<=', endDate)
     );
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord)));
+    });
+  },
+
+  async getAllAttendanceForStudent(studentId: string): Promise<AttendanceRecord[]> {
+    return withCache(`attendance_all_${studentId}`, async () => {
+      const q = query(
+        collection(db, ATTENDANCE_COLLECTION),
+        where('student_id', '==', studentId)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
+    }, CACHE_TTL.ATTENDANCE_ALL);
   },
 
   async getCurrentMonthAttendance(studentId: string, summerClass: boolean = false): Promise<string> {
-    const q = query(
-      collection(db, ATTENDANCE_COLLECTION),
-      where('student_id', '==', studentId)
-    );
-    const snapshot = await getDocs(q);
-    const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
+    const records = await this.getAllAttendanceForStudent(studentId);
 
     if (summerClass) {
       const count = records.reduce((sum, r) => {
@@ -445,22 +508,35 @@ export const attendanceService = {
   },
 
   async getMonthAttendanceForStudent(studentId: string, year: number, month: number): Promise<AttendanceRecord[]> {
-    const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
-    const endDate = `${year}-${String(month).padStart(2, '0')}-31`;
+    return withCache(`attendance_month_${studentId}_${year}_${month}`, async () => {
+      const startDate = `${year}-${String(month).padStart(2, '0')}-01`;
+      const endDate = `${year}-${String(month).padStart(2, '0')}-31`;
 
-    const q = query(
-      collection(db, ATTENDANCE_COLLECTION),
-      where('student_id', '==', studentId)
-    );
-    const snapshot = await getDocs(q);
-    const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
-    return records.filter(r => r.date >= startDate && r.date <= endDate);
+      const q = query(
+        collection(db, ATTENDANCE_COLLECTION),
+        where('student_id', '==', studentId)
+      );
+      const snapshot = await getDocs(q);
+      const records = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as AttendanceRecord));
+      return records.filter(r => r.date >= startDate && r.date <= endDate);
+    }, CACHE_TTL.ATTENDANCE_ALL);
   },
 };
 
 const FEE_PAYMENTS_COLLECTION = 'fee_payments';
 
 export const feePaymentService = {
+  subscribeToMonthPayments(month: number, year: number, callback: (payments: FeePayment[]) => void) {
+    const q = query(
+      collection(db, FEE_PAYMENTS_COLLECTION),
+      where('month', '==', month),
+      where('year', '==', year)
+    );
+    return onSnapshot(q, (snapshot) => {
+      callback(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeePayment)));
+    });
+  },
+
   async setPayment(studentId: string, month: number, year: number, status: 'paid' | 'pending', paidDate: string | null, paymentMode: string | null, amount: number): Promise<void> {
     const docId = `${studentId}_${year}_${month}`;
     await setDoc(doc(db, FEE_PAYMENTS_COLLECTION, docId), {
@@ -474,18 +550,26 @@ export const feePaymentService = {
       amount,
       updated_at: serverTimestamp(),
     }, { merge: true });
+    await cacheService.clearByPrefix('fee_payments_');
   },
 
   async getStudentPayments(studentId: string): Promise<FeePayment[]> {
-    const q = query(collection(db, FEE_PAYMENTS_COLLECTION), where('student_id', '==', studentId));
-    const snapshot = await getDocs(q);
-    return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeePayment));
+    return withCache(`fee_payments_${studentId}`, async () => {
+      const q = query(collection(db, FEE_PAYMENTS_COLLECTION), where('student_id', '==', studentId));
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeePayment));
+    }, CACHE_TTL.FEE_PAYMENTS);
   },
 
   async getMonthPayments(month: number, year: number): Promise<FeePayment[]> {
-    const q = query(collection(db, FEE_PAYMENTS_COLLECTION));
-    const snapshot = await getDocs(q);
-    const all = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeePayment));
-    return all.filter(p => p.month === month && p.year === year);
+    return withCache(`fee_payments_month_${month}_${year}`, async () => {
+      const q = query(
+        collection(db, FEE_PAYMENTS_COLLECTION),
+        where('month', '==', month),
+        where('year', '==', year)
+      );
+      const snapshot = await getDocs(q);
+      return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeePayment));
+    }, CACHE_TTL.FEE_PAYMENTS);
   },
 };

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
@@ -90,6 +90,7 @@ export default function AttendanceScreen() {
   const router = useRouter();
   const { profile } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
+  const [allAttendance, setAllAttendance] = useState<AttendanceRecord[]>([]);
   const [weekRecords, setWeekRecords] = useState<AttendanceRecord[]>([]);
   const [monthRecords, setMonthRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
@@ -98,7 +99,6 @@ export default function AttendanceScreen() {
   const [detailMonth, setDetailMonth] = useState(new Date());
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailRecords, setDetailRecords] = useState<AttendanceRecord[]>([]);
-  const [allAttendanceMap, setAllAttendanceMap] = useState<Record<string, AttendanceRecord[]>>({});
   const [headerHeight, setHeaderHeight] = useState(56);
   const [searchText, setSearchText] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
@@ -117,28 +117,15 @@ export default function AttendanceScreen() {
 
   function sortStudents(list: Student[]): Student[] {
     return [...list].sort((a, b) => {
-      const aName = a.full_name || '';
-      const bName = b.full_name || '';
-      const aInit = aName.includes('.');
-      const bInit = bName.includes('.');
-      if (aInit && !bInit) return 1;
-      if (!aInit && bInit) return -1;
-      const aFirst = parseName(aName).rest.split(' ')[0].toLowerCase();
-      const bFirst = parseName(bName).rest.split(' ')[0].toLowerCase();
-      return aFirst.localeCompare(bFirst);
+      const aName = (displayName(a.full_name || '') || '').toLowerCase();
+      const bName = (displayName(b.full_name || '') || '').toLowerCase();
+      return aName.localeCompare(bName);
     });
   }
 
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isDesktop = Platform.OS === 'web' && width >= 1300;
-  const filteredStudents = students.filter(s =>
-    (s.full_name || '').toLowerCase().includes(searchText.toLowerCase())
-  );
-  const halfIdx = Math.ceil(filteredStudents.length / 2);
-  const leftStudents = filteredStudents.slice(0, halfIdx);
-  const rightStudents = filteredStudents.slice(halfIdx);
-
   const weekDates = getWeekDates(weekStart);
   const weekStartStr = formatDate(weekDates[0]);
   const weekEndStr = formatDate(weekDates[6]);
@@ -146,58 +133,84 @@ export default function AttendanceScreen() {
   const { start: monthStartStr, end: monthEndStr } = getMonthRange(weekStart);
   const { start: detailStartStr, end: detailEndStr } = getMonthRange(detailMonth);
 
-  useEffect(() => {
-    loadData();
-  }, [weekStart]);
+  const allAttendanceMap = useMemo(() => {
+    const map: Record<string, AttendanceRecord[]> = {};
+    allAttendance.forEach(r => {
+      if (!map[r.student_id]) map[r.student_id] = [];
+      map[r.student_id].push(r);
+    });
+    return map;
+  }, [allAttendance]);
+
+  const filteredStudents = useMemo(() =>
+    students.filter(s =>
+      (s.full_name || '').toLowerCase().includes(searchText.toLowerCase())
+    ),
+    [students, searchText]
+  );
+
+  const { leftStudents, rightStudents } = useMemo(() => {
+    const halfIdx = Math.ceil(filteredStudents.length / 2);
+    return {
+      leftStudents: filteredStudents.slice(0, halfIdx),
+      rightStudents: filteredStudents.slice(halfIdx),
+    };
+  }, [filteredStudents]);
+
+  const summaryByStudent = useMemo(() => {
+    const result: Record<string, { present: number; extra: number; percentage: number; total: number }> = {};
+    students.forEach(s => {
+      const total = s.summer_class ? 30 : 8;
+      let recs: AttendanceRecord[];
+      if (s.summer_class) {
+        recs = allAttendanceMap[s.id] || [];
+      } else {
+        recs = monthRecords.filter(r => r.student_id === s.id);
+      }
+      const count = recs.reduce((sum, r) => sum + (r.status === 'double_present' ? 2 : 1), 0);
+      const present = Math.min(count, total);
+      const extra = Math.max(count - total, 0);
+      result[s.id] = { present, extra, total, percentage: Math.round((count / total) * 100) };
+    });
+    return result;
+  }, [students, monthRecords, allAttendanceMap]);
 
   useEffect(() => {
-    if (selectedStudent) {
-      loadDetailData();
-    }
-  }, [detailMonth, selectedStudent]);
-
-  async function loadData() {
-    try {
-      const [allStudents, weekRecs, monthRecs] = await Promise.all([
-        studentService.getAllStudents(),
-        attendanceService.getWeekAttendance(weekStartStr, weekEndStr),
-        attendanceService.getWeekAttendance(monthStartStr, monthEndStr),
-      ]);
+    setLoading(true);
+    const unsubStudents = studentService.subscribeToStudents((allStudents) => {
       setStudents(sortStudents(allStudents));
-      setWeekRecords(weekRecs);
-      setMonthRecords(monthRecs);
+    });
 
-      const summerStudents = allStudents.filter(s => s.summer_class);
-      const map: Record<string, AttendanceRecord[]> = {};
-      await Promise.all(summerStudents.map(async (s) => {
-        map[s.id] = await attendanceService.getAllAttendanceForStudent(s.id);
-      }));
-      setAllAttendanceMap(map);
-    } catch (err) {
-      console.error('Failed to load attendance:', err);
-    } finally {
-      setLoading(false);
-      setRefreshing(false);
-    }
-  }
+    const unsubAttendance = attendanceService.subscribeToMonthAttendance(
+      monthStartStr,
+      monthEndStr,
+      (records) => {
+        setAllAttendance(records);
+        setLoading(false);
+        setRefreshing(false);
+      }
+    );
 
-  async function loadDetailData() {
+    return () => {
+      unsubStudents();
+      unsubAttendance();
+    };
+  }, [monthStartStr, monthEndStr]);
+
+  useEffect(() => {
+    setWeekRecords(allAttendance.filter(r => r.date >= weekStartStr && r.date <= weekEndStr));
+    setMonthRecords(allAttendance.filter(r => r.date >= monthStartStr && r.date <= monthEndStr));
+  }, [allAttendance, weekStartStr, weekEndStr, monthStartStr, monthEndStr]);
+
+  useEffect(() => {
     if (!selectedStudent) return;
-    try {
-      const recs = await attendanceService.getMonthAttendanceForStudent(
-        selectedStudent.id,
-        detailMonth.getFullYear(),
-        detailMonth.getMonth() + 1
-      );
-      setDetailRecords(recs);
-    } catch (err) {
-      console.error('Failed to load detail data:', err);
-    }
-  }
+    setDetailRecords(allAttendance.filter(r =>
+      r.student_id === selectedStudent.id && r.date >= detailStartStr && r.date <= detailEndStr
+    ));
+  }, [allAttendance, detailMonth, selectedStudent]);
 
-  async function onRefresh() {
-    setRefreshing(true);
-    await loadData();
+  function onRefresh() {
+    setRefreshing(false);
   }
 
   async function toggleAttendance(studentId: string, dateStr: string, isDetail = false, doublePresent = false) {
@@ -217,11 +230,10 @@ export default function AttendanceScreen() {
         await attendanceService.markAttendance(studentId, dateStr, 'present');
       }
     }
-    if (isDetail) {
-      loadDetailData();
-    } else {
-      loadData();
-    }
+  }
+
+  function getDayCount(dateStr: string): number {
+    return weekRecords.filter(r => r.date === dateStr && (r.status === 'present' || r.status === 'double_present')).length;
   }
 
   function getStatusForStudentDate(studentId: string, dateStr: string, records?: AttendanceRecord[]): AttendanceRecord | undefined {
@@ -233,20 +245,6 @@ export default function AttendanceScreen() {
       if (r.student_id !== studentId || r.date === excludeDate) return sum;
       return sum + (r.status === 'double_present' ? 2 : 1);
     }, 0);
-  }
-
-  function getStudentMonthlySummary(student: Student, records?: AttendanceRecord[]): { present: number; extra: number; percentage: number; total: number } {
-    const total = student.summer_class ? 30 : 8;
-    let recs: AttendanceRecord[];
-    if (student.summer_class) {
-      recs = allAttendanceMap[student.id] || [];
-    } else {
-      recs = (records || monthRecords).filter(r => r.student_id === student.id);
-    }
-    const count = recs.reduce((sum, r) => sum + (r.status === 'double_present' ? 2 : 1), 0);
-    const present = Math.min(count, total);
-    const extra = Math.max(count - total, 0);
-    return { present, extra, total, percentage: Math.round((count / total) * 100) };
   }
 
   function isExtraClass(studentId: string, dateStr: string, student?: Student, records?: AttendanceRecord[]): boolean {
@@ -295,7 +293,7 @@ export default function AttendanceScreen() {
     );
   }
 
-  const summary = selectedStudent ? getStudentMonthlySummary(selectedStudent, detailRecords) : { present: 0, extra: 0, percentage: 0, total: 8 };
+  const summary = selectedStudent ? summaryByStudent[selectedStudent.id] || { present: 0, extra: 0, percentage: 0, total: 8 } : { present: 0, extra: 0, percentage: 0, total: 8 };
   const detailWeeks = getWeeksOfMonth(detailMonth);
   const futureMonth = isFutureMonth(detailMonth);
   const detailMonthName = detailMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -310,6 +308,7 @@ export default function AttendanceScreen() {
           <View key={idx} style={styles.dayHeader}>
             <Text style={styles.dayName}>{DAY_NAMES[idx]}</Text>
             <Text style={styles.dayNum}>{date.getDate()}</Text>
+            <Text style={styles.dayCount}>{getDayCount(formatDate(date))}</Text>
           </View>
         ))}
         <View style={styles.summaryHeader}>
@@ -321,7 +320,7 @@ export default function AttendanceScreen() {
 
   function renderStudentRows(studentList: Student[]) {
     return studentList.map((student) => {
-      const studentSummary = getStudentMonthlySummary(student);
+      const studentSummary = summaryByStudent[student.id] || { present: 0, extra: 0, percentage: 0, total: 8 };
       return (
         <View key={student.id} style={styles.tableRow}>
           <TouchableOpacity style={styles.nameCell} onPress={() => openDetail(student)}>
@@ -403,7 +402,7 @@ export default function AttendanceScreen() {
   }
 
   return (
-    <View style={styles.container}>
+    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => { Keyboard.dismiss(); router.back(); }}>
           <ArrowLeft size={24} color="#1e293b" />
@@ -471,10 +470,10 @@ export default function AttendanceScreen() {
       ) : (
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.scrollContainer}>
           <View>
-            <View style={[styles.mobileHeader, { height: headerHeight }]} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
+            <View style={styles.mobileHeader} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
               {renderTableHeader()}
             </View>
-            <ScrollView vertical style={{ paddingTop: headerHeight }}>
+            <ScrollView vertical style={{ paddingTop: headerHeight }} contentContainerStyle={{ paddingBottom: Platform.OS !== 'web' ? 160 : 0 }}>
               <View style={styles.table}>
                 {renderStudentRows(filteredStudents)}
               </View>
@@ -483,7 +482,7 @@ export default function AttendanceScreen() {
         </ScrollView>
       )}
 
-      <View style={styles.legend}>
+      <View style={[styles.legend, { paddingBottom: insets.bottom + 12 }]}>
         <View style={styles.legendItem}>
           <View style={[styles.legendDot, styles.presentDot]} />
           <Text style={styles.legendText}>Present</Text>
@@ -780,6 +779,12 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '800',
     color: '#1e293b',
+    marginTop: 2,
+  },
+  dayCount: {
+    fontSize: 11,
+    fontWeight: '700',
+    color: '#16a34a',
     marginTop: 2,
   },
   summaryHeader: {
