@@ -26,6 +26,29 @@ import { ArrowLeft, Save, Trash2, Target, CheckCircle2, Clock, Award, Trophy, Sp
 const GRADE_OPTIONS = ['Basic', 'Initial', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
 const THEORY_OPTIONS = ['Basic', 'Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Grade 7', 'Grade 8'];
 
+const STRENGTH_CHIPS = [
+  'Good rhythm', 'Quick learner', 'Confident', 'Good posture',
+  'Strong listening', 'Creative', 'Good finger movement', 'Consistent practice',
+  'Focused',
+];
+
+const FOCUS_CHIPS = [
+  'Finger placement', 'Timing/rhythm', 'Note reading', 'Chord transitions',
+  'Practice consistency', 'Breath control', 'Hand coordination', 'Confidence',
+  'Bowing', 'Violin holding',
+];
+
+const TOPIC_CHIPS_BY_INSTRUMENT: Record<string, string[]> = {
+  guitar: ['Song (Exercises)', 'Chord changes', 'Hand coordination', 'Strumming pattern', 'Scales', /*'Fingerpicking',*/ 'Theory topics'],
+  keyboard: ['Song (Exercises)', 'Scales', 'Finger coordination', 'Hand coordination', 'Sight reading', 'Chords', 'Theory topics'],
+  piano: ['Song (Exercises)', 'Scales', 'Finger coordination', 'Hand coordination', 'Sight reading', 'Chords', 'Theory topics'],
+  violin: ['Song (Exercises)', 'Bowing technique', 'Scales', 'Intonation (Left hand fingers)', 'Posture', 'Theory topics'],
+  //ukulele: ['Song (Exercises)','Chord changes', 'Strumming pattern', 'Scales', 'Theory topics'],
+  drum_kit: ['Song (Exercises)', 'Rhythm patterns', 'Coordination', 'Tempo control', 'Theory topics'],
+  //viola: ['Song (Exercises)','Bowing technique', 'Scales', 'Intonation (Left hand fingers)', 'Theory topics'],
+  //theory: ['Note reading', 'Rhythm notation', 'Scale theory', 'Ear training', 'Theory topics'],
+};
+
 export default function EditProgressScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const { profile, loading: authLoading } = useAuth();
@@ -55,6 +78,10 @@ export default function EditProgressScreen() {
   const [selectedGradeType, setSelectedGradeType] = useState<'theory' | 'practical'>('practical');
   const [recordingGrade, setRecordingGrade] = useState(false);
   const [polishing, setPolishing] = useState(false);
+  const [topicNotes, setTopicNotes] = useState<Record<string, string>>({});
+  const [strengthNotes, setStrengthNotes] = useState<Record<string, string>>({});
+  const [focusNotes, setFocusNotes] = useState<Record<string, string>>({});
+  const [extraNote, setExtraNote] = useState('');
   const [showTheoryOptions, setShowTheoryOptions] = useState(false);
   const [showPracticalOptions, setShowPracticalOptions] = useState(false);
   const { width: screenWidth } = useWindowDimensions();
@@ -185,7 +212,8 @@ export default function EditProgressScreen() {
   }
 
   async function handleAIPolish() {
-    if (!notes.trim() || polishing) return;
+    const keywordInput = buildKeywordString();
+    if (!keywordInput.trim() || polishing) return;
 
     setPolishing(true);
     setError('');
@@ -202,7 +230,9 @@ export default function EditProgressScreen() {
       const practicalRating = statusToRating[practicalStatus] || 3;
       const overallRating = Math.round((theoryRating + practicalRating) / 2);
 
-      const topicsCovered = `Theory: ${theoryGrade || 'not specified'}, Practical: ${practicalGrade || 'not specified'}`;
+      const topicsCovered = Object.keys(topicNotes).length
+        ? Object.keys(topicNotes).join(', ')
+        : `Theory: ${theoryGrade || 'not specified'}, Practical: ${practicalGrade || 'not specified'}`;
 
       const today = new Date().toLocaleDateString('en-IN', {
         day: '2-digit',
@@ -216,7 +246,7 @@ export default function EditProgressScreen() {
         date: today,
         topicsCovered,
         rating: overallRating,
-        teacherNotes: notes.trim(),
+        teacherNotes: keywordInput,
       });
 
       setNotes(report);
@@ -228,12 +258,40 @@ export default function EditProgressScreen() {
     }
   }
 
-  function insertTemplate() {
-    const template = `Strengths: What went well today (e.g., good rhythm, improved posture)
-Areas to focus: What needs improvement (e.g., struggles with tempo, needs more practice)
-Topics covered: What we learned (e.g., C major scale, sight reading)
-Home practice: What to practice this week (e.g., scales 10 min daily)`;
-    setNotes(template);
+  function toggleChipInput(
+    notes: Record<string, string>,
+    setNotes: (v: Record<string, string>) => void,
+    chip: string
+  ) {
+    if (chip in notes) {
+      const { [chip]: _, ...rest } = notes;
+      setNotes(rest);
+    } else {
+      setNotes({ ...notes, [chip]: '' });
+    }
+  }
+
+  function buildKeywordString(): string {
+    const parts: string[] = [];
+
+    const topicParts = Object.entries(topicNotes).map(([chip, note]) =>
+      note.trim() ? `${chip}: ${note.trim()}` : chip
+    );
+    if (topicParts.length) parts.push(`Topics: ${topicParts.join(', ')}`);
+
+    const strengthParts = Object.entries(strengthNotes).map(([chip, note]) =>
+      note.trim() ? `${chip}: ${note.trim()}` : chip
+    );
+    if (strengthParts.length) parts.push(`Strengths: ${strengthParts.join(', ')}`);
+
+    const focusParts = Object.entries(focusNotes).map(([chip, note]) =>
+      note.trim() ? `${chip}: ${note.trim()}` : chip
+    );
+    if (focusParts.length) parts.push(`Needs work: ${focusParts.join(', ')}`);
+
+    if (extraNote.trim()) parts.push(extraNote.trim());
+
+    return parts.join('. ');
   }
 
   async function performDelete() {
@@ -314,29 +372,29 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.container(isMobile)}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <TouchableOpacity
-          style={styles.backButton}
-          onPress={() => router.back()}>
-          <ArrowLeft size={24} color="#1e293b" />
-        </TouchableOpacity>
-        <View style={styles.headerContent}>
-          <Text style={styles.headerTitle}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
-          <Text style={styles.headerSubtitle}>{student.instrument}</Text>
+        <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={() => router.back()}>
+            <ArrowLeft size={24} color="#1e293b" />
+          </TouchableOpacity>
+          <View style={styles.headerContent}>
+            <Text style={styles.headerTitle}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
+            <Text style={styles.headerSubtitle}>{student.instrument}</Text>
+          </View>
+          <TouchableOpacity
+            style={styles.editButton}
+            onPress={() => router.push(`/(staff)/edit-student/${student?.id}`)}
+            disabled={saving}>
+            <Edit2 size={24} color="#1e40af" />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.deleteButton}
+            onPress={handleDelete}
+            disabled={saving}>
+            <Trash2 size={24} color="#ef4444" />
+          </TouchableOpacity>
         </View>
-        <TouchableOpacity
-          style={styles.editButton}
-          onPress={() => router.push(`/(staff)/edit-student/${student?.id}`)}
-          disabled={saving}>
-          <Edit2 size={24} color="#1e40af" />
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={styles.deleteButton}
-          onPress={handleDelete}
-          disabled={saving}>
-          <Trash2 size={24} color="#ef4444" />
-        </TouchableOpacity>
-      </View>
 
         <ScrollView style={styles.content} keyboardShouldPersistTaps="handled">
           {error ? (
@@ -765,43 +823,116 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
             </View>
           </View>
 
-        <View style={styles.section}>
-          <View style={styles.sectionHeaderRow}>
-            <Text style={styles.sectionTitle}>Instructor Notes</Text>
-            <View style={styles.noteActions}>
-              <TouchableOpacity
-                style={[styles.noteBtn, { backgroundColor: '#f1f5f9' }]}
-                onPress={insertTemplate}>
-                <FileText size={14} color="#64748b" />
-                <Text style={styles.noteBtnText}>Template</Text>
-              </TouchableOpacity>
-              <TouchableOpacity
-                style={[styles.noteBtn, !notes.trim() && { opacity: 0.5 }]}
-                onPress={handleAIPolish}
-                disabled={polishing || !notes.trim()}>
-                {polishing ? (
-                  <ActivityIndicator size="small" color="#1e40af" />
-                ) : (
-                  <>
-                    <Sparkles size={14} color="#1e40af" />
-                    <Text style={styles.noteBtnText}>AI Polish</Text>
-                  </>
-                )}
-              </TouchableOpacity>
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Quick Tags</Text>
+              <View style={styles.noteActions}>
+                <TouchableOpacity
+                  style={[styles.noteBtn, !buildKeywordString().trim() && { opacity: 0.5 }]}
+                  onPress={handleAIPolish}
+                  disabled={polishing || !buildKeywordString().trim()}>
+                  {polishing ? (
+                    <ActivityIndicator size="small" color="#1e40af" />
+                  ) : (
+                    <>
+                      <Sparkles size={14} color="#1e40af" />
+                      <Text style={styles.noteBtnText}>AI Polish</Text>
+                    </>
+                  )}
+                </TouchableOpacity>
+              </View>
             </View>
+
+            <Text style={styles.label}>Topics covered today</Text>
+            <View style={styles.chipRow}>
+              {(TOPIC_CHIPS_BY_INSTRUMENT[student?.instrument?.toLowerCase() || ''] || TOPIC_CHIPS_BY_INSTRUMENT.guitar).map(chip => (
+                <View key={chip} style={styles.chipItem}>
+                  <TouchableOpacity
+                    style={[styles.chip, chip in topicNotes && styles.chipActive]}
+                    onPress={() => toggleChipInput(topicNotes, setTopicNotes, chip)}>
+                    <Text style={[styles.chipText, chip in topicNotes && styles.chipTextActive]}>{chip}</Text>
+                  </TouchableOpacity>
+                  {chip in topicNotes && (
+                    <TextInput
+                      style={styles.chipInputField}
+                      placeholder="Specific notes..."
+                      placeholderTextColor="#9ca3af"
+                      value={topicNotes[chip]}
+                      onChangeText={(text) => setTopicNotes({...topicNotes, [chip]: text})}
+                    />
+                  )}
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.label}>Strengths observed</Text>
+            <View style={styles.chipRow}>
+              {STRENGTH_CHIPS.map(chip => (
+                <View key={chip} style={styles.chipItem}>
+                  <TouchableOpacity
+                    style={[styles.chip, styles.chipGreen, chip in strengthNotes && styles.chipGreenActive]}
+                    onPress={() => toggleChipInput(strengthNotes, setStrengthNotes, chip)}>
+                    <Text style={[styles.chipText, chip in strengthNotes && styles.chipTextActive]}>{chip}</Text>
+                  </TouchableOpacity>
+                  {chip in strengthNotes && (
+                    <TextInput
+                      style={styles.chipInputField}
+                      placeholder="Specific notes..."
+                      placeholderTextColor="#9ca3af"
+                      value={strengthNotes[chip]}
+                      onChangeText={(text) => setStrengthNotes({...strengthNotes, [chip]: text})}
+                    />
+                  )}
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.label}>Areas to focus on</Text>
+            <View style={styles.chipRow}>
+              {FOCUS_CHIPS.map(chip => (
+                <View key={chip} style={styles.chipItem}>
+                  <TouchableOpacity
+                    style={[styles.chip, styles.chipAmber, chip in focusNotes && styles.chipAmberActive]}
+                    onPress={() => toggleChipInput(focusNotes, setFocusNotes, chip)}>
+                    <Text style={[styles.chipText, chip in focusNotes && styles.chipTextActive]}>{chip}</Text>
+                  </TouchableOpacity>
+                  {chip in focusNotes && (
+                    <TextInput
+                      style={styles.chipInputField}
+                      placeholder="Specific notes..."
+                      placeholderTextColor="#9ca3af"
+                      value={focusNotes[chip]}
+                      onChangeText={(text) => setFocusNotes({...focusNotes, [chip]: text})}
+                    />
+                  )}
+                </View>
+              ))}
+            </View>
+
+            <Text style={styles.label}>Anything else? (optional)</Text>
+            <TextInput
+              style={styles.input}
+              placeholder="One quick line if needed..."
+              placeholderTextColor="#9ca3af"
+              value={extraNote}
+              onChangeText={setExtraNote}
+            />
+
+            <View style={styles.sectionHeaderRow}>
+              <Text style={styles.sectionTitle}>Instructor Notes</Text>
+            </View>
+            <TextInput
+              style={styles.textArea}
+              placeholder="Enter brief notes or tap 'AI Polish' to generate from quick tags..."
+              placeholderTextColor="#9ca3af"
+              value={notes}
+              onChangeText={setNotes}
+              multiline
+              numberOfLines={6}
+              textAlignVertical="top"
+              editable={!saving && !polishing}
+            />
           </View>
-          <TextInput
-            style={styles.textArea}
-            placeholder="Enter brief notes or tap 'Template' for a guide, then tap 'AI Polish'..."
-            placeholderTextColor="#9ca3af"
-            value={notes}
-            onChangeText={setNotes}
-            multiline
-            numberOfLines={6}
-            textAlignVertical="top"
-            editable={!saving && !polishing}
-          />
-        </View>
 
           <TouchableOpacity
             style={[styles.saveButton, saving && styles.saveButtonDisabled]}
@@ -819,7 +950,7 @@ Home practice: What to practice this week (e.g., scales 10 min daily)`;
 
           <View style={styles.bottomPadding} />
         </ScrollView>
-    </KeyboardAvoidingView>
+      </KeyboardAvoidingView>
     </View>
   );
 }
@@ -1040,6 +1171,61 @@ const styles = StyleSheet.create({
     fontStyle: 'italic',
     textAlign: 'center',
     marginTop: 4,
+  },
+  chipRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 8,
+    marginBottom: 14,
+  },
+  chip: {
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+  },
+  chipActive: {
+    borderColor: '#3b82f6',
+    backgroundColor: '#eff6ff',
+  },
+  chipGreen: {
+    borderColor: '#e2e8f0',
+  },
+  chipGreenActive: {
+    borderColor: '#16a34a',
+    backgroundColor: '#f0fdf4',
+  },
+  chipAmber: {
+    borderColor: '#e2e8f0',
+  },
+  chipAmberActive: {
+    borderColor: '#d97706',
+    backgroundColor: '#fffbeb',
+  },
+  chipText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  chipTextActive: {
+    color: '#1e293b',
+    fontWeight: '700',
+  },
+  chipItem: {
+    minWidth: 170,
+  },
+  chipInputField: {
+    marginTop: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+    borderRadius: 8,
+    padding: 8,
+    fontSize: 13,
+    color: '#1e293b',
+    width: 170,
   },
   label: {
     fontSize: 14,

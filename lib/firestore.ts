@@ -104,6 +104,21 @@ export const profileService = {
     if (snapshot.empty) return null;
     return { id: snapshot.docs[0].id, ...snapshot.docs[0].data() } as Profile;
   },
+
+  async getProfileByPhone(phone: string): Promise<Profile | null> {
+    const cleanPhone = phone.replace(/\s/g, '');
+    const withCode = cleanPhone.startsWith('+') ? cleanPhone : '+91' + cleanPhone;
+    const withoutCode = withCode.replace('+91', '');
+
+    const [qWith, qWithout] = await Promise.all([
+      getDocs(query(collection(db, PROFILES_COLLECTION), where('phone', '==', withCode), limit(1))),
+      getDocs(query(collection(db, PROFILES_COLLECTION), where('phone', '==', withoutCode), limit(1))),
+    ]);
+
+    const match = qWith.docs[0] || qWithout.docs[0];
+    if (!match) return null;
+    return { id: match.id, ...match.data() } as Profile;
+  },
 };
 
 export const studentService = {

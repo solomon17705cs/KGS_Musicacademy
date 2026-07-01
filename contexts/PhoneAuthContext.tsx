@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { auth, phoneAuthProvider, signInWithPhoneCredential } from '@/lib/firebase';
 import { signInWithCredential } from 'firebase/auth';
+import { initializePushNotifications } from '@/lib/notifications';
 
 interface PhoneAuthContextType {
   verificationId: string | null;
@@ -55,7 +56,12 @@ export function PhoneAuthProvider({ children }: { children: React.ReactNode }) {
 
     try {
       const credential = await signInWithPhoneCredential(verificationId, code);
-      await signInWithCredential(auth, credential);
+      const result = await signInWithCredential(auth, credential);
+      if (result.user) {
+        initializePushNotifications(result.user.uid).catch(err =>
+          console.log('[Push] Failed to init after phone login:', err)
+        );
+      }
       setLoading(false);
       return true;
     } catch (err: any) {

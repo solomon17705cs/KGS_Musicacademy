@@ -13,7 +13,7 @@ import {
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { studentService, progressService, notificationService, attendanceService } from '@/lib/firestore';
 import { Student, ProgressRecord } from '@/types/database';
 import { LinearGradient } from 'expo-linear-gradient';
@@ -128,12 +128,14 @@ export default function ProgressScreen() {
     loadStudentProgress();
   }, [profile?.id, user?.email, user?.phoneNumber]);
 
-  useEffect(() => {
-    if (!user) return;
-    notificationService.getUserNotifications(user.uid).then(notifications => {
-      setUnreadCount(notifications.filter(n => !n.read).length);
-    });
-  }, [user]);
+  useFocusEffect(
+    useCallback(() => {
+      if (!user) return;
+      notificationService.getUserNotifications(user.uid).then(notifications => {
+        setUnreadCount(notifications.filter(n => !n.read).length);
+      });
+    }, [user])
+  );
 
   useEffect(() => {
     const backHandler = BackHandler.addEventListener('hardwareBackPress', () => {

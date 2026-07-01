@@ -13,7 +13,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { studentService } from '@/lib/firestore';
-import { User, Mail, LogOut, ChevronRight, Bell, HelpCircle, Music, Award, Clock, TrendingUp } from 'lucide-react-native';
+import { User, Mail, LogOut, ChevronRight, Bell, HelpCircle, Music, Award, Clock, TrendingUp, Calendar } from 'lucide-react-native';
 import MusicalNotesLoading from '@/components/MusicalNotesLoading';
 
 export default function ProfileScreen() {
@@ -140,6 +140,22 @@ export default function ProfileScreen() {
             </View>
           )}
         </View>
+
+        {profile.role === 'parent' && linkedStudents !== null && linkedStudents > 0 && (
+          <View style={styles.menuSection}>
+            <Text style={styles.sectionTitle}>Student Detail</Text>
+            <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/(tabs)/student-attendance')}>
+              <View style={[styles.menuIconBox, { backgroundColor: '#f0fdf4' }]}>
+                <Calendar size={20} color="#16a34a" />
+              </View>
+              <View style={styles.menuContent}>
+                <Text style={styles.menuText}>Attendance</Text>
+                <Text style={styles.menuSubtext}>View attendance records</Text>
+              </View>
+              <ChevronRight size={18} color="#cbd5e1" />
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={styles.menuSection}>
           <Text style={styles.sectionTitle}>Settings</Text>

@@ -6,6 +6,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { notificationService } from '@/lib/firestore';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 
 function NotificationIcon({ color, size }: { color: string; size: number }) {
   const { user } = useAuth();
@@ -48,6 +49,7 @@ const styles = StyleSheet.create({
 export default function TabLayout() {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+  const bottomPadding = useBottomPadding();
 
   return (
     <Tabs
@@ -62,14 +64,14 @@ export default function TabLayout() {
           bottom: isMobile ? 0 : 24,
           left: isMobile ? 0 : 24,
           right: isMobile ? 0 : 24,
-          height: isMobile ? 70 : 80,
+          height: isMobile ? (bottomPadding ? 70 + bottomPadding : 70) : 80,
           borderTopLeftRadius: isMobile ? 20 : 40,
           borderTopRightRadius: isMobile ? 20 : 40,
           borderBottomLeftRadius: isMobile ? 0 : 40,
           borderBottomRightRadius: isMobile ? 0 : 40,
           borderTopWidth: 0,
           borderTopColor: '#1e293b',
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          paddingBottom: Platform.OS === 'ios' ? 20 : bottomPadding || 8,
           paddingTop: 8,
           elevation: 10,
           shadowColor: '#000',
@@ -108,6 +110,13 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="support"
+        options={{
+          href: null,
+          tabBarStyle: { display: 'none' },
+        }}
+      />
+      <Tabs.Screen
+        name="student-attendance"
         options={{
           href: null,
           tabBarStyle: { display: 'none' },

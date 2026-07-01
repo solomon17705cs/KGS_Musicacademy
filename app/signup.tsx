@@ -13,7 +13,8 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-
+import { useBottomPadding } from '@/hooks/useBottomPadding';
+ 
 export default function SignupScreen() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -22,6 +23,7 @@ export default function SignupScreen() {
   const [error, setError] = useState('');
   const { signUp } = useAuth();
   const router = useRouter();
+  const bottomPadding = useBottomPadding();
 
   async function handleSignUp() {
     if (!email || !password || !fullName) {
@@ -52,7 +54,7 @@ export default function SignupScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}
         keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Image
