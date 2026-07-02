@@ -1,8 +1,7 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   RefreshControl,
   Image,
@@ -10,9 +9,11 @@ import {
   Alert,
   BackHandler,
   Linking,
+  StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { studentService, progressService, notificationService, attendanceService } from '@/lib/firestore';
 import { Student, ProgressRecord } from '@/types/database';
@@ -112,6 +113,7 @@ type StudentWithData = Student & { progress?: ProgressRecord; currentMonthAttend
 
 export default function ProgressScreen() {
   const { profile, user, loading: authLoading } = useAuth();
+  const { colors, isDark } = useTheme();
   const router = useRouter();
   const [students, setStudents] = useState<StudentWithData[]>([]);
   const [studentsHistory, setStudentsHistory] = useState<Map<string, ProgressRecord[]>>(new Map());
@@ -232,6 +234,8 @@ export default function ProgressScreen() {
     return status.split('_').map(w => w.charAt(0).toUpperCase() + w.slice(1)).join(' ');
   }
 
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (loading || authLoading) {
     return <MusicalNotesLoading text="Loading progress..." />;
   }
@@ -253,7 +257,7 @@ export default function ProgressScreen() {
           <TouchableOpacity 
             style={styles.backButtonHeader}
             onPress={() => setSelectedStudent(null)}>
-            <ChevronLeft size={24} color="#0f172a" />
+            <ChevronLeft size={24} color={colors.text} />
           </TouchableOpacity>
         ) : null}
         <View style={{ flex: 1 }}>
@@ -270,7 +274,7 @@ export default function ProgressScreen() {
               style={styles.iconButton}
               onPress={() => router.push('/(tabs)/notifications')}>
               <View>
-                <Bell size={24} color="#0f172a" />
+                <Bell size={24} color={colors.text} />
                 {unreadCount > 0 && (
                   <View style={styles.badge}>
                     <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
@@ -302,7 +306,7 @@ export default function ProgressScreen() {
             </Text>
           </TouchableOpacity>
           <TouchableOpacity onPress={() => setShowActivationBanner(false)} style={styles.activationBannerClose}>
-            <X size={18} color="#ef4444" />
+            <X size={18} color={colors.error} />
           </TouchableOpacity>
         </View>
       )}
@@ -310,7 +314,7 @@ export default function ProgressScreen() {
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} colors={['#1e40af']} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} tintColor={colors.primary} colors={[colors.primary]} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
         contentContainerStyle={selectedStudent ? styles.contentContainerSelected : undefined}>
@@ -332,7 +336,7 @@ export default function ProgressScreen() {
               return (
                 <View style={styles.graphContainer}>
                   <LinearGradient
-                    colors={['#1e40af', '#3b82f6']}
+                    colors={isDark ? ['#0f172a', '#1e3a5f'] : ['#1e40af', '#3b82f6']}
                     start={{ x: 0, y: 0 }}
                     end={{ x: 1, y: 1 }}
                     style={styles.graphCard}>
@@ -377,13 +381,13 @@ export default function ProgressScreen() {
 
                 <View style={styles.goalSection}>
                   <View style={styles.goalHeader}>
-                    <Target size={18} color="#1e40af" />
+                    <Target size={18} color={colors.primary} />
                     <Text style={styles.goalTitle}>Weekly Goal</Text>
                     <View style={[styles.goalStatusBadge, {
-                      backgroundColor: selectedStudent.progress.goal_status === 'achieved' ? '#f0fdf4' : selectedStudent.progress.goal_status === 'not_done' ? '#fef2f2' : '#fff7ed',
+                      backgroundColor: selectedStudent.progress.goal_status === 'achieved' ? colors.successBg : selectedStudent.progress.goal_status === 'not_done' ? colors.errorBg : colors.warningBg,
                     }]}>
                       <Text style={[styles.goalStatusText, {
-                        color: selectedStudent.progress.goal_status === 'achieved' ? '#16a34a' : selectedStudent.progress.goal_status === 'not_done' ? '#ef4444' : '#f97316',
+                        color: selectedStudent.progress.goal_status === 'achieved' ? colors.success : selectedStudent.progress.goal_status === 'not_done' ? colors.error : colors.warning,
                       }]}>
                         {selectedStudent.progress.goal_status === 'achieved' ? 'Achieved' : selectedStudent.progress.goal_status === 'not_done' ? 'Not Done' : 'In Progress'}
                       </Text>
@@ -394,27 +398,28 @@ export default function ProgressScreen() {
                     <View style={styles.teacherRatingRow}>
                       <Text style={styles.teacherRatingLabel}>Teacher's Rating: </Text>
                       {[1, 2, 3, 4, 5].map(s => (
-                        <Star key={s} size={14} fill={(selectedStudent.progress?.teacher_practice_rating ?? 0) >= s ? '#f59e0b' : '#d1d5db'} color={(selectedStudent.progress?.teacher_practice_rating ?? 0) >= s ? '#f59e0b' : '#d1d5db'} />
+                        <Star key={s} size={14} fill={(selectedStudent.progress?.teacher_practice_rating ?? 0) >= s ? '#f59e0b' : colors.border} color={(selectedStudent.progress?.teacher_practice_rating ?? 0) >= s ? '#f59e0b' : colors.border} />
                       ))}
                       <Text style={styles.teacherRatingValue}>{selectedStudent.progress?.teacher_practice_rating ?? 0}/5</Text>
                     </View>
                   )}
                 </View>
 
-                <View style={styles.gradeDisplayArea}>
-                  <View style={styles.gradeBox}>
-                    <Text style={styles.gradeBoxLabel}>Theory Grade</Text>
-                    <Text style={styles.gradeBoxValue}>
-                      {selectedStudent.progress.theory_grade || 'Grade 1'}
-                    </Text>
-                  </View>
-                  <View style={styles.gradeBox}>
-                    <Text style={styles.gradeBoxLabel}>Practical Grade</Text>
-                    <Text style={styles.gradeBoxValue}>
-                      {selectedStudent.progress.practical_grade || 'Beginner'}
-                    </Text>
-                  </View>
-                </View>
+                 <View style={styles.gradeDisplayArea}>
+                   <View style={styles.gradeBox}>
+                     <Text style={styles.gradeBoxLabel}>Theory Grade</Text>
+                     <Text style={styles.gradeBoxValue}>
+                       {selectedStudent.progress.theory_grade || 'Grade 1'}
+                     </Text>
+                   </View>
+                   <View style={styles.gradeSeparator} />
+                   <View style={styles.gradeBox}>
+                     <Text style={styles.gradeBoxLabel}>Practical Grade</Text>
+                     <Text style={styles.gradeBoxValue}>
+                       {selectedStudent.progress.practical_grade || 'Beginner'}
+                     </Text>
+                   </View>
+                 </View>
 
                 {selectedStudent.progress.notes && (
                   <View style={styles.notesBox}>
@@ -505,7 +510,7 @@ export default function ProgressScreen() {
             return (
               <View style={styles.graphContainer}>
                 <LinearGradient
-                  colors={['#1e40af', '#3b82f6']}
+                  colors={isDark ? ['#0f172a', '#1e3a5f'] : ['#1e40af', '#3b82f6']}
                   start={{ x: 0, y: 0 }}
                   end={{ x: 1, y: 1 }}
                   style={styles.graphCard}>
@@ -529,7 +534,7 @@ export default function ProgressScreen() {
           </View>
         ) : students.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Music2 size={64} color="#cbd5e1" />
+            <Music2 size={64} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>No Progress Records</Text>
             <Text style={styles.emptyText}>No students linked to your account yet.</Text>
           </View>
@@ -557,10 +562,10 @@ export default function ProgressScreen() {
                         <Text style={styles.modernInstrumentText}>{student.instrument}</Text>
                       </View>
                       <View style={styles.cardStatusRow}>
-                        <View style={[styles.miniBadge, { backgroundColor: student.progress ? getStatusColor(student.progress.theory_status) : '#64748b' }]}>
+                        <View style={[styles.miniBadge, { backgroundColor: student.progress ? getStatusColor(student.progress.theory_status) : colors.textMuted }]}>
                           <Text style={styles.miniBadgeText}>T: {student.progress ? getStatusLabel(student.progress.theory_status) : 'N/A'}</Text>
                         </View>
-                        <View style={[styles.miniBadge, { backgroundColor: student.progress ? getStatusColor(student.progress.practical_status) : '#64748b' }]}>
+                        <View style={[styles.miniBadge, { backgroundColor: student.progress ? getStatusColor(student.progress.practical_status) : colors.textMuted }]}>
                           <Text style={styles.miniBadgeText}>P: {student.progress ? getStatusLabel(student.progress.practical_status) : 'N/A'}</Text>
                         </View>
                       </View>
@@ -590,13 +595,13 @@ export default function ProgressScreen() {
 
                         <View style={styles.goalSection}>
                           <View style={styles.goalHeader}>
-                            <Target size={18} color="#1e40af" />
+                            <Target size={18} color={colors.primary} />
                             <Text style={styles.goalTitle}>Weekly Goal</Text>
                             <View style={[styles.goalStatusBadge, {
-                              backgroundColor: student.progress.goal_status === 'achieved' ? '#f0fdf4' : student.progress.goal_status === 'not_done' ? '#fef2f2' : '#fff7ed',
+                              backgroundColor: student.progress.goal_status === 'achieved' ? colors.successBg : student.progress.goal_status === 'not_done' ? colors.errorBg : colors.warningBg,
                             }]}>
                               <Text style={[styles.goalStatusText, {
-                                color: student.progress.goal_status === 'achieved' ? '#16a34a' : student.progress.goal_status === 'not_done' ? '#ef4444' : '#f97316',
+                                color: student.progress.goal_status === 'achieved' ? colors.success : student.progress.goal_status === 'not_done' ? colors.error : colors.warning,
                               }]}>
                                 {student.progress.goal_status === 'achieved' ? 'Achieved' : student.progress.goal_status === 'not_done' ? 'Not Done' : 'In Progress'}
                               </Text>
@@ -632,12 +637,14 @@ export default function ProgressScreen() {
                               {student.progress.theory_grade || 'Grade 1'}
                             </Text>
                           </View>
+                          <View style={styles.gradeSeparator} />
                           <View style={styles.gradeBox}>
                             <Text style={styles.gradeBoxLabel}>Practical</Text>
                             <Text style={styles.gradeBoxValue}>
                               {student.progress.practical_grade || 'Beginner'}
                             </Text>
                           </View>
+                          <View style={styles.gradeSeparator} />
                           <View style={styles.streakBox}>
                             <Flame size={18} color="#f97316" />
                             <Text style={styles.streakBoxValue}>{realStreak}</Text>
@@ -680,125 +687,128 @@ export default function ProgressScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: '#fff' },
-  topHeader: { paddingTop: 0, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
-  backButtonHeader: { width: 40, height: 40, borderRadius: 20, backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-  contentContainerSelected: { paddingBottom: 100 },
-  greetingText: { fontSize: 28, fontWeight: '800', color: '#0f172a' },
-  welcomeSubtitle: { fontSize: 16, color: '#64748b', marginTop: 2 },
-  activationBanner: { backgroundColor: '#fef2f2', borderRadius: 16, marginHorizontal: 24, marginBottom: 16, padding: 16, flexDirection: 'row', borderWidth: 1, borderColor: '#fecaca' },
-  activationBannerContent: { flex: 1, marginRight: 8 },
-  activationBannerTitle: { fontSize: 14, fontWeight: '700', color: '#ef4444', marginBottom: 4 },
-  activationBannerText: { fontSize: 12, color: '#dc2626', fontWeight: '500', lineHeight: 18 },
-  activationBannerClose: { width: 28, height: 28, borderRadius: 14, backgroundColor: '#fee2e2', alignItems: 'center', justifyContent: 'center', marginTop: 2 },
-  avatarContainer: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden', borderWidth: 2, borderColor: '#f1f5f9' },
-  avatarImage: { width: '100%', height: '100%' },
-  headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  iconButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: '#f8fafc', alignItems: 'center', justifyContent: 'center' },
-  badge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
-  badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
-  centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#fff' },
-  content: { flex: 1, paddingHorizontal: 24 },
-  searchBar: { backgroundColor: '#f8fafc', borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 24, height: 56 },
-  searchText: { color: '#94a3b8', fontSize: 16, marginLeft: 12 },
-  sectionHeaderRow: { marginBottom: 16 },
-  sectionHeading: { fontSize: 22, fontWeight: '700', color: '#0f172a' },
-  graphContainer: { marginBottom: 24 },
-  graphCard: { borderRadius: 24, padding: 24, shadowColor: '#1e40af', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 8 },
-  graphHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-  graphTitle: { fontSize: 18, fontWeight: '700', color: '#fff' },
-  graphSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
-  growthBadge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
-  growthText: { color: '#fff', fontSize: 12, fontWeight: '700' },
-  latestBadge: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderRadius: 10,
-    paddingHorizontal: 12,
-    paddingVertical: 6,
-    alignItems: 'center',
-  },
-  latestScore: {
-    color: 'white',
-    fontSize: 22,
-    fontWeight: '800',
-  },
-  latestLabel: {
-    color: 'rgba(255,255,255,0.7)',
-    fontSize: 10,
-  },
-  modernCard: { backgroundColor: '#fff', borderRadius: 24, marginBottom: 20, borderWidth: 1, borderColor: '#f1f5f9', overflow: 'hidden', shadowColor: '#000', shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 3 },
-  cardImageContainer: { height: 160, position: 'relative' },
-  cardBgImage: { width: '100%', height: '100%' },
-  cardImageOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%' },
-  cardHeaderOverlay: { position: 'absolute', bottom: 16, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
-  cardHeaderInfo: { flex: 1, marginRight: 10 },
-  modernStudentName: { fontSize: 20, fontWeight: '800', color: '#fff' },
-  modernInstrumentText: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2, fontWeight: '600' },
-  cardStatusRow: { flexDirection: 'row', gap: 6 },
-  miniBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
-  miniBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
-  cardBody: { padding: 20 },
-  weeklySummaryCard: { flexDirection: 'row', backgroundColor: '#f8fafc', borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: '#f1f5f9' },
-  summaryItem: { flex: 1, alignItems: 'center' },
-  summaryBorder: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: '#e2e8f0' },
-  summaryLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
-  summaryValue: { fontSize: 15, fontWeight: '700', color: '#0f172a' },
-  practiceRow: { flexDirection: 'row', alignItems: 'center' },
-  goalSection: { marginBottom: 20, padding: 16, backgroundColor: '#eff6ff', borderRadius: 20, borderWidth: 1, borderColor: '#dbeafe' },
-  goalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  goalTitle: { fontSize: 14, fontWeight: '700', color: '#1e40af', marginLeft: 8, flex: 1 },
-  goalStatusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
-  goalStatusText: { fontSize: 10, fontWeight: '800' },
-  goalDescription: { fontSize: 14, color: '#334155', fontWeight: '600', lineHeight: 20, marginBottom: 16 },
-  masteryContainer: { marginTop: 8 },
-  masteryHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  masteryLabel: { fontSize: 11, fontWeight: '700', color: '#64748b' },
-  masteryValue: { fontSize: 11, fontWeight: '800', color: '#1e40af' },
-  masteryBarBg: { height: 8, backgroundColor: '#dbeafe', borderRadius: 4, overflow: 'hidden' },
-  masteryBarFill: { height: '100%', borderRadius: 4 },
-  masteryLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
-  masterySubLabel: { fontSize: 9, fontWeight: '700', color: '#94a3b8', textTransform: 'uppercase' },
-  gradeDisplayArea: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16 },
-  gradeBox: { flex: 1 },
-  gradeBoxLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '700', textTransform: 'uppercase' },
-  gradeBoxValue: { fontSize: 22, fontWeight: '800', color: '#0f172a', marginTop: 2 },
-  streakBox: { alignItems: 'flex-end' },
-  streakBoxValue: { fontSize: 18, fontWeight: '800', color: '#0f172a' },
-  streakBoxLabel: { fontSize: 10, color: '#94a3b8', fontWeight: '700' },
-  notesBox: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 12, marginBottom: 16 },
-  notesHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
-  notesTitle: { fontSize: 11, fontWeight: '700', color: '#334155', marginBottom: 2 },
-  notesDate: { fontSize: 10, color: '#94a3b8' },
-  notesTextContent: { fontSize: 13, color: '#64748b', lineHeight: 18 },
-  reportsSection: { marginTop: 8 },
-  reportsSectionTitle: { fontSize: 16, fontWeight: '700', color: '#0f172a', marginBottom: 12 },
-  reportBox: { backgroundColor: '#f8fafc', borderRadius: 12, padding: 14, marginBottom: 12 },
-  reportBoxHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  reportBoxDate: { fontSize: 13, fontWeight: '700', color: '#0f172a' },
-  statusBadgeSmall: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
-  statusBadgeSmallText: { fontSize: 10, fontWeight: '600' },
-  reportBoxContent: {},
-  reportBoxRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-  reportBoxItem: { alignItems: 'center' },
-  reportBoxLabel: { fontSize: 10, color: '#94a3b8', marginBottom: 2 },
-  reportBoxValue: { fontSize: 14, fontWeight: '700', color: '#0f172a' },
-  reportBoxGrades: { flexDirection: 'row', gap: 8, marginBottom: 6 },
-  gradePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
-  gradePillText: { fontSize: 12, fontWeight: '600' },
-  reportBoxNotes: { fontSize: 12, color: '#64748b', fontStyle: 'italic' },
-  viewReportButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: '#0f172a', padding: 14, borderRadius: 14 },
-  viewReportText: { color: '#fff', fontSize: 14, fontWeight: '700' },
-  reportArrowCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(255,255,255,0.2)', alignItems: 'center', justifyContent: 'center' },
-  studentsList: { paddingBottom: 100 },
-  errorContainer: { backgroundColor: '#fee2e2', borderRadius: 16, padding: 16, marginBottom: 24 },
-  errorText: { color: '#dc2626', fontSize: 14, fontWeight: '600' },
-  emptyContainer: { alignItems: 'center', padding: 40, backgroundColor: '#f8fafc', borderRadius: 24, marginBottom: 20 },
-  emptyTitle: { fontSize: 18, fontWeight: '700', color: '#0f172a', marginTop: 16 },
-  emptyText: { fontSize: 14, color: '#64748b', textAlign: 'center', marginTop: 8 },
-  noProgressContainer: { padding: 16, backgroundColor: '#f8fafc', borderRadius: 12, alignItems: 'center' },
-  noProgressText: { fontSize: 13, color: '#94a3b8', fontStyle: 'italic' },
-  teacherRatingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 2 },
-  teacherRatingLabel: { fontSize: 12, color: '#64748b', fontWeight: '600' },
-  teacherRatingValue: { fontSize: 12, color: '#64748b', fontWeight: '700', marginLeft: 4 },
-});
+function createStyles(colors: Record<string, string>) {
+  return StyleSheet.create({
+    container: { flex: 1, backgroundColor: colors.background },
+    topHeader: { paddingTop: 0, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
+    backButtonHeader: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.skeleton, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
+    contentContainerSelected: { paddingBottom: 100 },
+    greetingText: { fontSize: 28, fontWeight: '800', color: colors.text },
+    welcomeSubtitle: { fontSize: 16, color: colors.textSecondary, marginTop: 2 },
+    activationBanner: { backgroundColor: colors.errorBg, borderRadius: 16, marginHorizontal: 24, marginBottom: 16, padding: 16, flexDirection: 'row', borderWidth: 1, borderColor: colors.errorLight },
+    activationBannerContent: { flex: 1, marginRight: 8 },
+    activationBannerTitle: { fontSize: 14, fontWeight: '700', color: colors.error, marginBottom: 4 },
+    activationBannerText: { fontSize: 12, color: colors.error, fontWeight: '500', lineHeight: 18 },
+    activationBannerClose: { width: 28, height: 28, borderRadius: 14, backgroundColor: colors.errorLight, alignItems: 'center', justifyContent: 'center', marginTop: 2 },
+    avatarContainer: { width: 50, height: 50, borderRadius: 25, overflow: 'hidden', borderWidth: 2, borderColor: colors.borderLight },
+    avatarImage: { width: '100%', height: '100%' },
+    headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+    iconButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.skeleton, alignItems: 'center', justifyContent: 'center' },
+    badge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+    badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
+    centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
+    content: { flex: 1, paddingHorizontal: 24 },
+    searchBar: { backgroundColor: colors.skeleton, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 24, height: 56 },
+    searchText: { color: colors.textMuted, fontSize: 16, marginLeft: 12 },
+    sectionHeaderRow: { marginBottom: 16 },
+    sectionHeading: { fontSize: 22, fontWeight: '700', color: colors.text },
+    graphContainer: { marginBottom: 24 },
+    graphCard: { borderRadius: 24, padding: 24, shadowColor: colors.shadow, shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.2, shadowRadius: 16, elevation: 8 },
+    graphHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
+    graphTitle: { fontSize: 18, fontWeight: '700', color: '#fff' },
+    graphSubtitle: { fontSize: 13, color: 'rgba(255,255,255,0.7)', marginTop: 2 },
+    growthBadge: { backgroundColor: 'rgba(255,255,255,0.2)', paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8, flexDirection: 'row', alignItems: 'center', gap: 4 },
+    growthText: { color: '#fff', fontSize: 12, fontWeight: '700' },
+    latestBadge: {
+      backgroundColor: 'rgba(255,255,255,0.2)',
+      borderRadius: 10,
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      alignItems: 'center',
+    },
+    latestScore: {
+      color: 'white',
+      fontSize: 22,
+      fontWeight: '800',
+    },
+    latestLabel: {
+      color: 'rgba(255,255,255,0.7)',
+      fontSize: 10,
+    },
+    modernCard: { backgroundColor: colors.card, borderRadius: 24, marginBottom: 20, borderWidth: 1, borderColor: colors.cardBorder, overflow: 'hidden', shadowColor: colors.shadow, shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.05, shadowRadius: 12, elevation: 3 },
+    cardImageContainer: { height: 160, position: 'relative' },
+    cardBgImage: { width: '100%', height: '100%' },
+    cardImageOverlay: { position: 'absolute', left: 0, right: 0, bottom: 0, height: '60%' },
+    cardHeaderOverlay: { position: 'absolute', bottom: 16, left: 16, right: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+    cardHeaderInfo: { flex: 1, marginRight: 10 },
+    modernStudentName: { fontSize: 20, fontWeight: '800', color: '#fff' },
+    modernInstrumentText: { fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 2, fontWeight: '600' },
+    cardStatusRow: { flexDirection: 'row', gap: 6 },
+    miniBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+    miniBadgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
+    cardBody: { padding: 20 },
+    weeklySummaryCard: { flexDirection: 'row', backgroundColor: colors.statBg, borderRadius: 16, padding: 16, marginBottom: 20, borderWidth: 1, borderColor: colors.borderLight },
+    summaryItem: { flex: 1, alignItems: 'center' },
+    summaryBorder: { borderLeftWidth: 1, borderRightWidth: 1, borderColor: colors.border },
+    summaryLabel: { fontSize: 10, color: colors.textMuted, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4 },
+    summaryValue: { fontSize: 15, fontWeight: '700', color: colors.text },
+    practiceRow: { flexDirection: 'row', alignItems: 'center' },
+    goalSection: { marginBottom: 20, padding: 16, backgroundColor: colors.primaryBg, borderRadius: 20, borderWidth: 1, borderColor: colors.primaryBorder },
+    goalHeader: { flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+    goalTitle: { fontSize: 14, fontWeight: '700', color: colors.primary, marginLeft: 8, flex: 1 },
+    goalStatusBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 8 },
+    goalStatusText: { fontSize: 10, fontWeight: '800' },
+    goalDescription: { fontSize: 14, color: colors.text, fontWeight: '600', lineHeight: 20, marginBottom: 16 },
+    masteryContainer: { marginTop: 8 },
+    masteryHeader: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+    masteryLabel: { fontSize: 11, fontWeight: '700', color: colors.textSecondary },
+    masteryValue: { fontSize: 11, fontWeight: '800', color: colors.primary },
+    masteryBarBg: { height: 8, backgroundColor: colors.primaryBorder, borderRadius: 4, overflow: 'hidden' },
+    masteryBarFill: { height: '100%', borderRadius: 4 },
+    masteryLabels: { flexDirection: 'row', justifyContent: 'space-between', marginTop: 6 },
+    masterySubLabel: { fontSize: 9, fontWeight: '700', color: colors.textMuted, textTransform: 'uppercase' },
+    gradeDisplayArea: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 16, backgroundColor: colors.statBg, borderRadius: 16, padding: 16, borderWidth: 1, borderColor: colors.borderLight },
+    gradeBox: { flex: 1, alignItems: 'center' },
+    gradeSeparator: { width: 1, backgroundColor: colors.borderLight, alignSelf: 'stretch' },
+    gradeBoxLabel: { fontSize: 10, color: colors.textMuted, fontWeight: '700', textTransform: 'uppercase' },
+    gradeBoxValue: { fontSize: 22, fontWeight: '800', color: colors.text, marginTop: 2 },
+    streakBox: { flex: 1, alignItems: 'center' },
+    streakBoxValue: { fontSize: 18, fontWeight: '800', color: colors.text },
+    streakBoxLabel: { fontSize: 10, color: colors.textMuted, fontWeight: '700' },
+    notesBox: { backgroundColor: colors.statBg, borderRadius: 12, padding: 12, marginBottom: 16 },
+    notesHeaderRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 },
+    notesTitle: { fontSize: 11, fontWeight: '700', color: colors.text, marginBottom: 2 },
+    notesDate: { fontSize: 10, color: colors.textMuted },
+    notesTextContent: { fontSize: 13, color: colors.textSecondary, lineHeight: 18 },
+    reportsSection: { marginTop: 8 },
+    reportsSectionTitle: { fontSize: 16, fontWeight: '700', color: colors.text, marginBottom: 12 },
+    reportBox: { backgroundColor: colors.statBg, borderRadius: 12, padding: 14, marginBottom: 12 },
+    reportBoxHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
+    reportBoxDate: { fontSize: 13, fontWeight: '700', color: colors.text },
+    statusBadgeSmall: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
+    statusBadgeSmallText: { fontSize: 10, fontWeight: '600' },
+    reportBoxContent: {},
+    reportBoxRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
+    reportBoxItem: { alignItems: 'center' },
+    reportBoxLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 2 },
+    reportBoxValue: { fontSize: 14, fontWeight: '700', color: colors.text },
+    reportBoxGrades: { flexDirection: 'row', gap: 8, marginBottom: 6 },
+    gradePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
+    gradePillText: { fontSize: 12, fontWeight: '600' },
+    reportBoxNotes: { fontSize: 12, color: colors.textSecondary, fontStyle: 'italic' },
+    viewReportButton: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', backgroundColor: colors.text, padding: 14, borderRadius: 14 },
+    viewReportText: { color: colors.background, fontSize: 14, fontWeight: '700' },
+    reportArrowCircle: { width: 24, height: 24, borderRadius: 12, backgroundColor: 'rgba(0,0,0,0.2)', alignItems: 'center', justifyContent: 'center' },
+    studentsList: { paddingBottom: 100 },
+    errorContainer: { backgroundColor: colors.errorLight, borderRadius: 16, padding: 16, marginBottom: 24 },
+    errorText: { color: colors.error, fontSize: 14, fontWeight: '600' },
+    emptyContainer: { alignItems: 'center', padding: 40, backgroundColor: colors.statBg, borderRadius: 24, marginBottom: 20 },
+    emptyTitle: { fontSize: 18, fontWeight: '700', color: colors.text, marginTop: 16 },
+    emptyText: { fontSize: 14, color: colors.textSecondary, textAlign: 'center', marginTop: 8 },
+    noProgressContainer: { padding: 16, backgroundColor: colors.statBg, borderRadius: 12, alignItems: 'center' },
+    noProgressText: { fontSize: 13, color: colors.textMuted, fontStyle: 'italic' },
+    teacherRatingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 2 },
+    teacherRatingLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
+    teacherRatingValue: { fontSize: 12, color: colors.textSecondary, fontWeight: '700', marginLeft: 4 },
+  });
+}

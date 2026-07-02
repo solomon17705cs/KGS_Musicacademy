@@ -1,16 +1,17 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
   useWindowDimensions,
+  StyleSheet,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { studentService, attendanceService } from '@/lib/firestore';
 import { Student, AttendanceRecord } from '@/types/database';
 import { ArrowLeft, Calendar, Check, X, AlertTriangle, HelpCircle } from 'lucide-react-native';
@@ -57,6 +58,7 @@ function getDayName(dateStr: string): string {
 
 export default function StudentAttendanceScreen() {
   const { profile, user } = useAuth();
+  const { colors } = useTheme();
   const router = useRouter();
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
@@ -132,6 +134,8 @@ export default function StudentAttendanceScreen() {
     }
   }
 
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (loading) {
     return <MusicalNotesLoading text="Loading attendance..." />;
   }
@@ -140,7 +144,7 @@ export default function StudentAttendanceScreen() {
     <View style={styles.container}>
       <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
         <TouchableOpacity style={styles.backButton} onPress={() => router.back()}>
-          <ArrowLeft size={24} color="#0f172a" />
+          <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Attendance</Text>
         <View style={{ width: 40 }} />
@@ -152,7 +156,7 @@ export default function StudentAttendanceScreen() {
         contentContainerStyle={styles.contentContainer}>
         {students.length === 0 ? (
           <View style={styles.emptyState}>
-            <Calendar size={48} color="#94a3b8" />
+            <Calendar size={48} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>No Students Found</Text>
             <Text style={styles.emptyText}>
               Your account is not linked to any student profiles.
@@ -178,7 +182,7 @@ export default function StudentAttendanceScreen() {
                 {monthsData.map((monthData) => {
                   const presentCount = monthData.records.filter(r => r.status === 'present').length;
                   const isHighlight = presentCount > 8;
-                  const accentColor = isHighlight ? '#ea580c' : '#1e40af';
+                  const accentColor = isHighlight ? '#ea580c' : colors.primary;
 
                   let orangeThreshold = monthData.records.length;
                   if (isHighlight) {
@@ -247,172 +251,174 @@ export default function StudentAttendanceScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    backgroundColor: '#fff',
-    paddingHorizontal: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  content: {
-    flex: 1,
-  },
-  contentContainer: {
-    padding: 16,
-    paddingBottom: 100,
-  },
-  emptyState: {
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 80,
-  },
-  emptyTitle: {
-    fontSize: 18,
-    fontWeight: '700',
-    color: '#64748b',
-    marginTop: 16,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#94a3b8',
-    marginTop: 8,
-    textAlign: 'center',
-    maxWidth: 260,
-  },
-  studentCard: {
-    backgroundColor: '#fff',
-    borderRadius: 16,
-    padding: 16,
-    marginBottom: 16,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 4,
-    elevation: 1,
-  },
-  studentHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 16,
-    paddingBottom: 16,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f1f5f9',
-  },
-  studentAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    backgroundColor: '#1e40af',
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 12,
-  },
-  studentAvatarText: {
-    color: '#fff',
-    fontSize: 14,
-    fontWeight: '700',
-  },
-  studentInfo: {
-    flex: 1,
-  },
-  studentName: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  studentInstrument: {
-    fontSize: 13,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  monthSection: {
-    marginBottom: 4,
-  },
-  monthHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-    marginBottom: 12,
-  },
-  monthTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1e40af',
-  },
-  monthTitleHighlight: {
-    color: '#ea580c',
-  },
-  noRecords: {
-    fontSize: 13,
-    color: '#94a3b8',
-    fontStyle: 'italic',
-    paddingVertical: 8,
-    paddingHorizontal: 4,
-  },
-  summaryRow: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-    marginBottom: 12,
-  },
-  summaryBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 8,
-  },
-  summaryText: {
-    fontSize: 12,
-    fontWeight: '600',
-  },
-  recordsGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 8,
-  },
-  recordItem: {
-    width: 72,
-    paddingVertical: 8,
-    paddingHorizontal: 6,
-    borderRadius: 10,
-    alignItems: 'center',
-    gap: 2,
-  },
-  recordDay: {
-    fontSize: 10,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-  recordDate: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  recordExtraText: {
-    color: '#ea580c',
-  },
-  recordStatus: {
-    marginTop: 2,
-  },
-});
+function createStyles(colors: Record<string, string>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      backgroundColor: colors.headerBg,
+      paddingHorizontal: 16,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerTitle: {
+      fontSize: 20,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    content: {
+      flex: 1,
+    },
+    contentContainer: {
+      padding: 16,
+      paddingBottom: 100,
+    },
+    emptyState: {
+      alignItems: 'center',
+      justifyContent: 'center',
+      paddingVertical: 80,
+    },
+    emptyTitle: {
+      fontSize: 18,
+      fontWeight: '700',
+      color: colors.textSecondary,
+      marginTop: 16,
+    },
+    emptyText: {
+      fontSize: 14,
+      color: colors.textMuted,
+      marginTop: 8,
+      textAlign: 'center',
+      maxWidth: 260,
+    },
+    studentCard: {
+      backgroundColor: colors.card,
+      borderRadius: 16,
+      padding: 16,
+      marginBottom: 16,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 4,
+      elevation: 1,
+    },
+    studentHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      marginBottom: 16,
+      paddingBottom: 16,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.borderLight,
+    },
+    studentAvatar: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: colors.primary,
+      alignItems: 'center',
+      justifyContent: 'center',
+      marginRight: 12,
+    },
+    studentAvatarText: {
+      color: '#fff',
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    studentInfo: {
+      flex: 1,
+    },
+    studentName: {
+      fontSize: 16,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    studentInstrument: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    monthSection: {
+      marginBottom: 4,
+    },
+    monthHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      marginBottom: 12,
+    },
+    monthTitle: {
+      fontSize: 14,
+      fontWeight: '600',
+      color: colors.primary,
+    },
+    monthTitleHighlight: {
+      color: '#ea580c',
+    },
+    noRecords: {
+      fontSize: 13,
+      color: colors.textMuted,
+      fontStyle: 'italic',
+      paddingVertical: 8,
+      paddingHorizontal: 4,
+    },
+    summaryRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+      marginBottom: 12,
+    },
+    summaryBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 10,
+      paddingVertical: 5,
+      borderRadius: 8,
+    },
+    summaryText: {
+      fontSize: 12,
+      fontWeight: '600',
+    },
+    recordsGrid: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: 8,
+    },
+    recordItem: {
+      width: 72,
+      paddingVertical: 8,
+      paddingHorizontal: 6,
+      borderRadius: 10,
+      alignItems: 'center',
+      gap: 2,
+    },
+    recordDay: {
+      fontSize: 10,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+    recordDate: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: colors.text,
+    },
+    recordExtraText: {
+      color: '#ea580c',
+    },
+    recordStatus: {
+      marginTop: 2,
+    },
+  });
+}

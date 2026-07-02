@@ -5,12 +5,12 @@ import { StatusBar } from 'expo-status-bar';
 import { SafeAreaProvider } from 'react-native-safe-area-context';
 import { useFrameworkReady } from '@/hooks/useFrameworkReady';
 import { AuthProvider, useAuth } from '@/contexts/AuthContext';
+import { ThemeProvider, useTheme } from '@/contexts/ThemeContext';
 import { useProtectedRoute } from '@/hooks/useProtectedRoute';
 import * as Notifications from 'expo-notifications';
 import * as SplashScreen from 'expo-splash-screen';
 import { GestureHandlerRootView } from 'react-native-gesture-handler';
 
-// Keep the splash screen visible while we fetch resources
 SplashScreen.preventAutoHideAsync();
 
 function NavigationGuard() {
@@ -28,6 +28,19 @@ function NotificationHandler() {
   return null;
 }
 
+function ThemedStatusBar() {
+  const { isDark } = useTheme();
+
+  useEffect(() => {
+    if (Platform.OS === 'android') {
+      RNStatusBar.setBackgroundColor(isDark ? '#000000' : '#ffffff');
+      RNStatusBar.setTranslucent(false);
+    }
+  }, [isDark]);
+
+  return <StatusBar style={isDark ? 'light' : 'dark'} />;
+}
+
 function InitialLayout() {
   const { loading } = useAuth();
 
@@ -39,6 +52,7 @@ function InitialLayout() {
 
   return (
     <>
+      <ThemedStatusBar />
       <NotificationHandler />
       <NavigationGuard />
       <Stack screenOptions={{ headerShown: false }}>
@@ -51,20 +65,14 @@ function InitialLayout() {
 export default function RootLayout() {
   useFrameworkReady();
 
-  useEffect(() => {
-    if (Platform.OS === 'android') {
-      RNStatusBar.setBackgroundColor('#ffffff');
-      RNStatusBar.setTranslucent(false);
-    }
-  }, []);
-
   return (
     <GestureHandlerRootView style={{ flex: 1 }}>
       <SafeAreaProvider>
-        <AuthProvider>
-          <InitialLayout />
-          <StatusBar style="dark" />
-        </AuthProvider>
+        <ThemeProvider>
+          <AuthProvider>
+            <InitialLayout />
+          </AuthProvider>
+        </ThemeProvider>
       </SafeAreaProvider>
     </GestureHandlerRootView>
   );
