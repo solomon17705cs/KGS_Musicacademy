@@ -32,13 +32,13 @@ function getStatusIcon(status: string) {
   }
 }
 
-function getStatusBg(status: string) {
+function getStatusBg(status: string, colors: Record<string, string>) {
   switch (status) {
-    case 'present': return '#f0fdf4';
-    case 'absent': return '#fef2f2';
-    case 'late': return '#fffbeb';
-    case 'excused': return '#eff6ff';
-    default: return '#f8fafc';
+    case 'present': return colors.successBg;
+    case 'absent': return colors.errorBg;
+    case 'late': return colors.warningBg;
+    case 'excused': return colors.primaryBg;
+    default: return colors.statBg;
   }
 }
 
@@ -215,9 +215,9 @@ export default function StudentAttendanceScreen() {
                             if (count === 0) return null;
                             const isPresentHighlight = status === 'present' && isHighlight;
                             return (
-                              <View key={status} style={[styles.summaryBadge, { backgroundColor: getStatusBg(status) }]}>
+                              <View key={status} style={[styles.summaryBadge, { backgroundColor: getStatusBg(status, colors) }]}>
                                 {isPresentHighlight ? <Check size={14} color="#ea580c" /> : getStatusIcon(status)}
-                                <Text style={[styles.summaryText, { color: isPresentHighlight ? '#ea580c' : status === 'absent' ? '#dc2626' : status === 'late' ? '#d97706' : '#2563eb' }]}>
+                                <Text style={[styles.summaryText, { color: isPresentHighlight ? colors.warning : status === 'absent' ? colors.error : status === 'late' ? colors.warning : colors.primary }]}>
                                   {count} {getStatusLabel(status)}
                                 </Text>
                               </View>
@@ -229,7 +229,7 @@ export default function StudentAttendanceScreen() {
                           {monthData.records.map((record, idx) => {
                             const isExtra = idx >= orangeThreshold;
                             return (
-                            <View key={record.id} style={[styles.recordItem, { backgroundColor: isExtra ? '#fff7ed' : getStatusBg(record.status) }]}>
+                            <View key={record.id} style={[styles.recordItem, { backgroundColor: isExtra ? colors.warningBg : getStatusBg(record.status, colors) }]}>
                               <Text style={[styles.recordDay, isExtra && styles.recordExtraText]}>{getDayName(record.date)}</Text>
                               <Text style={[styles.recordDate, isExtra && styles.recordExtraText]}>{formatDateDisplay(record.date)}</Text>
                               <View style={styles.recordStatus}>
