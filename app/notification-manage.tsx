@@ -61,7 +61,7 @@ export default function NotificationManageScreen() {
           <View style={styles.settingItem}>
             <View style={styles.settingInfo}>
               <View style={[styles.iconBox, { backgroundColor: colors.primaryBg }]}>
-                <Bell size={20} color={colors.primary} />
+                <Bell size={20} color={colors.iconBlue} />
               </View>
               <View>
                 <Text style={styles.settingLabel}>Push Notifications</Text>

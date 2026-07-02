@@ -90,7 +90,7 @@ export default function ProfileScreen() {
           </View>
           <Text style={styles.userName}>{profile.full_name}</Text>
           <View style={styles.roleBadge}>
-            <User size={12} color={colors.primaryLight} />
+            <User size={12} color={colors.iconBlue} />
             <Text style={styles.roleText}>{getRoleLabel(profile.role)}</Text>
           </View>
         </View>
@@ -100,7 +100,7 @@ export default function ProfileScreen() {
           
           <View style={styles.infoRow}>
             <View style={[styles.infoIconContainer, { backgroundColor: colors.primaryBg }]}>
-              <Mail size={18} color={colors.primary} />
+              <Mail size={18} color={colors.iconBlue} />
             </View>
             <View style={styles.infoContent}>
               <Text style={styles.infoLabel}>Email</Text>
@@ -135,7 +135,7 @@ export default function ProfileScreen() {
           {profile.role === 'parent' && (
             <View style={styles.infoRow}>
               <View style={[styles.infoIconContainer, { backgroundColor: colors.primaryBg }]}>
-                <Music size={18} color={colors.primary} />
+                <Music size={18} color={colors.iconBlue} />
               </View>
               <View style={styles.infoContent}>
                 <Text style={styles.infoLabel}>Instrument</Text>
@@ -166,7 +166,7 @@ export default function ProfileScreen() {
           
           <TouchableOpacity style={styles.menuItem} onPress={() => router.push('/notification-manage')}>
             <View style={[styles.menuIconBox, { backgroundColor: colors.primaryBg }]}>
-              <Bell size={20} color={colors.primaryLight} />
+              <Bell size={20} color={colors.iconBlue} />
             </View>
             <View style={styles.menuContent}>
               <Text style={styles.menuText}>Notifications</Text>

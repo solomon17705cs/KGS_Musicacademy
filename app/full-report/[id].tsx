@@ -40,10 +40,10 @@ function getStudentImage(instrument: string | null) {
 
 function getStatusColor(status: string) {
   switch (status) {
-    case 'excellent': return '#22c55e';
+    case 'excellent': return '#00F900';
     case 'good': return '#3b82f6';
     case 'needs_improvement': return '#f59e0b';
-    case 'struggling': return '#ef4444';
+    case 'struggling': return '#FF2600';
     default: return '#64748b';
   }
 }
@@ -212,7 +212,7 @@ export default function FullReportScreen() {
                 
                 <View style={styles.gradeRow}>
                   <View style={styles.statItem}>
-                    <Calendar size={18} color={colors.primary} />
+                    <Calendar size={18} color={colors.iconBlue} />
                     <Text style={styles.statLabel}>Attendance</Text>
                     <Text style={styles.statValue}>{currentMonthAttendance || 'N/A'}</Text>
                   </View>
@@ -246,7 +246,7 @@ export default function FullReportScreen() {
                   ]}>
                     <Text style={[
                       styles.goalStatusText,
-                      { color: latestProgress.goal_status === 'achieved' ? '#16a34a' : latestProgress.goal_status === 'not_done' ? '#ef4444' : '#d97706' }
+                      { color: latestProgress.goal_status === 'achieved' ? '#00F900' : latestProgress.goal_status === 'not_done' ? '#FF2600' : '#d97706' }
                     ]}>
                       {latestProgress.goal_status === 'achieved' ? 'Achieved' : latestProgress.goal_status === 'not_done' ? 'Not Done' : 'In Progress'}
                     </Text>

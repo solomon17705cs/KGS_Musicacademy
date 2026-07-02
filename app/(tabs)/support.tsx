@@ -19,7 +19,7 @@ export default function SupportScreen() {
 
   const contactInfo = [
     {
-      icon: <Mail size={24} color={colors.primary} />,
+      icon: <Mail size={24} color={colors.iconBlue} />,
       title: 'Email',
       value: 'kgsmusicacademy@gmail.com',
       action: () => Linking.openURL('mailto:kgsmusicacademy@gmail.com'),

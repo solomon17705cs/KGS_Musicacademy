@@ -24,10 +24,10 @@ function getMonthName(month: number): string {
 
 function getStatusIcon(status: string) {
   switch (status) {
-    case 'present': return <Check size={14} color="#16a34a" />;
-    case 'absent': return <X size={14} color="#dc2626" />;
+    case 'present': return <Check size={14} color="#00F900" />;
+    case 'absent': return <X size={14} color="#FF2600" />;
     case 'late': return <AlertTriangle size={14} color="#d97706" />;
-    case 'excused': return <HelpCircle size={14} color="#2563eb" />;
+    case 'excused': return <HelpCircle size={14} color="#0433FF" />;
     default: return <HelpCircle size={14} color="#94a3b8" />;
   }
 }

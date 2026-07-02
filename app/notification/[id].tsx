@@ -125,7 +125,7 @@ export default function NotificationDetailScreen() {
         <View style={styles.card}>
           <View style={styles.cardHeader}>
             <View style={styles.iconContainer}>
-              <Mail size={24} color={colors.primary} />
+              <Mail size={24} color={colors.iconBlue} />
             </View>
             <Text style={styles.title}>{notification.title}</Text>
           </View>

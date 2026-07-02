@@ -146,7 +146,7 @@ export default function NotificationsScreen() {
                 onPress={() => router.push(`/notification/${notification.id}`)}
                 activeOpacity={0.7}>
                 <View style={styles.notificationIcon}>
-                  <Mail size={20} color={!notification.read ? colors.primary : colors.textMuted} />
+                  <Mail size={20} color={!notification.read ? colors.iconBlue : colors.textMuted} />
                 </View>
                 <View style={styles.notificationContent}>
                   <Text style={[

@@ -51,7 +51,15 @@ const INSTRUMENT_IMAGES: { [key: string]: any } = {
 };
 
 function getStudentImage(instrument: string) {
-  return INSTRUMENT_IMAGES[instrument] || INSTRUMENT_IMAGES['Piano'];
+  if (!instrument) return INSTRUMENT_IMAGES['Piano'];
+  const key = Object.keys(INSTRUMENT_IMAGES).find(
+    k => k.toLowerCase() === instrument.trim().toLowerCase()
+  );
+  if (key) return INSTRUMENT_IMAGES[key];
+  const partial = Object.keys(INSTRUMENT_IMAGES).find(
+    k => instrument.toLowerCase().includes(k.toLowerCase())
+  );
+  return partial ? INSTRUMENT_IMAGES[partial] : INSTRUMENT_IMAGES['Piano'];
 }
 
 function parseDate(dateInput: any): Date {
@@ -72,12 +80,11 @@ function formatDate(dateInput: any): string {
 }
 
 function getScoreColor(score: number): string {
-  if (score >= 90) return '#34c759';
-  if (score >= 75) return '#22c55e';
+  if (score >= 75) return '#00F900';
   if (score >= 60) return '#84cc16';
   if (score >= 40) return '#f59e0b';
   if (score >= 20) return '#f97316';
-  return '#ef4444';
+  return '#FF2600';
 }
 
 function calculateRealStreak(records: ProgressRecord[]): number {
@@ -221,10 +228,10 @@ export default function ProgressScreen() {
 
   function getStatusColor(status: string) {
     switch (status) {
-      case 'excellent': return '#22c55e';
+      case 'excellent': return '#00F900';
       case 'good': return '#3b82f6';
       case 'needs_improvement': return '#f59e0b';
-      case 'struggling': return '#ef4444';
+      case 'struggling': return '#FF2600';
       default: return '#64748b';
     }
   }
@@ -283,12 +290,6 @@ export default function ProgressScreen() {
               </View>
             </TouchableOpacity>
           )}
-          <TouchableOpacity style={styles.avatarContainer} onPress={() => router.push('/(tabs)/profile')}>
-            <Image
-              source={{ uri: `https://ui-avatars.com/api/?name=${userFirstName}&background=1e40af&color=fff` }}
-              style={styles.avatarImage}
-            />
-          </TouchableOpacity>
         </View>
       </View>
 
@@ -381,7 +382,7 @@ export default function ProgressScreen() {
 
                 <View style={styles.goalSection}>
                   <View style={styles.goalHeader}>
-                    <Target size={18} color={colors.primary} />
+                    <Target size={18} color={colors.iconBlue} />
                     <Text style={styles.goalTitle}>Weekly Goal</Text>
                     <View style={[styles.goalStatusBadge, {
                       backgroundColor: selectedStudent.progress.goal_status === 'achieved' ? colors.successBg : selectedStudent.progress.goal_status === 'not_done' ? colors.errorBg : colors.warningBg,
@@ -595,7 +596,7 @@ export default function ProgressScreen() {
 
                         <View style={styles.goalSection}>
                           <View style={styles.goalHeader}>
-                            <Target size={18} color={colors.primary} />
+                            <Target size={18} color={colors.iconBlue} />
                             <Text style={styles.goalTitle}>Weekly Goal</Text>
                             <View style={[styles.goalStatusBadge, {
                               backgroundColor: student.progress.goal_status === 'achieved' ? colors.successBg : student.progress.goal_status === 'not_done' ? colors.errorBg : colors.warningBg,
@@ -704,7 +705,7 @@ function createStyles(colors: Record<string, string>) {
     avatarImage: { width: '100%', height: '100%' },
     headerRight: { flexDirection: 'row', alignItems: 'center', gap: 12 },
     iconButton: { width: 44, height: 44, borderRadius: 22, backgroundColor: colors.skeleton, alignItems: 'center', justifyContent: 'center' },
-    badge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
+    badge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#FF2600', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
     badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
     centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
     content: { flex: 1, paddingHorizontal: 24 },

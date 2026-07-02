@@ -5,7 +5,7 @@ export const lightColors = {
   headerBg: '#ffffff',
   modalBg: '#ffffff',
 
-  text: '#1e293b',
+  text: '#000000',
   textSecondary: '#64748b',
   textMuted: '#94a3b8',
   textInverse: '#ffffff',
@@ -18,11 +18,11 @@ export const lightColors = {
   primaryBg: '#eff6ff',
   primaryBorder: '#dbeafe',
 
-  success: '#16a34a',
+  success: '#00F900',
   successBg: '#f0fdf4',
   warning: '#f59e0b',
   warningBg: '#fffbeb',
-  error: '#ef4444',
+  error: '#FF2600',
   errorBg: '#fef2f2',
   errorLight: '#fee2e2',
   info: '#2563eb',
@@ -39,6 +39,8 @@ export const lightColors = {
   cardBorder: '#f1f5f9',
 
   statBg: '#f8fafc',
+
+  iconBlue: '#0433FF',
 };
 
 export const darkColors = {
@@ -61,11 +63,11 @@ export const darkColors = {
   primaryBg: '#172554',
   primaryBorder: '#1e3a5f',
 
-  success: '#22c55e',
+  success: '#00F900',
   successBg: '#052e16',
   warning: '#fbbf24',
   warningBg: '#451a03',
-  error: '#ef4444',
+  error: '#FF2600',
   errorBg: '#450a0a',
   errorLight: '#7f1d1d',
   info: '#60a5fa',
@@ -82,6 +84,8 @@ export const darkColors = {
   cardBorder: '#1a1a1a',
 
   statBg: '#0a0a0a',
+
+  iconBlue: '#0433FF',
 };
 
 export type ThemeColors = typeof lightColors;

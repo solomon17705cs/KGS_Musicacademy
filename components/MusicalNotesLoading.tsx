@@ -4,7 +4,7 @@ import { useTheme } from '@/contexts/ThemeContext';
 
 const NOTES = ['♪', '♫', '♬', '♩', '♭', '♯'];
 const LIGHT_COLORS = ['#00F900', '#0433FF', '#00FDFF', '#d97706', '#FF40FF', '#7960DF', '#0891b2', '#ca8a04', '#0096FF', '#1e40af', '#005A00'];
-const DARK_COLORS = ['#00F900', '#60a5fa', '#00FDFF', '#fbbf24', '#FF40FF', '#c084fc', '#22d3ee', '#facc15', '#0096FF', '#818cf8', '#34d399'];
+const DARK_COLORS = ['#00F900', '#60a5fa', '#00FDFF', '#fbbf24', '#FF40FF', '#c084fc', '#22d3ee', '#facc15', '#0096FF', '#818cf8', '#00F900'];
 
 interface NoteItem {
   id: number;
