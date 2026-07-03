@@ -17,6 +17,8 @@ import { studentService } from '@/lib/firestore';
 import { User, Mail, LogOut, ChevronRight, Bell, HelpCircle, Music, Award, Clock, TrendingUp, Calendar, Moon, Sun } from 'lucide-react-native';
 import MusicalNotesLoading from '@/components/MusicalNotesLoading';
 
+const APP_VERSION = require('../../package.json').version;
+
 export default function ProfileScreen() {
   const { profile, user, signOut } = useAuth();
   const { colors, isDark, toggleTheme } = useTheme();
@@ -203,7 +205,7 @@ export default function ProfileScreen() {
           <Text style={styles.logoutText}>Sign Out</Text>
         </TouchableOpacity>
 
-        <Text style={styles.versionText}>KGS Music Academy v1.0.0</Text>
+        <Text style={styles.versionText}>KGS Music Academy v{APP_VERSION}</Text>
       </ScrollView>
     </View>
   );
