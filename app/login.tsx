@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { auth } from '@/lib/firebase';
 import { sendOTPviaSMS, verifyOTPandSignIn, clearRecaptchaVerifier } from '@/lib/phoneAuth';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 import { Phone, Mail, Lock, ArrowRight } from 'lucide-react-native';
 
 type LoginMethod = 'email' | 'phone';
@@ -30,6 +31,7 @@ export default function LoginScreen() {
   const [error, setError] = useState('');
   const { signIn } = useAuth();
   const router = useRouter();
+  const bottomPadding = useBottomPadding();
 
   async function handleEmailSignIn() {
     if (!email || !password) {
@@ -162,7 +164,7 @@ export default function LoginScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}
         keyboardShouldPersistTaps="handled">
 
         <View style={styles.header}>

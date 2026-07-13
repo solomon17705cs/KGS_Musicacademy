@@ -1,7 +1,6 @@
 import { initializeApp, getApps } from 'firebase/app';
 import { getAuth, initializeAuth, getReactNativePersistence } from 'firebase/auth';
-import { getFirestore } from 'firebase/firestore';
-import { getToken, onMessage } from 'firebase/messaging';
+import { initializeFirestore, persistentLocalCache, persistentMultipleTabManager } from 'firebase/firestore';
 import { Platform } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 
@@ -27,7 +26,14 @@ if (Platform.OS === 'web') {
 }
 
 export { auth };
-export const db = getFirestore(app);
+export const db = Platform.OS === 'web'
+  ? initializeFirestore(app, {
+      localCache: persistentLocalCache({
+        tabManager: persistentMultipleTabManager(),
+      }),
+    })
+  : initializeFirestore(app, {});
+
 export default app;
 
 let messagingInstance: any = null;
@@ -51,7 +57,8 @@ export async function requestPushToken(): Promise<string | null> {
   try {
     const messaging = await getMessagingInstance();
     if (!messaging) return null;
-    
+
+    const { getToken } = await import('firebase/messaging');
     const vapidKey = process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_VAPID_KEY;
     const token = await getToken(messaging, { vapidKey });
     return token;
@@ -62,8 +69,9 @@ export async function requestPushToken(): Promise<string | null> {
 }
 
 export function onForegroundMessage(callback: (payload: any) => void) {
-  getMessagingInstance().then(messaging => {
+  getMessagingInstance().then(async messaging => {
     if (messaging) {
+      const { onMessage } = await import('firebase/messaging');
       onMessage(messaging, callback);
     }
   });

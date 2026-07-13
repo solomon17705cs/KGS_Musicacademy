@@ -14,6 +14,7 @@ import {
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { auth } from '@/lib/firebase';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 
 export default function ForgotPasswordScreen() {
   const [email, setEmail] = useState('');
@@ -21,6 +22,7 @@ export default function ForgotPasswordScreen() {
   const [sent, setSent] = useState(false);
   const [error, setError] = useState('');
   const router = useRouter();
+  const bottomPadding = useBottomPadding();
 
   async function handleResetPassword() {
     if (!email) {
@@ -59,7 +61,7 @@ export default function ForgotPasswordScreen() {
       behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
       style={styles.container}>
       <ScrollView
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}
         keyboardShouldPersistTaps="handled">
         <View style={styles.header}>
           <Image

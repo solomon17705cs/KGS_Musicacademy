@@ -1,29 +1,71 @@
-const OPENROUTER_API_KEY = process.env.EXPO_PUBLIC_OPENROUTER_API_KEY || '';
+import { doc, getDoc } from 'firebase/firestore';
+import { db } from './firebase';
+
 const OPENROUTER_URL = 'https://openrouter.ai/api/v1/chat/completions';
+let cachedApiKey: string | null = null;
+let keyFetchPromise: Promise<string | null> | null = null;
 
-const AI_PROMPT_TEMPLATE = `You are a friendly and professional music teacher assistant helping write student progress reports for an offline music class.
+async function getApiKey(): Promise<string> {
+  if (cachedApiKey) return cachedApiKey;
+  if (keyFetchPromise) return keyFetchPromise;
 
-Your job is to take short keywords or rough notes from the teacher and convert them into a warm, clear, and encouraging paragraph that parents can easily understand.
+  const envFallback = process.env.EXPO_PUBLIC_OPENROUTER_API_KEY || '';
+  if (envFallback) {
+    cachedApiKey = envFallback;
+    return cachedApiKey;
+  }
 
-Rules:
-- Write in simple English — parents may not have music knowledge
-- Keep it between 4–6 sentences
-- Always mention at least one positive thing
-- Be honest but kind about areas to improve
-- End with a motivating line or home practice suggestion
-- Do NOT use technical jargon unless you explain it simply
-- Tone should be warm, like a teacher talking to a parent in person
-- Do not use bullet points — write as a flowing paragraph only
-- Use the student's gender to choose correct pronouns: use "he/him" for male, "she/her" for female, and "they/them" when gender is not specified
+  keyFetchPromise = (async () => {
+    try {
+      const snap = await getDoc(doc(db, 'config', 'ai'));
+      cachedApiKey = snap.data()?.openrouterApiKey || '';
+      if (!cachedApiKey) console.warn('[AI] Firestore doc config/ai has no openrouterApiKey field');
+    } catch (err) {
+      console.error('[AI] Firestore read failed:', err);
+      cachedApiKey = '';
+    }
+    keyFetchPromise = null;
+    return cachedApiKey;
+  })();
+
+  return keyFetchPromise;
+}
+
+const AI_PROMPT_TEMPLATE = `You are a warm, professional music teacher's assistant writing weekly progress notes for parents at a music academy.
+
+Convert the teacher's short keywords/tags into a natural paragraph for the parent. Follow these rules strictly:
+
+STRUCTURE (in this order):
+1. One specific observation about what the student worked on or did well
+   (use the topics/strengths given — be concrete, not generic)
+2. An effort/improvement note, if strengths are mentioned — acknowledge
+   practice or progress, not just describe the skill
+3. If "needs work" items are given, frame them as normal/expected for
+   this stage, never as a deficiency or criticism
+4. End with one forward-looking line — what's next, or a simple home
+   practice tip
+
+RULES:
+- Write in plain, simple English a parent with no music background
+  can understand
+- 3-5 sentences total
+- Never use the exact same opening phrase as a generic template —
+  vary structure based on the actual input given
+- Never compare the student to other students or siblings
+- If gender is provided, use the correct pronoun naturally; otherwise
+  use the student's name instead of a pronoun
+- Do not invent specific achievements not implied by the input —
+  only elaborate on what's given
+- Tone: warm, honest, like a teacher who knows this specific child,
+  not a corporate report
 
 Student Name: {studentName}
-Student Gender: {gender}
-Class Date: {date}
+Date: {date}
 Topics Covered: {topicsCovered}
-Overall Performance Rating: {rating} out of 5
-Teacher's Notes (raw keywords): {teacherNotes}
+Overall Rating: {rating}/5
+Teacher's Tags/Notes: {teacherNotes}
 
-Write the progress report paragraph now:`;
+Write the progress note now, as a single paragraph:`;
 
 export interface AIReportParams {
   studentName: string;
@@ -43,16 +85,19 @@ export async function generateProgressReport(params: AIReportParams): Promise<st
     .replace('{rating}', String(params.rating))
     .replace('{teacherNotes}', params.teacherNotes);
 
+  const apiKey = await getApiKey();
+  if (!apiKey) throw new Error('AI API key not configured. Add it to Firestore: config/ai → openrouterApiKey');
+
   const response = await fetch(OPENROUTER_URL, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `Bearer ${OPENROUTER_API_KEY}`,
+      'Authorization': `Bearer ${apiKey}`,
       'HTTP-Referer': 'https://kgs-music-academy.app',
       'X-Title': 'KGS Music Academy',
     },
     body: JSON.stringify({
-      model: 'z-ai/glm-4.5-air:free',
+      model: 'deepseek/deepseek-chat-v3.1',
       messages: [
         { role: 'user', content: prompt },
       ],

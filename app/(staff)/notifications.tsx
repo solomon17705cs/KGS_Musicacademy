@@ -15,6 +15,7 @@ import { useRouter } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
 import { sendBroadcastNotification } from '@/lib/notifications';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 import { ArrowLeft, Send, Users, Bell } from 'lucide-react-native';
 
 export default function AdminNotificationsScreen() {
@@ -27,6 +28,7 @@ export default function AdminNotificationsScreen() {
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const insets = useSafeAreaInsets();
+  const bottomPadding = useBottomPadding();
 
   async function handleSendNotification() {
     if (!title.trim() || !message.trim()) {
@@ -71,7 +73,7 @@ export default function AdminNotificationsScreen() {
       <KeyboardAvoidingView
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         style={styles.formContainer}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+        <ScrollView contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}>
           {error ? (
             <View style={styles.errorContainer}>
               <Text style={styles.errorText}>{error}</Text>

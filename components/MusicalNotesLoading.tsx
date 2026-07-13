@@ -1,8 +1,10 @@
-import React, { useEffect, useRef, useState, useCallback } from 'react';
+import React, { useEffect, useRef, useState, useCallback, useMemo } from 'react';
 import { View, Animated, StyleSheet, Text, LayoutChangeEvent } from 'react-native';
+import { useTheme } from '@/contexts/ThemeContext';
 
 const NOTES = ['♪', '♫', '♬', '♩', '♭', '♯'];
-const COLORS = ['#00F900', '#0433FF', '#00FDFF', '#d97706', '#FF40FF', '#7960DF', '#0891b2', '#ca8a04', '#0096FF', '#000000', '#005A00'];
+const LIGHT_COLORS = ['#00F900', '#0433FF', '#00FDFF', '#d97706', '#FF40FF', '#7960DF', '#0891b2', '#ca8a04', '#0096FF', '#1e40af', '#005A00'];
+const DARK_COLORS = ['#00F900', '#60a5fa', '#00FDFF', '#fbbf24', '#FF40FF', '#c084fc', '#22d3ee', '#facc15', '#0096FF', '#818cf8', '#00F900'];
 
 interface NoteItem {
   id: number;
@@ -23,10 +25,13 @@ interface Props {
 }
 
 export default function MusicalNotesLoading({ text = 'Loading...' }: Props) {
+  const { colors, isDark } = useTheme();
+  const noteColors = useMemo(() => isDark ? DARK_COLORS : LIGHT_COLORS, [isDark]);
+  const styles = useMemo(() => createStyles(colors), [colors]);
   const [width, setWidth] = useState(0);
   const [noteItems, setNoteItems] = useState<NoteItem[]>([]);
   const counterRef = useRef(0);
-  const intervalRef = useRef<ReturnType<typeof setInterval>>();
+  const intervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   function onLayout(e: LayoutChangeEvent) {
     const w = e.nativeEvent.layout.width;
@@ -43,10 +48,10 @@ export default function MusicalNotesLoading({ text = 'Loading...' }: Props) {
     const item: NoteItem = {
       id,
       note: NOTES[id % NOTES.length],
-      color: COLORS[id % COLORS.length],
+      color: noteColors[id % noteColors.length],
       size: 14 + Math.random() * 10,
       opacity: 0.3 + Math.random() * 0.5,
-      duration: 3000 + Math.random() * 4000,
+      duration: 1500 + Math.random() * 2000,
       sway: -20 + Math.random() * 40,
       x: width * 0.05 + Math.random() * width * 0.9,
       animY, animX, animO,
@@ -80,10 +85,10 @@ export default function MusicalNotesLoading({ text = 'Loading...' }: Props) {
 
     const initialTimers: ReturnType<typeof setTimeout>[] = [];
     for (let i = 0; i < 6; i++) {
-      initialTimers.push(setTimeout(spawnNote, i * 400));
+      initialTimers.push(setTimeout(spawnNote, i * 200));
     }
 
-    intervalRef.current = setInterval(spawnNote, 600);
+    intervalRef.current = setInterval(spawnNote, 300);
 
     return () => {
       initialTimers.forEach(clearTimeout);
@@ -132,28 +137,30 @@ export default function MusicalNotesLoading({ text = 'Loading...' }: Props) {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    backgroundColor: '#fff',
-  },
-  notesContainer: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: 'center',
-  },
-  note: {
-    position: 'absolute',
-    bottom: '50%',
-    color: '#1e40af',
-    fontWeight: '400',
+function createStyles(colors: Record<string, string>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      justifyContent: 'center',
+      alignItems: 'center',
+      backgroundColor: colors.background,
+    },
+    notesContainer: {
+      ...StyleSheet.absoluteFillObject,
+      justifyContent: 'center',
+    },
+    note: {
+      position: 'absolute',
+      bottom: '50%',
+      color: colors.primary,
+      fontWeight: '400',
 
-  },
-  text: {
-    marginTop: 80,
-    fontSize: 15,
-    color: '#64748b',
-    fontWeight: '500',
-  },
-});
+    },
+    text: {
+      marginTop: 80,
+      fontSize: 15,
+      color: colors.textSecondary,
+      fontWeight: '500',
+    },
+  });
+}

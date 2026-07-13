@@ -16,4 +16,4 @@ dist/
 # Electron builder output
 release/
 /.expo
-/ios
+/dist

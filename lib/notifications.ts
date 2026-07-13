@@ -1,5 +1,5 @@
 import { Platform } from 'react-native';
-import { requestPushToken, onForegroundMessage } from './firebase';
+import { onForegroundMessage } from './firebase';
 import { profileService, notificationService, pushTokenService } from './firestore';
 
 let Notifications: any = null;
@@ -20,6 +20,18 @@ try {
   });
 } catch (e) {
   console.log('expo-notifications not available in Expo Go');
+}
+
+async function ensureAndroidChannel() {
+  if (Platform.OS === 'android' && Notifications) {
+    await Notifications.setNotificationChannelAsync('default', {
+      name: 'Default',
+      importance: Notifications.AndroidImportance.MAX,
+      vibrationPattern: [0, 250, 250, 250],
+      lightColor: '#1e40af',
+      sound: 'default',
+    });
+  }
 }
 
 export async function registerForPushNotifications(): Promise<string | null> {
@@ -47,16 +59,11 @@ export async function registerForPushNotifications(): Promise<string | null> {
       return null;
     }
 
-    if (Platform.OS === 'android') {
-      await Notifications.setNotificationChannelAsync('default', {
-        name: 'default',
-        importance: Notifications.AndroidImportance.MAX,
-        vibrationPattern: [0, 250, 250, 250],
-        lightColor: '#1e40af',
-      });
-    }
+    await ensureAndroidChannel();
 
-    const expoPushToken = await Notifications.getExpoPushTokenAsync();
+    const expoPushToken = await Notifications.getExpoPushTokenAsync({
+      projectId: 'bfd160cc-5071-4f86-93b6-dec7d9a291a0',
+    });
     return expoPushToken.data;
   } catch (e) {
     console.log('Failed to register for push notifications:', e);
@@ -97,43 +104,52 @@ export function addNotificationResponseReceivedListener(
 }
 
 export async function initializePushNotifications(userId: string): Promise<string | null> {
+  console.log('[Push] Starting initialization for user:', userId);
+
   if (!Notifications || !Device) {
-    console.log('Push notifications require a development build');
+    console.log('[Push] ❌ Notifications module not available');
     return null;
   }
 
   if (!Device.isDevice) {
-    console.log('Push notifications require a physical device');
+    console.log('[Push] ❌ Not a physical device');
     return null;
   }
 
   try {
     const { status } = await Notifications.requestPermissionsAsync();
+    console.log('[Push] Permission status:', status);
     if (status !== 'granted') {
-      console.log('Notification permission not granted');
+      console.log('[Push] ❌ Permission not granted');
       return null;
     }
 
-    const fcmToken = await requestPushToken();
-    if (fcmToken) {
-      await pushTokenService.saveToken(userId, fcmToken, 'fcm');
+    if (Platform.OS === 'android') {
+      await Notifications.setNotificationChannelAsync('default', {
+        name: 'Default',
+        importance: Notifications.AndroidImportance.MAX,
+        vibrationPattern: [0, 250, 250, 250],
+        lightColor: '#1e40af',
+        sound: 'default',
+      });
+      console.log('[Push] ✅ Android channel created');
     }
 
-    let expoToken: string | null = null;
-    try {
-      const result = await Notifications.getExpoPushTokenAsync();
-      expoToken = result?.data || null;
-      if (expoToken) {
-        await pushTokenService.saveToken(userId, expoToken, 'expo');
-      }
-    } catch (e) {
-      console.log('Expo push token not available:', e);
+    const result = await Notifications.getExpoPushTokenAsync({
+      projectId: 'bfd160cc-5071-4f86-93b6-dec7d9a291a0',
+    });
+    const expoToken = result?.data || null;
+    console.log('[Push] Expo token:', expoToken);
+
+    if (expoToken) {
+      await pushTokenService.saveToken(userId, expoToken, 'expo');
+      console.log('[Push] ✅ Token saved to Firestore');
     }
 
-    console.log('Push tokens saved for user:', userId);
-    return expoToken || fcmToken;
+    console.log('[Push] ✅ Initialized for user:', userId);
+    return expoToken;
   } catch (e) {
-    console.log('Failed to initialize push notifications:', e);
+    console.log('[Push] ❌ Error:', e);
     return null;
   }
 }
@@ -163,24 +179,54 @@ export async function sendProgressNotification(
   staffName: string,
   instrument: string
 ): Promise<void> {
+  console.log('[Push] 🚀 sendProgressNotification called for:', student?.full_name);
   try {
-    const parentEmails = new Set<string>();
-    if (student.father_email) parentEmails.add(student.father_email.toLowerCase().trim());
-    if (student.mother_email) parentEmails.add(student.mother_email.toLowerCase().trim());
+    const parentIds = new Set<string>();
+    const parentLookups: Promise<{ id: string; pushEnabled: boolean } | null>[] = [];
 
-    if (parentEmails.size === 0) return;
+    if (student.father_email) {
+      parentLookups.push(
+        profileService.getProfileByEmail(student.father_email.toLowerCase().trim())
+          .then(p => p ? { id: p.id, pushEnabled: p.notification_settings?.push_enabled ?? false } : null)
+      );
+    }
+    if (student.mother_email) {
+      parentLookups.push(
+        profileService.getProfileByEmail(student.mother_email.toLowerCase().trim())
+          .then(p => p ? { id: p.id, pushEnabled: p.notification_settings?.push_enabled ?? false } : null)
+      );
+    }
+    if (student.father_phone) {
+      parentLookups.push(
+        profileService.getProfileByPhone(student.father_phone)
+          .then(p => p ? { id: p.id, pushEnabled: p.notification_settings?.push_enabled ?? false } : null)
+      );
+    }
+    if (student.mother_phone) {
+      parentLookups.push(
+        profileService.getProfileByPhone(student.mother_phone)
+          .then(p => p ? { id: p.id, pushEnabled: p.notification_settings?.push_enabled ?? false } : null)
+      );
+    }
+
+    const results = await Promise.all(parentLookups);
+    const parentProfiles = results.filter(Boolean) as { id: string; pushEnabled: boolean }[];
+
+    if (parentProfiles.length === 0) {
+      console.log('[Push] ❌ No parent profiles found for student:', student.full_name);
+      return;
+    }
 
     const title = `Progress Updated - ${student.full_name}`;
     const body = `${student.full_name}'s ${instrument} progress has been updated by ${staffName}. Check the app for details.`;
 
-    for (const email of parentEmails) {
-      const parentProfile = await profileService.getProfileByEmail(email);
-      if (!parentProfile) continue;
-
-      const pushEnabled = parentProfile.notification_settings?.push_enabled ?? false;
+    for (const { id: parentId, pushEnabled } of parentProfiles) {
+      if (parentIds.has(parentId)) continue;
+      parentIds.add(parentId);
+      console.log('[Push] Parent ID:', parentId, 'Push enabled:', pushEnabled);
 
       await notificationService.createNotification({
-        userId: parentProfile.id,
+        userId: parentId,
         title,
         body,
         data: { studentId: student.id, type: 'progress_update' },
@@ -189,19 +235,37 @@ export async function sendProgressNotification(
 
       if (pushEnabled) {
         try {
-          const tokens = await pushTokenService.getTokensByUser(parentProfile.id);
-          for (const token of tokens) {
-            fetch('https://exp.host/--/api/v2/push/send', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                to: token,
-                title,
-                body,
-                data: { studentId: student.id, type: 'progress_update' },
-              }),
-            }).catch(() => {});
-          }
+          const tokens = await pushTokenService.getTokensByUser(parentId);
+          console.log('[Push] Tokens for parent', parentId, ':', tokens);
+
+          const expoTokens = tokens.filter(t => t.startsWith('ExponentPushToken'));
+          console.log('[Push] Sending to', expoTokens.length, 'Expo tokens');
+
+          const results = await Promise.allSettled(
+            expoTokens.map(token => {
+              console.log('[Push] 📤 Sending to Expo API:', { to: token, title, body });
+              return fetch('https://exp.host/--/api/v2/push/send', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  to: token,
+                  title,
+                  body,
+                  data: { studentId: student.id, type: 'progress_update' },
+                  sound: 'default',
+                  priority: 'high',
+                  channelId: 'default',
+                }),
+              })
+            })
+          );
+          results.forEach((r, i) => {
+            if (r.status === 'rejected') {
+              console.log('[Push] ❌ Send failed for token', i, ':', r.reason);
+            } else {
+              console.log('[Push] ✅ Send result for token', i, ':', r.value.status);
+            }
+          });
         } catch (pushErr) {
           console.log('Failed to send push notification:', pushErr);
         }
@@ -210,4 +274,49 @@ export async function sendProgressNotification(
   } catch (e) {
     console.log('Failed to send progress notification:', e);
   }
+}
+
+export async function sendBroadcastNotification(
+  title: string,
+  body: string,
+  targetRole?: string
+): Promise<void> {
+  const profiles = await profileService.getAllProfiles();
+
+  const filtered = targetRole
+    ? profiles.filter(p => p.role === targetRole)
+    : profiles;
+
+  await Promise.allSettled(
+    filtered.map(async profile => {
+      await notificationService.createNotification({
+        userId: profile.id,
+        title,
+        body,
+        data: { type: 'broadcast' },
+        read: false,
+      });
+
+      const tokens = await pushTokenService.getTokensByUser(profile.id);
+      await Promise.allSettled(
+        tokens
+          .filter(t => t.startsWith('ExponentPushToken'))
+          .map(token =>
+            fetch('https://exp.host/--/api/v2/push/send', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({
+                to: token,
+                title,
+                body,
+                data: { type: 'broadcast' },
+                sound: 'default',
+                priority: 'high',
+                channelId: 'default',
+              }),
+            })
+          )
+      );
+    })
+  );
 }

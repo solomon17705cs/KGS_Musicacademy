@@ -14,7 +14,8 @@
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kgsmusicacademy.musicapp"
     },
     "android": {
       "package": "com.kgsmusicacademy.musicapp",
@@ -49,6 +50,12 @@
     ],
     "experiments": {
       "typedRoutes": true
-    }
+    },
+    "extra": {
+      "eas": {
+        "projectId": "bfd160cc-5071-4f86-93b6-dec7d9a291a0"
+      }
+    },
+    "owner": "solomon17705"
   }
 }

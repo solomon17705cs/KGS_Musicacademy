@@ -78,6 +78,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               email: firebaseUser.email.toLowerCase(),
               full_name: parentName,
               role: 'parent',
+              notification_settings: { push_enabled: true },
             });
             userProfile = await profileService.getProfile(firebaseUser.uid);
           }
@@ -93,12 +94,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             full_name: parentName,
             role: 'parent',
             phone: firebaseUser.phoneNumber,
+            notification_settings: { push_enabled: true },
           });
           userProfile = await profileService.getProfile(firebaseUser.uid);
         }
 
         setProfile(userProfile);
         await cacheProfile(userProfile);
+
+        initializePushNotifications(firebaseUser.uid).catch(err =>
+          console.log('[Push] Failed to init on auth state change:', err)
+        );
       } else {
         setProfile(null);
         await cacheProfile(null);
@@ -113,7 +119,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     try {
       const result = await signInWithEmailAndPassword(auth, email, password);
       if (result.user) {
-        initializePushNotifications(result.user.uid);
+        initializePushNotifications(result.user.uid).catch(err =>
+          console.log('[Push] Failed to init after login:', err)
+        );
       }
       return { error: null };
     } catch (error) {
@@ -134,6 +142,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         email,
         full_name: fullName,
         role,
+        notification_settings: { push_enabled: true },
       });
 
       return { error: null };

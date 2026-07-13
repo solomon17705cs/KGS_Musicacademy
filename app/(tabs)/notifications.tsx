@@ -1,15 +1,16 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
-  StyleSheet,
   ScrollView,
   TouchableOpacity,
   RefreshControl,
+  StyleSheet,
 } from 'react-native';
 import { useRouter, useFocusEffect } from 'expo-router';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from '@/contexts/ThemeContext';
 import { notificationService, studentService } from '@/lib/firestore';
 import { Notification } from '@/types/database';
 import { ArrowLeft, Bell, BellOff, Mail, Clock } from 'lucide-react-native';
@@ -28,6 +29,7 @@ function parseDate(dateInput: any): Date {
 export default function NotificationsScreen() {
   const router = useRouter();
   const { profile, user } = useAuth();
+  const { colors } = useTheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -92,6 +94,8 @@ export default function NotificationsScreen() {
     return `${diffDays}d ago`;
   }
 
+  const styles = useMemo(() => createStyles(colors), [colors]);
+
   if (loading) {
     return <MusicalNotesLoading text="Loading notifications..." />;
   }
@@ -102,7 +106,7 @@ export default function NotificationsScreen() {
         <TouchableOpacity
           style={styles.backButton}
           onPress={() => router.back()}>
-          <ArrowLeft size={24} color="#1e293b" />
+          <ArrowLeft size={24} color={colors.text} />
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Notifications</Text>
@@ -113,18 +117,18 @@ export default function NotificationsScreen() {
         <TouchableOpacity
           style={styles.settingsButton}
           onPress={() => router.push('/notification-manage')}>
-          <BellOff size={24} color="#64748b" />
+          <BellOff size={24} color={colors.textSecondary} />
         </TouchableOpacity>
       </View>
 
       <ScrollView
         style={styles.content}
         refreshControl={
-          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+          <RefreshControl refreshing={refreshing} tintColor={colors.primary} colors={[colors.primary]} onRefresh={onRefresh} />
         }>
         {notifications.length === 0 ? (
           <View style={styles.emptyContainer}>
-            <Bell size={64} color="#cbd5e1" />
+            <Bell size={64} color={colors.textMuted} />
             <Text style={styles.emptyTitle}>No Notifications</Text>
             <Text style={styles.emptyText}>
               Your notifications will appear here
@@ -142,7 +146,7 @@ export default function NotificationsScreen() {
                 onPress={() => router.push(`/notification/${notification.id}`)}
                 activeOpacity={0.7}>
                 <View style={styles.notificationIcon}>
-                  <Mail size={20} color={!notification.read ? '#1e40af' : '#94a3b8'} />
+                  <Mail size={20} color={!notification.read ? colors.iconBlue : colors.textMuted} />
                 </View>
                 <View style={styles.notificationContent}>
                   <Text style={[
@@ -155,7 +159,7 @@ export default function NotificationsScreen() {
                     {notification.body}
                   </Text>
                   <View style={styles.notificationFooter}>
-                    <Clock size={12} color="#94a3b8" />
+                    <Clock size={12} color={colors.textMuted} />
                     <Text style={styles.notificationTime}>
                       {getTimeAgo(notification.sent_at)}
                     </Text>
@@ -171,133 +175,135 @@ export default function NotificationsScreen() {
   );
 }
 
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: '#f8fafc',
-  },
-  header: {
-    backgroundColor: '#fff',
-    paddingTop: 0,
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-    borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0',
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 16,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  settingsButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  headerContent: {
-    flex: 1,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: '700',
-    color: '#1e293b',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  content: {
-    flex: 1,
-  },
-  emptyContainer: {
-    alignItems: 'center',
-    padding: 48,
-    marginTop: 48,
-  },
-  emptyTitle: {
-    fontSize: 20,
-    fontWeight: '600',
-    color: '#334155',
-    marginTop: 16,
-  },
-  emptyText: {
-    fontSize: 14,
-    color: '#64748b',
-    textAlign: 'center',
-    marginTop: 8,
-  },
-  notificationsList: {
-    padding: 16,
-    gap: 12,
-  },
-  notificationCard: {
-    backgroundColor: '#fff',
-    borderRadius: 12,
-    padding: 16,
-    flexDirection: 'row',
-    gap: 12,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 1 },
-    shadowOpacity: 0.05,
-    shadowRadius: 3,
-    elevation: 1,
-  },
-  unreadCard: {
-    backgroundColor: '#eff6ff',
-    borderLeftWidth: 3,
-    borderLeftColor: '#1e40af',
-  },
-  notificationIcon: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  notificationContent: {
-    flex: 1,
-  },
-  notificationTitle: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: '#334155',
-    marginBottom: 4,
-  },
-  unreadTitle: {
-    color: '#1e40af',
-    fontWeight: '700',
-  },
-  notificationBody: {
-    fontSize: 13,
-    color: '#64748b',
-    marginBottom: 8,
-    lineHeight: 18,
-  },
-  notificationFooter: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 4,
-  },
-  notificationTime: {
-    fontSize: 11,
-    color: '#94a3b8',
-  },
-  unreadDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-    backgroundColor: '#1e40af',
-    alignSelf: 'center',
-  },
-});
+function createStyles(colors: Record<string, string>) {
+  return StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: colors.background,
+    },
+    header: {
+      backgroundColor: colors.headerBg,
+      paddingTop: 0,
+      paddingHorizontal: 20,
+      paddingBottom: 20,
+      borderBottomWidth: 1,
+      borderBottomColor: colors.border,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 16,
+    },
+    backButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.iconBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    settingsButton: {
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: colors.iconBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    headerContent: {
+      flex: 1,
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    headerSubtitle: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      marginTop: 2,
+    },
+    content: {
+      flex: 1,
+    },
+    emptyContainer: {
+      alignItems: 'center',
+      padding: 48,
+      marginTop: 48,
+    },
+    emptyTitle: {
+      fontSize: 20,
+      fontWeight: '600',
+      color: colors.text,
+      marginTop: 16,
+    },
+    emptyText: {
+      fontSize: 14,
+      color: colors.textSecondary,
+      textAlign: 'center',
+      marginTop: 8,
+    },
+    notificationsList: {
+      padding: 16,
+      gap: 12,
+    },
+    notificationCard: {
+      backgroundColor: colors.card,
+      borderRadius: 12,
+      padding: 16,
+      flexDirection: 'row',
+      gap: 12,
+      shadowColor: colors.shadow,
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.05,
+      shadowRadius: 3,
+      elevation: 1,
+    },
+    unreadCard: {
+      backgroundColor: colors.primaryBg,
+      borderLeftWidth: 3,
+      borderLeftColor: colors.primary,
+    },
+    notificationIcon: {
+      width: 40,
+      height: 40,
+      borderRadius: 10,
+      backgroundColor: colors.iconBg,
+      alignItems: 'center',
+      justifyContent: 'center',
+    },
+    notificationContent: {
+      flex: 1,
+    },
+    notificationTitle: {
+      fontSize: 15,
+      fontWeight: '600',
+      color: colors.text,
+      marginBottom: 4,
+    },
+    unreadTitle: {
+      color: colors.primary,
+      fontWeight: '700',
+    },
+    notificationBody: {
+      fontSize: 13,
+      color: colors.textSecondary,
+      marginBottom: 8,
+      lineHeight: 18,
+    },
+    notificationFooter: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+    },
+    notificationTime: {
+      fontSize: 11,
+      color: colors.textMuted,
+    },
+    unreadDot: {
+      width: 8,
+      height: 8,
+      borderRadius: 4,
+      backgroundColor: colors.primary,
+      alignSelf: 'center',
+    },
+  });
+}
