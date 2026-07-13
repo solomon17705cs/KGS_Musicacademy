@@ -58,7 +58,7 @@ export default function FeePaymentsScreen() {
   }, [viewMonth]);
 
   useEffect(() => {
-    if (!editModal) return;
+    if (!editModal || Platform.OS !== 'web') return;
     const handler = (e: KeyboardEvent) => {
       if (e.key === 'Escape') setEditModal(false);
     };
@@ -81,7 +81,7 @@ export default function FeePaymentsScreen() {
     }
   }
 
-  function getPaymentForStudent(student: Student): FeePayment | undefined {
+  function getPaymentForStudent(student: Student): FeePayment {
     const payment = payments.find(p => p.student_id === student.id && p.month === currentMonth + 1 && p.year === currentYear);
     if (!payment) {
       return {
