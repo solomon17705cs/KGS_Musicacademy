@@ -1,55 +1,11 @@
 import { Tabs } from 'expo-router';
-import { User, Bell } from 'lucide-react-native';
+import { User, Award } from 'lucide-react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
-import { Platform, useWindowDimensions, View, Text, StyleSheet } from 'react-native';
-import { useEffect, useState, useCallback } from 'react';
-import { useFocusEffect } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
-import { notificationService } from '@/lib/firestore';
-import { useBottomPadding } from '@/hooks/useBottomPadding';
-
-function NotificationIcon({ color, size }: { color: string; size: number }) {
-  const { user } = useAuth();
-  const [unreadCount, setUnreadCount] = useState(0);
-
-  const loadCount = useCallback(() => {
-    if (!user) return;
-    notificationService.getUserNotifications(user.uid).then(notifications => {
-      setUnreadCount(notifications.filter(n => !n.read).length);
-    });
-  }, [user]);
-
-  useEffect(() => {
-    loadCount();
-  }, [loadCount]);
-
-  useFocusEffect(
-    useCallback(() => {
-      loadCount();
-    }, [loadCount])
-  );
-
-  return (
-    <View>
-      <Bell size={size} color={color} />
-      {unreadCount > 0 && (
-        <View style={styles.badge}>
-          <Text style={styles.badgeText}>{unreadCount > 9 ? '9+' : unreadCount}</Text>
-        </View>
-      )}
-    </View>
-  );
-}
-
-const styles = StyleSheet.create({
-  badge: { position: 'absolute', top: -6, right: -8, backgroundColor: '#ef4444', borderRadius: 10, minWidth: 18, height: 18, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 3 },
-  badgeText: { color: '#fff', fontSize: 9, fontWeight: '700' },
-});
+import { Platform, useWindowDimensions } from 'react-native';
 
 export default function TabLayout() {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
-  const bottomPadding = useBottomPadding();
 
   return (
     <Tabs
@@ -64,14 +20,14 @@ export default function TabLayout() {
           bottom: isMobile ? 0 : 24,
           left: isMobile ? 0 : 24,
           right: isMobile ? 0 : 24,
-          height: isMobile ? (bottomPadding ? 70 + bottomPadding : 70) : 80,
+          height: isMobile ? 70 : 80,
           borderTopLeftRadius: 0,
           borderTopRightRadius: 0,
           borderBottomLeftRadius: 0,
           borderBottomRightRadius: 0,
           borderTopWidth: 0,
           borderTopColor: '#1e293b',
-          paddingBottom: Platform.OS === 'ios' ? 20 : bottomPadding || 8,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
           paddingTop: 8,
           elevation: 10,
           shadowColor: '#000',
@@ -95,10 +51,10 @@ export default function TabLayout() {
         }}
       />
       <Tabs.Screen
-        name="notifications"
+        name="milestones"
         options={{
-          title: 'Notifications',
-          tabBarIcon: ({ size, color }) => <NotificationIcon color={color} size={size} />,
+          title: 'Milestones',
+          tabBarIcon: ({ size, color }) => <Award size={size} color={color} />,
         }}
       />
       <Tabs.Screen
@@ -110,13 +66,6 @@ export default function TabLayout() {
       />
       <Tabs.Screen
         name="support"
-        options={{
-          href: null,
-          tabBarStyle: { display: 'none' },
-        }}
-      />
-      <Tabs.Screen
-        name="student-attendance"
         options={{
           href: null,
           tabBarStyle: { display: 'none' },
