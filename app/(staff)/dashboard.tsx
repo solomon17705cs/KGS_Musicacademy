@@ -25,6 +25,7 @@ import {
   Search,
   Layers,
   DollarSign,
+  Users,
 } from 'lucide-react-native';
 
 export default function StaffDashboard() {

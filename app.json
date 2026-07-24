@@ -32,7 +32,12 @@
     "web": {
       "bundler": "metro",
       "output": "single",
-      "favicon": "./assets/images/favicon.png"
+      "favicon": "./assets/images/favicon.png",
+      "name": "KGS Music Academy",
+      "shortName": "KGS Music",
+      "description": "Music school management app",
+      "backgroundColor": "#ffffff",
+      "themeColor": "#1e40af"
     },
     "plugins": [
       "expo-router",
