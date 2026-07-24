@@ -46,7 +46,7 @@ export default function TabLayout() {
         options={{
           title: 'Progress',
           tabBarIcon: ({ size, color }) => (
-            <MaterialCommunityIcons name="music-clef-treble" size={size * 1.3} color={color} />
+            <MaterialCommunityIcons name="music-clef-treble" size={size} color={color} />
           ),
         }}
       />

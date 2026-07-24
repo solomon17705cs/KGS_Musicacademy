@@ -1,33 +1,39 @@
-import { Link, Stack } from 'expo-router';
-import { StyleSheet, Text, View } from 'react-native';
+import { useEffect } from 'react';
+import { View, ActivityIndicator, StyleSheet } from 'react-native';
+import { useRouter } from 'expo-router';
+import { useAuth } from '@/contexts/AuthContext';
 
 export default function NotFoundScreen() {
+  const router = useRouter();
+  const { user, profile, loading } = useAuth();
+
+  useEffect(() => {
+    if (loading) return;
+    if (user && profile) {
+      if (profile.role === 'admin') {
+        router.replace('/(admin)/dashboard');
+      } else if (profile.role === 'staff') {
+        router.replace('/(staff)/dashboard');
+      } else {
+        router.replace('/(tabs)/progress');
+      }
+    } else {
+      router.replace('/login');
+    }
+  }, [user, profile, loading]);
+
   return (
-    <>
-      <Stack.Screen options={{ title: 'Oops!' }} />
-      <View style={styles.container}>
-        <Text style={styles.text}>This screen doesn't exist.</Text>
-        <Link href="/" style={styles.link}>
-          <Text>Go to home screen!</Text>
-        </Link>
-      </View>
-    </>
+    <View style={styles.container}>
+      <ActivityIndicator size="large" color="#1e40af" />
+    </View>
   );
 }
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    alignItems: 'center',
     justifyContent: 'center',
-    padding: 20,
-  },
-  text: {
-    fontSize: 20,
-    fontWeight: 600,
-  },
-  link: {
-    marginTop: 15,
-    paddingVertical: 15,
+    alignItems: 'center',
+    backgroundColor: '#f8fafc',
   },
 });

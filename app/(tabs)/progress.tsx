@@ -708,7 +708,7 @@ function createStyles(colors: Record<string, string>) {
     badge: { position: 'absolute', top: -4, right: -4, backgroundColor: '#FF2600', borderRadius: 10, minWidth: 20, height: 20, alignItems: 'center', justifyContent: 'center', paddingHorizontal: 4 },
     badgeText: { color: '#fff', fontSize: 10, fontWeight: '700' },
     centerContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: colors.background },
-    content: { flex: 1, paddingHorizontal: 24 },
+    content: { flex: 1 },
     searchBar: { backgroundColor: colors.skeleton, borderRadius: 16, padding: 16, flexDirection: 'row', alignItems: 'center', marginBottom: 24, height: 56 },
     searchText: { color: colors.textMuted, fontSize: 16, marginLeft: 12 },
     sectionHeaderRow: { marginBottom: 16 },

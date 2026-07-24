@@ -26,13 +26,20 @@ if (Platform.OS === 'web') {
 }
 
 export { auth };
-export const db = Platform.OS === 'web'
-  ? initializeFirestore(app, {
-      localCache: persistentLocalCache({
-        tabManager: persistentMultipleTabManager(),
-      }),
-    })
-  : initializeFirestore(app, {});
+export const db = (() => {
+  if (Platform.OS === 'web') {
+    try {
+      return initializeFirestore(app, {
+        localCache: persistentLocalCache({
+          tabManager: persistentMultipleTabManager(),
+        }),
+      });
+    } catch {
+      return initializeFirestore(app, {});
+    }
+  }
+  return initializeFirestore(app, {});
+})();
 
 export default app;
 

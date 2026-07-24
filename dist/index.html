@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta httpEquiv="X-UA-Compatible" content="IE=edge" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no, viewport-fit=cover, user-scalable=no" />
     <title>KGS Music Academy</title>
     <!-- The `react-native-web` recommended style reset: https://necolas.github.io/react-native-web/docs/setup/#root-element -->
     <style id="expo-reset">
@@ -23,7 +23,29 @@
         flex: 1;
       }
     </style>
-  <link rel="icon" href="/favicon.ico" /></head>
+  <meta name="theme-color" content="#1e40af">
+<meta name="description" content="Music school management app">
+<link rel="icon" href="favicon.ico" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-title" content="KGS Music Academy" />
+    <link rel="apple-touch-icon" href="pwa-icons/icon-180.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="pwa-icons/icon-152.png" />
+    <link rel="apple-touch-icon" sizes="167x167" href="pwa-icons/icon-167.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="pwa-icons/icon-180.png" />
+    <link rel="apple-touch-icon" sizes="192x192" href="pwa-icons/icon-192.png" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="theme-color" content="#1e40af" />
+    <meta name="msapplication-TileColor" content="#1e40af" />
+    <link rel="manifest" href="manifest.json" />
+    <script>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', function() {
+          navigator.serviceWorker.register('sw.js').catch(function() {});
+        });
+      }
+    </script>
+</head>
 
   <body>
     <!-- Use static rendering with Expo Router to support running without JavaScript. -->
@@ -32,6 +54,6 @@
     </noscript>
     <!-- The root element for your Expo app. -->
     <div id="root"></div>
-  <script src="/_expo/static/js/web/entry-c8e68db9941b51e80d94682164390126.js" defer></script>
+  <script src="_expo/static/js/web/entry-5470601a19683b6d48cab591170a631e.js" defer></script>
 </body>
 </html>

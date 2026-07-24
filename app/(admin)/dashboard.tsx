@@ -26,6 +26,7 @@ import {
   Search,
   DollarSign,
   Layers,
+  Users,
 } from 'lucide-react-native';
 
 export default function AdminDashboard() {

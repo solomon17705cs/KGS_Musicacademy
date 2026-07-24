@@ -8,15 +8,16 @@
   "scripts": {
     "dev": "EXPO_NO_TELEMETRY=1 expo start",
     "build:web": "expo export --platform web",
+    "build:pwa": "npm run build:web && node web/setup-pwa.js",
     "lint": "expo lint",
     "typecheck": "tsc --noEmit",
     "android": "expo run:android",
     "ios": "expo run:ios",
-    "electron:dev": "npm run build:web && electron electron/main.js",
+    "electron:dev": "npm run build:pwa && electron electron/main.js",
     "electron:start": "electron electron/main.js",
-    "electron:build:mac": "npm run build:web && electron-builder --mac --config",
-    "electron:build:win": "npm run build:web && electron-builder --win --x64 --config",
-    "electron:build:all": "npm run build:web && electron-builder --mac --win --x64 --config",
+    "electron:build:mac": "npm run build:pwa && electron-builder --mac --config",
+    "electron:build:win": "npm run build:pwa && electron-builder --win --x64 --config",
+    "electron:build:all": "npm run build:pwa && electron-builder --mac --win --x64 --config",
     "icons": "icon-gen --input assets/images/icon.png --output assets/ --ico --icns"
   },
   "build": {
