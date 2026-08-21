@@ -1,4 +1,4 @@
-const { app, BrowserWindow } = require('electron');
+const { app, BrowserWindow, ipcMain } = require('electron');
 const http = require('http');
 const fs = require('fs');
 const path = require('path');
@@ -79,7 +79,39 @@ function createWindow() {
   });
 
   mainWindow.loadURL('http://localhost:5173');
+
+  mainWindow.webContents.setWindowOpenHandler(() => {
+    return {
+      action: 'allow',
+      overrideBrowserWindowOptions: {
+        webPreferences: {
+          contextIsolation: true,
+          nodeIntegration: false,
+        },
+      },
+    };
+  });
 }
+
+ipcMain.handle('print-html', async (_event, html) => {
+  const printWindow = new BrowserWindow({ show: false });
+  printWindow.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(html)}`);
+  await new Promise((resolve) => printWindow.webContents.on('did-finish-load', resolve));
+  return new Promise((resolve, reject) => {
+    printWindow.webContents.print(
+      {
+        silent: false,
+        printBackground: true,
+        pageSize: { width: 148000, height: 210000 },
+        margins: { marginType: 'custom', top: 8000, bottom: 8000, left: 8000, right: 8000 },
+      },
+      (success, reason) => {
+        printWindow.close();
+        success ? resolve(true) : reject(new Error(reason));
+      },
+    );
+  });
+});
 
 app.whenReady().then(() => {
   server.listen(5173, () => {

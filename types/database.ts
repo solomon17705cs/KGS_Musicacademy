@@ -67,6 +67,7 @@ export interface CompletedGrade {
   date: string;
   mark: string;
   type: 'theory' | 'practical';
+  order?: number;
 }
 
 export interface Student {

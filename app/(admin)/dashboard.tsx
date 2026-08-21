@@ -8,6 +8,7 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
+  Animated,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useRootNavigationState, useFocusEffect } from 'expo-router';
@@ -24,9 +25,9 @@ import {
   Bell,
   Calendar,
   Search,
-  DollarSign,
   Layers,
   Users,
+  Receipt,
 } from 'lucide-react-native';
 
 export default function AdminDashboard() {
@@ -40,6 +41,7 @@ export default function AdminDashboard() {
   const [search, setSearch] = useState('');
   const insets = useSafeAreaInsets();
   const hasLoaded = useRef(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (authLoading || !rootNavigationState?.key) return;
@@ -122,10 +124,34 @@ export default function AdminDashboard() {
     );
   }
 
+  const headerPaddingTop = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [insets.top + 12, insets.top + 4],
+    extrapolate: 'clamp',
+  });
+
+  const headerTitleOpacity = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  const headerTitleHeight = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [48, 0],
+    extrapolate: 'clamp',
+  });
+
+  const quickActionsGap = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [10, 0],
+    extrapolate: 'clamp',
+  });
+
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <View style={styles.headerTop}>
+      <Animated.View style={[styles.header, { paddingTop: headerPaddingTop }]}>
+        <Animated.View style={[styles.headerTop, { opacity: headerTitleOpacity, height: headerTitleHeight, overflow: 'hidden' }]}>
           <View style={styles.titleArea}>
             <Text style={styles.headerTitle} numberOfLines={1}>Admin Dashboard</Text>
             <View style={styles.headerSubtitleRow}>
@@ -138,9 +164,9 @@ export default function AdminDashboard() {
             onPress={handleSignOut}>
             <LogOut size={20} color="#ef4444" />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
-        <View style={styles.quickActions}>
+        <Animated.View style={[styles.quickActions, { gap: quickActionsGap }]}>
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={[styles.quickActionBtn, { backgroundColor: '#1e40af' }]}
@@ -164,9 +190,9 @@ export default function AdminDashboard() {
             </TouchableOpacity>
             <TouchableOpacity
               style={[styles.quickActionBtn, { backgroundColor: '#b45309' }]}
-              onPress={() => router.push('/(admin)/fee-payments')}>
-              <DollarSign size={20} color="#fff" />
-              <Text style={styles.quickActionText}>Fee Payments</Text>
+              onPress={() => router.push('/(admin)/billing')}>
+              <Receipt size={20} color="#fff" />
+              <Text style={styles.quickActionText}>Fee Receipts</Text>
             </TouchableOpacity>
           </View>
           <View style={styles.actionRow}>
@@ -190,9 +216,9 @@ export default function AdminDashboard() {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+        </Animated.View>
 
-      </View>
+      </Animated.View>
 
       {students.length > 0 && (
         <View style={styles.searchContainer}>
@@ -214,6 +240,11 @@ export default function AdminDashboard() {
 
       <ScrollView
         style={styles.content}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }>
@@ -413,19 +444,18 @@ const styles = StyleSheet.create({
     fontWeight: '600',
   },
   quickActions: {
-    gap: 10,
-    marginBottom: 16,
+    marginBottom: 0,
   },
   actionRow: {
     flexDirection: 'row',
-    gap: 12,
+    gap: 8,
   },
   quickActionBtn: {
     flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderRadius: 14,
     gap: 8,
     shadowColor: '#000',
@@ -452,7 +482,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
+    paddingVertical: 10,
     borderRadius: 14,
     gap: 6,
     shadowColor: '#000',

@@ -8,6 +8,8 @@ import {
   ActivityIndicator,
   RefreshControl,
   TextInput,
+  Animated,
+  Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useRootNavigationState, useFocusEffect } from 'expo-router';
@@ -26,6 +28,7 @@ import {
   Layers,
   DollarSign,
   Users,
+  Receipt,
 } from 'lucide-react-native';
 
 export default function StaffDashboard() {
@@ -39,6 +42,7 @@ export default function StaffDashboard() {
   const [search, setSearch] = useState('');
   const insets = useSafeAreaInsets();
   const hasLoaded = useRef(false);
+  const scrollY = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     if (authLoading || !rootNavigationState?.key) return;
@@ -121,10 +125,34 @@ export default function StaffDashboard() {
     );
   }
 
+  const headerPaddingTop = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [insets.top + 12, insets.top + 4],
+    extrapolate: 'clamp',
+  });
+
+  const headerTitleOpacity = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [1, 0],
+    extrapolate: 'clamp',
+  });
+
+  const headerTitleHeight = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [48, 0],
+    extrapolate: 'clamp',
+  });
+
+  const quickActionsGap = scrollY.interpolate({
+    inputRange: [0, 80],
+    outputRange: [8, 0],
+    extrapolate: 'clamp',
+  });
+
   return (
     <View style={styles.container}>
-      <View style={[styles.header, { paddingTop: insets.top + 12 }]}>
-        <View style={styles.headerTop}>
+      <Animated.View style={[styles.header, { paddingTop: headerPaddingTop }]}>
+        <Animated.View style={[styles.headerTop, { opacity: headerTitleOpacity, height: headerTitleHeight, overflow: 'hidden' }]}>
           <View style={styles.titleArea}>
             <Text style={styles.headerTitle} numberOfLines={1}>Staff Dashboard</Text>
             <View style={styles.headerSubtitleRow}>
@@ -137,9 +165,9 @@ export default function StaffDashboard() {
             onPress={handleSignOut}>
             <LogOut size={20} color="#ef4444" />
           </TouchableOpacity>
-        </View>
+        </Animated.View>
 
-        <View style={styles.quickActions}>
+        <Animated.View style={[styles.quickActions, { gap: quickActionsGap }]}>
           <View style={styles.actionRow}>
             <TouchableOpacity
               style={[styles.quickActionBtn, { backgroundColor: '#7c3aed' }]}
@@ -175,9 +203,19 @@ export default function StaffDashboard() {
               </Text>
             </TouchableOpacity>
           </View>
-        </View>
+          <View style={styles.actionRow}>
+            {Platform.OS === 'web' && (
+              <TouchableOpacity
+                style={[styles.quickActionBtn, { backgroundColor: '#1e40af' }]}
+                onPress={() => router.push('/(staff)/billing')}>
+                <Receipt size={20} color="#fff" />
+                <Text style={styles.quickActionText}>Fee Receipts</Text>
+              </TouchableOpacity>
+            )}
+          </View>
+        </Animated.View>
 
-      </View>
+      </Animated.View>
 
       {students.length > 0 && (
         <View style={styles.searchContainer}>
@@ -199,6 +237,11 @@ export default function StaffDashboard() {
 
       <ScrollView
         style={styles.content}
+        scrollEventThrottle={16}
+        onScroll={Animated.event(
+          [{ nativeEvent: { contentOffset: { y: scrollY } } }],
+          { useNativeDriver: false }
+        )}
         refreshControl={
           <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
         }>
@@ -385,8 +428,7 @@ const styles = StyleSheet.create({
     fontWeight: '700',
   },
   quickActions: {
-    gap: 8,
-    marginBottom: 16,
+    marginBottom: 0,
   },
   actionRow: {
     flexDirection: 'row',

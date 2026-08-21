@@ -787,7 +787,8 @@ export default function EditProgressScreen() {
                       grade: newGradeName,
                       date: new Date().toISOString().split('T')[0],
                       mark: newGradeMark || 'N/A',
-                      type: selectedGradeType
+                      type: selectedGradeType,
+                      order: (student.completed_grades || []).length,
                     };
 
                     const currentGrades = student.completed_grades || [];
@@ -817,6 +818,12 @@ export default function EditProgressScreen() {
                     <Text style={styles.recordGradeText}>Record Grade</Text>
                   </>
                 )}
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={styles.viewHistoryBtn}
+                onPress={() => router.push(`/(admin)/exam-history/${id}`)}>
+                <Text style={styles.viewHistoryBtnText}>View Exam History</Text>
               </TouchableOpacity>
             </View>
           </View>
@@ -1400,6 +1407,21 @@ const styles = StyleSheet.create({
   recordGradeText: {
     color: '#fff',
     fontSize: 15,
+    fontWeight: '700',
+  },
+  viewHistoryBtn: {
+    borderRadius: 8,
+    padding: 10,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 8,
+    borderWidth: 1.5,
+    borderColor: '#e2e8f0',
+    backgroundColor: '#f8fafc',
+  },
+  viewHistoryBtnText: {
+    color: '#1e40af',
+    fontSize: 14,
     fontWeight: '700',
   },
 });
