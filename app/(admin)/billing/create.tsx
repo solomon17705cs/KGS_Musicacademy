@@ -8,7 +8,7 @@ import { useRouter } from 'expo-router';
 import { ArrowLeft, CheckCircle2, ChevronDown, Calendar } from 'lucide-react-native';
 import DateTimePicker from '@react-native-community/datetimepicker';
 import { useAuth } from '@/contexts/AuthContext';
-import { studentService } from '@/lib/firestore';
+import { studentService, feePaymentService } from '@/lib/firestore';
 import { Student } from '@/types/database';
 import { billService, auditLogService } from '@/lib/billing/firestoreHelpers';
 import { FeeType, BillingPaymentMode, FeeItem } from '@/types/billing';
@@ -182,6 +182,15 @@ export default function CreateBill() {
         note: `Created for ${selectedStudent.full_name}`,
       });
 
+      if (selectedFeeTypes.includes('Tuition Fee')) {
+        for (const m of feeMonths) {
+          await feePaymentService.setPayment(
+            selectedStudent.id, m, feeYear, 'paid', date, paymentMode, total / feeMonths.length,
+          );
+        }
+        await studentService.updateStudent(selectedStudent.id, { fee_status: 'paid' });
+      }
+
       try {
         if (fullBill) await printBill(fullBill);
       } catch (_) { }
@@ -218,7 +227,7 @@ export default function CreateBill() {
     setStudentSearch('');
     setDate(toDDMMYYYY(new Date()));
     const n = new Date();
-    setFeeMonth(n.getMonth() + 1);
+    setFeeMonths([n.getMonth() + 1]);
     setFeeYear(n.getFullYear());
   }
 

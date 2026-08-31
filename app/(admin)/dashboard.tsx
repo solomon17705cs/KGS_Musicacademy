@@ -286,16 +286,16 @@ export default function AdminDashboard() {
                         <View style={[
                           styles.feeStatusBadge,
                           {
-                            backgroundColor: student.fee_status === 'paid' ? '#f0fdf4' : student.fee_status === 'pending' ? '#fff7ed' : '#fee2e2',
+                            backgroundColor: student.fee_status === 'paid' ? '#f0fdf4' : student.fee_status === 'pending' ? '#fff7ed' : student.fee_status === 'not_attended' ? '#f1f5f9' : '#fee2e2',
                           }
                         ]}>
                           <Text style={[
                             styles.feeStatusBadgeText,
                             {
-                              color: student.fee_status === 'paid' ? '#16a34a' : student.fee_status === 'pending' ? '#f97316' : '#ef4444',
+                              color: student.fee_status === 'paid' ? '#16a34a' : student.fee_status === 'pending' ? '#f97316' : student.fee_status === 'not_attended' ? '#94a3b8' : '#ef4444',
                             }
                           ]}>
-                            Fee: {student.fee_status || 'pending'}
+                            Fee: {student.fee_status === 'not_attended' ? 'Not Attended' : student.fee_status || 'pending'}
                           </Text>
                         </View>
                       </View>

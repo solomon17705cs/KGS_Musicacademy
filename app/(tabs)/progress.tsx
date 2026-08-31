@@ -569,6 +569,9 @@ export default function ProgressScreen() {
                         <View style={[styles.miniBadge, { backgroundColor: student.progress ? getStatusColor(student.progress.practical_status) : colors.textMuted }]}>
                           <Text style={styles.miniBadgeText}>P: {student.progress ? getStatusLabel(student.progress.practical_status) : 'N/A'}</Text>
                         </View>
+                        <View style={[styles.miniBadge, { backgroundColor: student.fee_status === 'paid' ? '#16a34a' : student.fee_status === 'pending' ? '#f97316' : '#94a3b8' }]}>
+                          <Text style={styles.miniBadgeText}>Fee: {student.fee_status === 'paid' ? 'Paid' : student.fee_status === 'pending' ? 'Pending' : 'Not Attended'}</Text>
+                        </View>
                       </View>
                     </View>
                   </View>

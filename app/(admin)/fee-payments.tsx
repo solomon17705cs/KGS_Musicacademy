@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   View,
   Text,
@@ -6,23 +6,15 @@ import {
   ScrollView,
   TouchableOpacity,
   ActivityIndicator,
-  Modal,
   TextInput,
-  Platform,
-  useWindowDimensions,
-  KeyboardAvoidingView,
-  Pressable,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { useAuth } from '@/contexts/AuthContext';
 import { studentService, feePaymentService } from '@/lib/firestore';
-import { Student, FeePayment, PaymentMode } from '@/types/database';
+import { Student, FeePayment } from '@/types/database';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Check, X, Search } from 'lucide-react-native';
-import DateTimePicker from '@react-native-community/datetimepicker';
+import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Search, Check, X } from 'lucide-react-native';
 
 const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-const PAYMENT_MODES: PaymentMode[] = ['UPI', 'cash', 'bank_transfer'];
 
 function canGoPrev(viewDate: Date): boolean {
   const now = new Date();
@@ -32,22 +24,12 @@ function canGoPrev(viewDate: Date): boolean {
 
 export default function FeePaymentsScreen() {
   const router = useRouter();
-  const { profile } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [payments, setPayments] = useState<FeePayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewMonth, setViewMonth] = useState(new Date());
-  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
-  const [editModal, setEditModal] = useState(false);
-  const [editStatus, setEditStatus] = useState<'paid' | 'pending'>('pending');
-  const [editPaidDate, setEditPaidDate] = useState('');
-  const [editPaymentMode, setEditPaymentMode] = useState<PaymentMode | null>(null);
-  const [editAmount, setEditAmount] = useState('');
   const [search, setSearch] = useState('');
-  const [showDatePicker, setShowDatePicker] = useState(false);
-  const webDateRef = useRef<any>(null);
-  const { width: screenWidth } = useWindowDimensions();
-  const isMobile = screenWidth < 768;
+  const [sortBy, setSortBy] = useState<'paid' | 'pending' | 'not_attended' | null>(null);
   const insets = useSafeAreaInsets();
 
   const currentMonth = viewMonth.getMonth();
@@ -57,20 +39,12 @@ export default function FeePaymentsScreen() {
     loadData();
   }, [viewMonth]);
 
-  useEffect(() => {
-    if (!editModal || Platform.OS !== 'web') return;
-    const handler = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') setEditModal(false);
-    };
-    window.addEventListener('keydown', handler);
-    return () => window.removeEventListener('keydown', handler);
-  }, [editModal]);
-
   async function loadData() {
     try {
+      const month = currentMonth + 1;
       const [allStudents, monthPayments] = await Promise.all([
         studentService.getAllStudents(),
-        feePaymentService.getMonthPayments(currentMonth + 1, currentYear),
+        feePaymentService.getMonthPayments(month, currentYear),
       ]);
       setStudents(allStudents);
       setPayments(monthPayments);
@@ -89,7 +63,7 @@ export default function FeePaymentsScreen() {
         student_id: student.id,
         month: currentMonth + 1,
         year: currentYear,
-        status: 'pending',
+        status: 'not_attended',
         paid_date: null,
         payment_mode: null,
         amount: 0,
@@ -100,32 +74,31 @@ export default function FeePaymentsScreen() {
     return payment;
   }
 
-  function openEditModal(student: Student) {
-    setSelectedStudent(student);
+  async function togglePaymentStatus(student: Student) {
     const existing = getPaymentForStudent(student);
-    setEditStatus(existing?.status || 'pending');
-    setEditPaidDate(existing?.paid_date || '');
-    setEditPaymentMode(existing?.payment_mode || null);
-    setEditAmount(existing?.amount?.toString() || '');
-    setEditModal(true);
-  }
-
-  function formatDDMMYYYY(text: string): string {
-    const digits = text.replace(/[^0-9]/g, '');
-    let formatted = '';
-    for (let i = 0; i < digits.length && i < 8; i++) {
-      if (i === 2 || i === 4) formatted += '-';
-      formatted += digits[i];
+    let newStatus: 'paid' | 'pending' | 'not_attended';
+    if (existing.status === 'paid') {
+      newStatus = 'pending';
+    } else if (existing.status === 'pending') {
+      newStatus = 'not_attended';
+    } else {
+      newStatus = 'paid';
     }
-    return formatted;
-  }
+    const paidDate = newStatus === 'paid' ? toDDMMYYYY(new Date()) : null;
 
-  function parseDDMMYYYY(dateStr: string): Date | null {
-    const parts = dateStr.split('-');
-    if (parts.length !== 3 || parts.some(p => !p)) return null;
-    const [day, month, year] = parts.map(Number);
-    if (day < 1 || day > 31 || month < 1 || month > 12 || year < 2000 || year > 2100) return null;
-    return new Date(year, month - 1, day);
+    await feePaymentService.setPayment(
+      student.id,
+      currentMonth + 1,
+      currentYear,
+      newStatus,
+      paidDate,
+      null,
+      0,
+    );
+    await studentService.updateStudent(student.id, {
+      fee_status: newStatus === 'paid' ? 'paid' : newStatus === 'pending' ? 'pending' : 'not_attended',
+    });
+    loadData();
   }
 
   function toDDMMYYYY(date: Date): string {
@@ -133,40 +106,6 @@ export default function FeePaymentsScreen() {
     const m = String(date.getMonth() + 1).padStart(2, '0');
     const y = date.getFullYear();
     return `${d}-${m}-${y}`;
-  }
-
-  function openWebPicker() {
-    if (Platform.OS === 'web' && webDateRef.current) {
-      webDateRef.current.showPicker();
-    } else {
-      setShowDatePicker(true);
-    }
-  }
-
-  function handleWebDateChange(value: string) {
-    const date = new Date(value);
-    if (!isNaN(date.getTime())) {
-      setEditPaidDate(toDDMMYYYY(date));
-    }
-    setShowDatePicker(false);
-  }
-
-  async function savePayment() {
-    if (!selectedStudent) return;
-    await feePaymentService.setPayment(
-      selectedStudent.id,
-      currentMonth + 1,
-      currentYear,
-      editStatus,
-      editPaidDate || null,
-      editPaymentMode,
-      editAmount ? parseFloat(editAmount) : 0,
-    );
-    await studentService.updateStudent(selectedStudent.id, {
-      fee_status: editStatus === 'paid' ? 'paid' : 'pending',
-    });
-    setEditModal(false);
-    loadData();
   }
 
   const handlePrevMonth = () => {
@@ -188,12 +127,20 @@ export default function FeePaymentsScreen() {
     }
   };
 
-  const filteredStudents = students.filter(s =>
-    (s.full_name || '').toLowerCase().includes(search.toLowerCase())
-  );
+  const filteredStudents = students
+    .filter(s => (s.full_name || '').toLowerCase().includes(search.toLowerCase()))
+    .sort((a, b) => {
+      if (!sortBy) return 0;
+      const statusA = getPaymentForStudent(a).status;
+      const statusB = getPaymentForStudent(b).status;
+      if (statusA === sortBy && statusB !== sortBy) return -1;
+      if (statusA !== sortBy && statusB === sortBy) return 1;
+      return 0;
+    });
 
   const paidCount = students.reduce((count, s) => count + (getPaymentForStudent(s).status === 'paid' ? 1 : 0), 0);
-  const pendingCount = students.length - paidCount;
+  const pendingCount = students.reduce((count, s) => count + (getPaymentForStudent(s).status === 'pending' ? 1 : 0), 0);
+  const notAttendedCount = students.length - paidCount - pendingCount;
 
   function getMonthLabel(date: Date): string {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
@@ -222,19 +169,29 @@ export default function FeePaymentsScreen() {
         </TouchableOpacity>
         <View style={styles.headerContent}>
           <Text style={styles.headerTitle}>Fee Payments</Text>
-          <Text style={styles.headerSubtitle}>Tap a student to edit payment details</Text>
+          <Text style={styles.headerSubtitle}>Tap a student to toggle tuition fee status</Text>
         </View>
       </View>
 
       <View style={styles.summaryRow}>
-        <View style={[styles.summaryChip, { backgroundColor: '#f0fdf4' }]}>
+        <TouchableOpacity
+          style={[styles.summaryChip, { backgroundColor: sortBy === 'paid' ? '#dcfce7' : '#f0fdf4' }, sortBy === 'paid' && styles.summaryChipActive]}
+          onPress={() => setSortBy(sortBy === 'paid' ? null : 'paid')}>
           <View style={[styles.summaryDot, { backgroundColor: '#16a34a' }]} />
           <Text style={[styles.summaryText, { color: '#16a34a' }]}>Paid: {paidCount}</Text>
-        </View>
-        <View style={[styles.summaryChip, { backgroundColor: '#fef2f2' }]}>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.summaryChip, { backgroundColor: sortBy === 'pending' ? '#fecaca' : '#fef2f2' }, sortBy === 'pending' && styles.summaryChipActive]}
+          onPress={() => setSortBy(sortBy === 'pending' ? null : 'pending')}>
           <View style={[styles.summaryDot, { backgroundColor: '#ef4444' }]} />
           <Text style={[styles.summaryText, { color: '#ef4444' }]}>Pending: {pendingCount}</Text>
-        </View>
+        </TouchableOpacity>
+        <TouchableOpacity
+          style={[styles.summaryChip, { backgroundColor: sortBy === 'not_attended' ? '#e2e8f0' : '#f1f5f9' }, sortBy === 'not_attended' && styles.summaryChipActive]}
+          onPress={() => setSortBy(sortBy === 'not_attended' ? null : 'not_attended')}>
+          <View style={[styles.summaryDot, { backgroundColor: '#94a3b8' }]} />
+          <Text style={[styles.summaryText, { color: '#94a3b8' }]}>Not Attended: {notAttendedCount}</Text>
+        </TouchableOpacity>
       </View>
 
       <View style={styles.monthNav}>
@@ -284,144 +241,35 @@ export default function FeePaymentsScreen() {
           <View style={styles.list}>
             {filteredStudents.map((student) => {
               const payment = getPaymentForStudent(student);
-              const isPaid = payment?.status === 'paid';
+              const status = payment?.status || 'not_attended';
               return (
                 <View key={student.id} style={styles.studentCardWrapper}>
-                  <TouchableOpacity
-                    style={styles.studentCard}
-                    onPress={() => openEditModal(student)}>
+                  <View style={styles.studentCard}>
                     <View style={styles.studentInfo}>
                       <Text style={styles.studentName}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
                       <Text style={styles.studentInstrument}>{student.instrument}</Text>
                     </View>
-                    <View style={[styles.statusBadge, isPaid ? styles.paidBadge : styles.pendingBadge]}>
-                      <Text style={[styles.statusText, isPaid ? styles.paidText : styles.pendingText]}>
-                        {isPaid ? 'Paid' : 'Pending'}
+                    <TouchableOpacity
+                      style={[styles.statusBadge, status === 'paid' ? styles.paidBadge : status === 'pending' ? styles.pendingBadge : styles.notAttendedBadge]}
+                      onPress={() => togglePaymentStatus(student)}>
+                      {status === 'paid' ? (
+                        <Check size={14} color="#16a34a" />
+                      ) : status === 'pending' ? (
+                        <X size={14} color="#ef4444" />
+                      ) : (
+                        <X size={14} color="#94a3b8" />
+                      )}
+                      <Text style={[styles.statusText, status === 'paid' ? styles.paidText : status === 'pending' ? styles.pendingText : styles.notAttendedText]}>
+                        {status === 'paid' ? 'Paid' : status === 'pending' ? 'Pending' : 'Not Attended'}
                       </Text>
-                    </View>
-                  </TouchableOpacity>
+                    </TouchableOpacity>
+                  </View>
                 </View>
               );
             })}
           </View>
         )}
       </ScrollView>
-
-      {/* Edit Payment Modal */}
-      <Modal visible={editModal} animationType="slide" transparent>
-        <KeyboardAvoidingView
-          behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-          style={styles.modalContainer}>
-          <Pressable style={{ flex: 1 }} onPress={() => setEditModal(false)} />
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <View>
-                <Text style={styles.modalTitle}>{selectedStudent?.full_name}{selectedStudent?.summer_class ? ' ☀️' : ''}</Text>
-                <Text style={styles.modalSubtitle}>{getMonthLabel(viewMonth)}</Text>
-              </View>
-              <TouchableOpacity style={styles.closeButton} onPress={() => setEditModal(false)}>
-                <X size={24} color="#1e293b" />
-              </TouchableOpacity>
-            </View>
-
-            <ScrollView style={styles.modalBody} keyboardShouldPersistTaps="handled">
-              <View style={styles.inputGroup}>
-                <Text style={styles.label}>Status</Text>
-                <View style={styles.statusToggle}>
-                  <TouchableOpacity
-                    style={[styles.statusOption, editStatus === 'paid' && styles.statusOptionActive]}
-                    onPress={() => setEditStatus('paid')}>
-                    <Check size={16} color={editStatus === 'paid' ? '#fff' : '#16a34a'} />
-                    <Text style={[styles.statusOptionText, editStatus === 'paid' && styles.statusOptionTextActive]}>Paid</Text>
-                  </TouchableOpacity>
-                  <TouchableOpacity
-                    style={[styles.statusOption, editStatus === 'pending' && styles.statusOptionActive]}
-                    onPress={() => setEditStatus('pending')}>
-                    <X size={16} color={editStatus === 'pending' ? '#fff' : '#ef4444'} />
-                    <Text style={[styles.statusOptionText, editStatus === 'pending' && styles.statusOptionTextActive]}>Pending</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-
-              {editStatus === 'paid' && (
-                <>
-                  <View style={styles.sideBySideRow}>
-                    <View style={[styles.inputGroup, { flex: 1 }]}>
-                      <Text style={styles.label}>Fee Amount</Text>
-                      <TextInput
-                        style={styles.input}
-                        placeholder="2000"
-                        value={editAmount}
-                        onChangeText={setEditAmount}
-                        keyboardType="numeric"
-                      />
-                    </View>
-                    <View style={[styles.inputGroup, { flex: 1 }]}>
-                      <Text style={styles.label}>Payment Date</Text>
-                      <View style={styles.dateInputRow}>
-                        <TextInput
-                          style={[styles.input, { flex: 1 }]}
-                          placeholder="DD-MM-YYYY"
-                          value={editPaidDate}
-                          onChangeText={(text) => setEditPaidDate(formatDDMMYYYY(text))}
-                          keyboardType="numeric"
-                          maxLength={10}
-                        />
-                        <TouchableOpacity style={styles.calendarButton} onPress={openWebPicker}>
-                          <Calendar size={16} color="#1e40af" />
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  </View>
-
-                  <View style={styles.inputGroupCompact}>
-                    <Text style={styles.label}>Payment Mode</Text>
-                    <View style={styles.modeRow}>
-                      {PAYMENT_MODES.map(mode => (
-                        <TouchableOpacity
-                          key={mode}
-                          style={[styles.modeButton, editPaymentMode === mode && styles.modeButtonActive]}
-                          onPress={() => setEditPaymentMode(mode)}>
-                          <Text style={[styles.modeText, editPaymentMode === mode && styles.modeTextActive]}>
-                            {mode === 'UPI' ? 'UPI' : mode === 'cash' ? 'Cash' : 'Bank'}
-                          </Text>
-                        </TouchableOpacity>
-                      ))}
-                    </View>
-                  </View>
-                </>
-              )}
-
-              <TouchableOpacity style={styles.saveButton} onPress={savePayment}>
-                <Text style={styles.saveButtonText}>Save</Text>
-              </TouchableOpacity>
-            </ScrollView>
-          </View>
-        </KeyboardAvoidingView>
-      </Modal>
-
-      {Platform.OS === 'web' && (
-        <input
-          ref={webDateRef}
-          type="date"
-          style={{ position: 'absolute', top: '40px', left: '50%', opacity: 0, width: '200px', height: '30px', zIndex: -1 }}
-          onChange={(e) => handleWebDateChange(e.target.value)}
-        />
-      )}
-
-      {Platform.OS !== 'web' && showDatePicker && (
-        <DateTimePicker
-          value={parseDDMMYYYY(editPaidDate) || new Date()}
-          mode="date"
-          display="default"
-          onChange={(_, selectedDate) => {
-            if (selectedDate) {
-              setEditPaidDate(toDDMMYYYY(selectedDate));
-            }
-            setShowDatePicker(false);
-          }}
-        />
-      )}
     </View>
   );
 }
@@ -488,6 +336,11 @@ const styles = StyleSheet.create({
     paddingHorizontal: 12,
     paddingVertical: 6,
     borderRadius: 20,
+    borderWidth: 1.5,
+    borderColor: 'transparent',
+  },
+  summaryChipActive: {
+    borderColor: '#1e293b',
   },
   summaryDot: {
     width: 8,
@@ -551,6 +404,9 @@ const styles = StyleSheet.create({
     backgroundColor: '#fff',
     borderRadius: 12,
     padding: 14,
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
     shadowColor: '#000',
     shadowOffset: { width: 0, height: 1 },
     shadowOpacity: 0.1,
@@ -559,6 +415,7 @@ const styles = StyleSheet.create({
   },
   studentInfo: {
     flex: 1,
+    marginRight: 8,
   },
   studentName: {
     fontSize: 15,
@@ -571,7 +428,10 @@ const styles = StyleSheet.create({
     marginTop: 2,
   },
   statusBadge: {
-    paddingHorizontal: 12,
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 4,
+    paddingHorizontal: 10,
     paddingVertical: 6,
     borderRadius: 8,
   },
@@ -581,8 +441,11 @@ const styles = StyleSheet.create({
   pendingBadge: {
     backgroundColor: '#fef2f2',
   },
+  notAttendedBadge: {
+    backgroundColor: '#f1f5f9',
+  },
   statusText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: '700',
   },
   paidText: {
@@ -591,151 +454,8 @@ const styles = StyleSheet.create({
   pendingText: {
     color: '#ef4444',
   },
-  modalContainer: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-  },
-  modalContent: {
-    backgroundColor: '#fff',
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-    paddingTop: 16,
-    paddingHorizontal: 16,
-    paddingBottom: 24,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: '800',
-    color: '#1e293b',
-  },
-  modalSubtitle: {
-    fontSize: 14,
-    color: '#64748b',
-    marginTop: 2,
-  },
-  closeButton: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    backgroundColor: '#f1f5f9',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  modalBody: {
-    paddingTop: 8,
-  },
-  inputGroup: {
-    marginBottom: 12,
-  },
-  inputGroupCompact: {
-    marginBottom: 12,
-  },
-  sideBySideRow: {
-    flexDirection: 'row',
-    gap: 12,
-    marginBottom: 12,
-  },
-  label: {
-    fontSize: 12,
-    fontWeight: '700',
-    color: '#475569',
-    marginBottom: 6,
-  },
-  input: {
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    borderRadius: 8,
-    paddingHorizontal: 12,
-    paddingVertical: 10,
-    fontSize: 14,
-    backgroundColor: '#f8fafc',
-  },
-  statusToggle: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  statusOption: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    gap: 6,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
-  },
-  statusOptionActive: {
-    borderColor: 'transparent',
-    backgroundColor: '#16a34a',
-  },
-  statusOptionText: {
-    fontSize: 14,
-    fontWeight: '700',
-    color: '#475569',
-  },
-  statusOptionTextActive: {
-    color: '#fff',
-  },
-  modeRow: {
-    flexDirection: 'row',
-    gap: 8,
-  },
-  modeButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 10,
-    borderWidth: 2,
-    borderColor: '#e2e8f0',
-    backgroundColor: '#fff',
-    alignItems: 'center',
-  },
-  modeButtonActive: {
-    borderColor: '#1e40af',
-    backgroundColor: '#eff6ff',
-  },
-  modeText: {
-    fontSize: 13,
-    fontWeight: '700',
-    color: '#64748b',
-  },
-  modeTextActive: {
-    color: '#1e40af',
-  },
-  dateInputRow: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 8,
-  },
-  dateInput: {
-    flex: 1,
-  },
-  calendarButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 10,
-    backgroundColor: '#eff6ff',
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
-  saveButton: {
-    backgroundColor: '#1e40af',
-    borderRadius: 10,
-    paddingVertical: 12,
-    alignItems: 'center',
-    marginTop: 8,
-  },
-  saveButtonText: {
-    color: '#fff',
-    fontSize: 16,
-    fontWeight: '700',
+  notAttendedText: {
+    color: '#94a3b8',
   },
   searchContainer: {
     flexDirection: 'row',

@@ -7,7 +7,7 @@ export type ProgressStatus =
   | 'needs_improvement'
   | 'struggling';
 
-export type FeeStatus = 'paid' | 'pending' | 'overdue';
+export type FeeStatus = 'paid' | 'pending' | 'overdue' | 'not_attended';
 
 export type PaymentMode = 'UPI' | 'cash' | 'bank_transfer';
 
@@ -18,7 +18,7 @@ export interface FeePayment {
   student_id: string;
   month: number;
   year: number;
-  status: 'paid' | 'pending';
+  status: 'paid' | 'pending' | 'not_attended';
   paid_date: string | null;
   payment_mode: PaymentMode | null;
   amount: number;

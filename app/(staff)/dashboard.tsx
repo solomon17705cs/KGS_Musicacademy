@@ -22,7 +22,6 @@ import {
   ChevronRight,
   Award,
   Trophy,
-  Bell,
   Calendar,
   Search,
   Layers,
@@ -170,47 +169,34 @@ export default function StaffDashboard() {
         <Animated.View style={[styles.quickActions, { gap: quickActionsGap }]}>
           <View style={styles.actionRow}>
             <TouchableOpacity
-              style={[styles.quickActionBtn, { backgroundColor: '#7c3aed' }]}
-              onPress={() => router.push('/(staff)/notifications')}>
-              <Bell size={20} color="#fff" />
-              <Text style={styles.quickActionText}>Notifications</Text>
-            </TouchableOpacity>
-            <TouchableOpacity
               style={[styles.quickActionBtn, { backgroundColor: '#0891b2' }]}
               onPress={() => router.push('/(staff)/attendance')}>
               <Calendar size={20} color="#fff" />
               <Text style={styles.quickActionText}>Attendance</Text>
             </TouchableOpacity>
-          </View>
-          <View style={styles.actionRow}>
             <TouchableOpacity
               style={[styles.quickActionBtn, { backgroundColor: '#059669' }]}
               onPress={() => router.push('/(staff)/class-days')}>
               <Layers size={20} color="#fff" />
               <Text style={styles.quickActionText}>Class Days</Text>
             </TouchableOpacity>
-            <TouchableOpacity
-              style={[styles.streakChip, { backgroundColor: '#fef3c7' }]}
-              onPress={() => router.push('/(staff)/leaderboard')}>
-              <Trophy size={16} color="#b45309" />
-              <Text style={[styles.streakChipNumber, { color: '#b45309' }]}>
-                {students.length > 0
-                  ? Math.max(...students.map((s) => s.streak || 0))
-                  : 0}
-              </Text>
-              <Text style={[styles.streakChipLabel, { color: '#b45309' }]}>
-                Best Streak
-              </Text>
-            </TouchableOpacity>
           </View>
           <View style={styles.actionRow}>
-            {Platform.OS === 'web' && (
+            <TouchableOpacity
+              style={[styles.quickActionBtn, { backgroundColor: '#d97706' }]}
+              onPress={() => router.push('/(staff)/leaderboard')}>
+              <Trophy size={20} color="#fff" />
+              <Text style={styles.quickActionText}>Leaderboard</Text>
+            </TouchableOpacity>
+            {Platform.OS === 'web' ? (
               <TouchableOpacity
                 style={[styles.quickActionBtn, { backgroundColor: '#1e40af' }]}
                 onPress={() => router.push('/(staff)/billing')}>
                 <Receipt size={20} color="#fff" />
                 <Text style={styles.quickActionText}>Fee Receipts</Text>
               </TouchableOpacity>
+            ) : (
+              <View style={[styles.quickActionBtn, { backgroundColor: '#e2e8f0' }]} />
             )}
           </View>
         </Animated.View>
@@ -283,16 +269,16 @@ export default function StaffDashboard() {
                         <View style={[
                           styles.feeStatusBadge,
                           {
-                            backgroundColor: student.fee_status === 'paid' ? '#f0fdf4' : student.fee_status === 'pending' ? '#fff7ed' : '#fee2e2',
+                            backgroundColor: student.fee_status === 'paid' ? '#f0fdf4' : student.fee_status === 'pending' ? '#fff7ed' : student.fee_status === 'not_attended' ? '#f1f5f9' : '#fee2e2',
                           }
                         ]}>
                           <Text style={[
                             styles.feeStatusText,
                             {
-                              color: student.fee_status === 'paid' ? '#16a34a' : student.fee_status === 'pending' ? '#ea580c' : '#dc2626',
+                              color: student.fee_status === 'paid' ? '#16a34a' : student.fee_status === 'pending' ? '#ea580c' : student.fee_status === 'not_attended' ? '#94a3b8' : '#dc2626',
                             }
                           ]}>
-                            {student.fee_status === 'paid' ? 'Paid' : student.fee_status === 'pending' ? 'Pending' : 'Overdue'}
+                            {student.fee_status === 'paid' ? 'Paid' : student.fee_status === 'pending' ? 'Pending' : student.fee_status === 'not_attended' ? 'Not Attended' : 'Overdue'}
                           </Text>
                         </View>
                       </View>

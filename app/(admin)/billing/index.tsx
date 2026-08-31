@@ -9,14 +9,15 @@ import { useRouter } from 'expo-router';
 import {
   Plus, Search, ChevronRight,
   FileSpreadsheet, ArrowLeft, FileText,
-  DollarSign,
+  DollarSign, SlidersHorizontal, X,
 } from 'lucide-react-native';
-import { Bill, FeeType } from '@/types/billing';
+import { Bill, FeeType, BillingPaymentMode } from '@/types/billing';
 import { billService } from '@/lib/billing/firestoreHelpers';
 import { formatCurrency, getMonthName, getCurrentFinancialYear, getFinancialYears } from '@/lib/billing/amountInWords';
 import { exportBillsAsExcel } from '@/lib/billing/excelExport';
 
 const FEE_TYPES: FeeType[] = ['Tuition Fee', 'Exam Fee', 'Registration Fee', 'Other'];
+const PAYMENT_MODES: BillingPaymentMode[] = ['Cash', 'UPI', 'Net Banking', 'Card'];
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: getMonthName(i + 1).slice(0, 3) }));
 const CURRENT_YEAR = new Date().getFullYear();
@@ -88,6 +89,13 @@ export default function BillingDashboard() {
   const [exporting, setExporting] = useState(false);
   const [showTotal, setShowTotal] = useState(false);
 
+  const [showFilterModal, setShowFilterModal] = useState(false);
+  const [filterPaymentMode, setFilterPaymentMode] = useState<BillingPaymentMode | null>(null);
+  const [filterDateFromMonth, setFilterDateFromMonth] = useState<number | null>(null);
+  const [filterDateFromYear, setFilterDateFromYear] = useState<number | null>(null);
+  const [filterDateToMonth, setFilterDateToMonth] = useState<number | null>(null);
+  const [filterDateToYear, setFilterDateToYear] = useState<number | null>(null);
+
   useEffect(() => {
     const unsub = billService.subscribeToAllBills(data => {
       setBills(data);
@@ -110,12 +118,22 @@ export default function BillingDashboard() {
       }
       const matchMonth = billedMonth === filterMonth && billedYear === filterYear;
       const matchFeeType = !filterFeeType || b.fee_type === filterFeeType;
+      const matchPaymentMode = !filterPaymentMode || b.payment_mode === filterPaymentMode;
       const matchSearch = !search.trim() ||
         b.student_name.toLowerCase().includes(search.toLowerCase()) ||
         b.bill_number.toLowerCase().includes(search.toLowerCase());
-      return matchMonth && matchFeeType && matchSearch;
+
+      let matchDateRange = true;
+      if (filterDateFromMonth && filterDateFromYear && filterDateToMonth && filterDateToYear) {
+        const billDateVal = billedYear * 100 + billedMonth;
+        const fromDateVal = filterDateFromYear * 100 + filterDateFromMonth;
+        const toDateVal = filterDateToYear * 100 + filterDateToMonth;
+        matchDateRange = billDateVal >= fromDateVal && billDateVal <= toDateVal;
+      }
+
+      return matchMonth && matchFeeType && matchPaymentMode && matchDateRange && matchSearch;
     });
-  }, [bills, filterMonth, filterYear, filterFeeType, search]);
+  }, [bills, filterMonth, filterYear, filterFeeType, filterPaymentMode, filterDateFromMonth, filterDateFromYear, filterDateToMonth, filterDateToYear, search]);
 
   const stats = useMemo(() => {
     const total = filteredBills.reduce((s, b) => s + b.amount, 0);
@@ -235,6 +253,11 @@ export default function BillingDashboard() {
               onChangeText={setSearch}
             />
           </View>
+          <TouchableOpacity
+            style={[styles.filterBtn, (filterPaymentMode || filterDateFromMonth) ? styles.filterBtnActive : undefined]}
+            onPress={() => setShowFilterModal(true)}>
+            <SlidersHorizontal size={18} color={(filterPaymentMode || filterDateFromMonth) ? '#fff' : '#64748b'} />
+          </TouchableOpacity>
         </View>
 
         {filteredBills.length === 0 ? (
@@ -397,6 +420,131 @@ export default function BillingDashboard() {
           </Pressable>
         </Pressable>
       </Modal>
+
+      <Modal
+        visible={showFilterModal}
+        transparent
+        animationType="slide"
+        onRequestClose={() => setShowFilterModal(false)}>
+
+        <Pressable style={modalStyles.overlay} onPress={() => setShowFilterModal(false)}>
+          <Pressable style={[
+            modalStyles.sheet,
+            isWeb && modalStyles.sheetWeb,
+          ]} onPress={(e) => e.stopPropagation()}>
+
+            <View style={modalStyles.handle} />
+            <View style={modalStyles.titleRow}>
+              <Text style={modalStyles.title}>Filters</Text>
+              <TouchableOpacity onPress={() => setShowFilterModal(false)}>
+                <X size={20} color="#64748b" />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false} contentContainerStyle={modalStyles.scrollContent}>
+              <Text style={modalStyles.sectionLabel}>Payment Mode</Text>
+              <View style={modalStyles.chipRow}>
+                <TouchableOpacity
+                  style={[modalStyles.chip, !filterPaymentMode && modalStyles.chipActive]}
+                  onPress={() => setFilterPaymentMode(null)}>
+                  <Text style={[modalStyles.chipText, !filterPaymentMode && modalStyles.chipTextActive]}>
+                    All
+                  </Text>
+                </TouchableOpacity>
+                {PAYMENT_MODES.map(pm => (
+                  <TouchableOpacity
+                    key={pm}
+                    style={[modalStyles.chip, filterPaymentMode === pm && modalStyles.chipActive]}
+                    onPress={() => setFilterPaymentMode(pm)}>
+                    <Text style={[modalStyles.chipText, filterPaymentMode === pm && modalStyles.chipTextActive]}>
+                      {pm}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[modalStyles.sectionLabel, { marginTop: 20 }]}>Date Range</Text>
+              <Text style={modalStyles.subLabel}>From</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={modalStyles.monthScroll}>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[modalStyles.chip, filterDateFromMonth === m && modalStyles.chipActive]}
+                    onPress={() => {
+                      setFilterDateFromMonth(m);
+                      if (!filterDateFromYear) setFilterDateFromYear(CURRENT_YEAR);
+                    }}>
+                    <Text style={[modalStyles.chipText, filterDateFromMonth === m && modalStyles.chipTextActive]}>
+                      {getMonthName(m).slice(0, 3)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <View style={modalStyles.yearRow}>
+                {[CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1].map(y => (
+                  <TouchableOpacity
+                    key={y}
+                    style={[modalStyles.chip, filterDateFromYear === y && modalStyles.chipActive]}
+                    onPress={() => setFilterDateFromYear(y)}>
+                    <Text style={[modalStyles.chipText, filterDateFromYear === y && modalStyles.chipTextActive]}>
+                      {y}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+
+              <Text style={[modalStyles.subLabel, { marginTop: 16 }]}>To</Text>
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} style={modalStyles.monthScroll}>
+                {Array.from({ length: 12 }, (_, i) => i + 1).map(m => (
+                  <TouchableOpacity
+                    key={m}
+                    style={[modalStyles.chip, filterDateToMonth === m && modalStyles.chipActive]}
+                    onPress={() => {
+                      setFilterDateToMonth(m);
+                      if (!filterDateToYear) setFilterDateToYear(CURRENT_YEAR);
+                    }}>
+                    <Text style={[modalStyles.chipText, filterDateToMonth === m && modalStyles.chipTextActive]}>
+                      {getMonthName(m).slice(0, 3)}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+              <View style={modalStyles.yearRow}>
+                {[CURRENT_YEAR - 1, CURRENT_YEAR, CURRENT_YEAR + 1].map(y => (
+                  <TouchableOpacity
+                    key={y}
+                    style={[modalStyles.chip, filterDateToYear === y && modalStyles.chipActive]}
+                    onPress={() => setFilterDateToYear(y)}>
+                    <Text style={[modalStyles.chipText, filterDateToYear === y && modalStyles.chipTextActive]}>
+                      {y}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            </ScrollView>
+
+            <View style={modalStyles.btnRow}>
+              <TouchableOpacity
+                style={modalStyles.cancelBtn}
+                onPress={() => {
+                  setFilterPaymentMode(null);
+                  setFilterDateFromMonth(null);
+                  setFilterDateFromYear(null);
+                  setFilterDateToMonth(null);
+                  setFilterDateToYear(null);
+                }}>
+                <Text style={modalStyles.cancelBtnText}>Reset</Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                style={modalStyles.exportActionBtn}
+                onPress={() => setShowFilterModal(false)}>
+                <Text style={modalStyles.exportActionBtnText}>Apply</Text>
+              </TouchableOpacity>
+            </View>
+
+          </Pressable>
+        </Pressable>
+      </Modal>
     </View>
   );
 }
@@ -453,13 +601,21 @@ const styles = StyleSheet.create({
   feeTypeChipText: { fontSize: 13, fontWeight: '700', color: '#64748b' },
   feeTypeChipTextActive: { color: '#fff' },
 
-  searchRow: { marginBottom: 16 },
+  searchRow: { marginBottom: 16, flexDirection: 'row', alignItems: 'center', gap: 10 },
   searchBox: {
-    flexDirection: 'row', alignItems: 'center', gap: 8,
+    flex: 1, flexDirection: 'row', alignItems: 'center', gap: 8,
     backgroundColor: '#fff', borderRadius: 12,
     borderWidth: 1.5, borderColor: '#e2e8f0', paddingHorizontal: 12,
   },
   searchInput: { flex: 1, paddingVertical: 12, fontSize: 14, color: '#1e293b' },
+  filterBtn: {
+    width: 44, height: 44, borderRadius: 12,
+    backgroundColor: '#fff', borderWidth: 1.5, borderColor: '#e2e8f0',
+    alignItems: 'center', justifyContent: 'center',
+  },
+  filterBtnActive: {
+    backgroundColor: '#1e40af', borderColor: '#1e40af',
+  },
 
   billsList: { gap: 10 },
   billCard: {
@@ -534,8 +690,7 @@ const modalStyles = StyleSheet.create({
   },
   title: {
     fontSize: 18, fontWeight: '800',
-    color: '#1e293b', marginBottom: 12,
-    paddingHorizontal: 20,
+    color: '#1e293b',
   },
   scrollContent: {
     paddingHorizontal: 20,
@@ -544,6 +699,14 @@ const modalStyles = StyleSheet.create({
   sectionLabel: {
     fontSize: 10, fontWeight: '800', color: '#94a3b8',
     letterSpacing: 1, textTransform: 'uppercase', marginBottom: 8,
+  },
+  subLabel: {
+    fontSize: 12, fontWeight: '700', color: '#64748b', marginBottom: 8,
+  },
+  chipRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
+  titleRow: {
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 20, marginBottom: 12,
   },
   fyRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 16 },
   monthScroll: { marginBottom: 8 },

@@ -552,7 +552,7 @@ export const feePaymentService = {
     });
   },
 
-  async setPayment(studentId: string, month: number, year: number, status: 'paid' | 'pending', paidDate: string | null, paymentMode: string | null, amount: number): Promise<void> {
+  async setPayment(studentId: string, month: number, year: number, status: 'paid' | 'pending' | 'not_attended', paidDate: string | null, paymentMode: string | null, amount: number): Promise<void> {
     const docId = `${studentId}_${year}_${month}`;
     await setDoc(doc(db, FEE_PAYMENTS_COLLECTION, docId), {
       id: docId,

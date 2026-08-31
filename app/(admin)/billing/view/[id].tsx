@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  Alert, ActivityIndicator, Platform,
+  Alert, ActivityIndicator, Platform, TextInput,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { LinearGradient } from 'expo-linear-gradient';
 import {
-  ArrowLeft, Download, Printer,
+  ArrowLeft, Download, Printer, Check,
   User, Music2, CreditCard, FileText,
 } from 'lucide-react-native';
 import { Bill } from '@/types/billing';
@@ -39,6 +39,9 @@ export default function ViewBill() {
   const [bill, setBill] = useState<Bill | null>(null);
   const [loading, setLoading] = useState(true);
   const [actionLoading, setActionLoading] = useState('');
+  const [notesDraft, setNotesDraft] = useState('');
+  const [savingNotes, setSavingNotes] = useState(false);
+  const notesDirty = bill !== null && notesDraft !== (bill.notes || '');
 
   useEffect(() => {
     if (!id) return;
@@ -49,10 +52,24 @@ export default function ViewBill() {
     try {
       const data = await billService.getBill(id!);
       setBill(data);
+      setNotesDraft(data?.notes || '');
     } catch (e) {
       console.error(e);
     } finally {
       setLoading(false);
+    }
+  }
+
+  async function saveNotes() {
+    if (!bill || !notesDirty) return;
+    setSavingNotes(true);
+    try {
+      await billService.updateNotes(bill.id, notesDraft);
+      setBill({ ...bill, notes: notesDraft });
+    } catch (e) {
+      console.error(e);
+    } finally {
+      setSavingNotes(false);
     }
   }
 
@@ -177,15 +194,35 @@ export default function ViewBill() {
           <DetailRow label="Issued By" value={bill.issued_by_name} />
         </View>
 
-        {bill.notes ? (
-          <View style={styles.card}>
-            <View style={styles.cardHeader}>
-              <FileText size={16} color="#1e40af" />
-              <Text style={styles.cardTitle}>Remarks</Text>
-            </View>
-            <Text style={styles.notesText}>{bill.notes}</Text>
+        <View style={styles.card}>
+          <View style={styles.cardHeader}>
+            <FileText size={16} color="#1e40af" />
+            <Text style={styles.cardTitle}>Remarks</Text>
           </View>
-        ) : null}
+          <TextInput
+            style={styles.notesInput}
+            value={notesDraft}
+            onChangeText={setNotesDraft}
+            placeholder="Add a note..."
+            placeholderTextColor="#94a3b8"
+            multiline
+          />
+          {notesDirty && (
+            <TouchableOpacity
+              style={styles.saveNotesBtn}
+              onPress={saveNotes}
+              disabled={savingNotes}>
+              {savingNotes ? (
+                <ActivityIndicator size="small" color="#fff" />
+              ) : (
+                <>
+                  <Check size={14} color="#fff" />
+                  <Text style={styles.saveNotesBtnText}>Save</Text>
+                </>
+              )}
+            </TouchableOpacity>
+          )}
+        </View>
 
         <View style={styles.actionsRow}>
           <TouchableOpacity
@@ -274,13 +311,24 @@ const styles = StyleSheet.create({
   cardHeader: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 14 },
   cardTitle: { fontSize: 13, fontWeight: '700', color: '#1e293b' },
   detailRow: {
-    flexDirection: 'row', justifyContent: 'space-between',
-    alignItems: 'baseline', paddingVertical: 7,
+    flexDirection: 'row', alignItems: 'baseline', paddingVertical: 7,
     borderBottomWidth: 1, borderBottomColor: '#f8fafc',
   },
   detailLabel: { fontSize: 12, color: '#64748b' },
-  detailValue: { fontSize: 13, fontWeight: '600', color: '#1e293b', textAlign: 'right', flex: 1, marginLeft: 16 },
+  detailValue: { fontSize: 13, fontWeight: '600', color: '#1e293b', marginLeft: 8 },
   notesText: { fontSize: 13, color: '#64748b', lineHeight: 20, fontStyle: 'italic' },
+  notesInput: {
+    borderWidth: 1, borderColor: '#e2e8f0', borderRadius: 10,
+    padding: 12, fontSize: 13, color: '#1e293b', lineHeight: 20,
+    minHeight: 60, textAlignVertical: 'top',
+  },
+  saveNotesBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 6,
+    backgroundColor: '#1e40af', borderRadius: 10,
+    paddingHorizontal: 14, paddingVertical: 8,
+    alignSelf: 'flex-end', marginTop: 10,
+  },
+  saveNotesBtnText: { fontSize: 13, fontWeight: '700', color: '#fff' },
 
   actionsRow: { flexDirection: 'row', gap: 10, marginBottom: 12 },
   actionBtn: {

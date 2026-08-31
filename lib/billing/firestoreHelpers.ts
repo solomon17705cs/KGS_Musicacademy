@@ -7,6 +7,7 @@ import {
   where,
   orderBy,
   addDoc,
+  updateDoc,
   serverTimestamp,
   onSnapshot,
 } from 'firebase/firestore';
@@ -84,6 +85,18 @@ export const billService = {
     return snap.docs.map(d => ({ id: d.id, ...d.data() } as Bill));
   },
 
+  async getTuitionBillsForMonth(month: number, year: number): Promise<Bill[]> {
+    const q = query(
+      collection(db, BILLS_COLLECTION),
+      where('fee_type', '==', 'Tuition Fee'),
+      where('year', '==', year),
+    );
+    const snap = await getDocs(q);
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as Bill))
+      .filter(b => b.months && b.months.includes(month));
+  },
+
   async getBillsByStudent(studentId: string): Promise<Bill[]> {
     const q = query(
       collection(db, BILLS_COLLECTION),
@@ -148,6 +161,13 @@ export const billService = {
     );
     return onSnapshot(q, snap => {
       callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as Bill)));
+    });
+  },
+
+  async updateNotes(billId: string, notes: string): Promise<void> {
+    await updateDoc(doc(db, BILLS_COLLECTION, billId), {
+      notes,
+      updated_at: serverTimestamp(),
     });
   },
 };
