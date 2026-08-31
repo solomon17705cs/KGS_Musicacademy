@@ -7,10 +7,12 @@ import {
   TouchableOpacity,
   ActivityIndicator,
   TextInput,
+  Modal,
 } from 'react-native';
 import { useRouter } from 'expo-router';
-import { studentService, feePaymentService } from '@/lib/firestore';
-import { Student, FeePayment } from '@/types/database';
+import { useAuth } from '@/contexts/AuthContext';
+import { studentService, feePaymentService, unpaidClassService } from '@/lib/firestore';
+import { Student, FeePayment, UnpaidClassRecord } from '@/types/database';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Search, Check, X } from 'lucide-react-native';
 
@@ -24,6 +26,7 @@ function canGoPrev(viewDate: Date): boolean {
 
 export default function FeePaymentsScreen() {
   const router = useRouter();
+  const { user } = useAuth();
   const [students, setStudents] = useState<Student[]>([]);
   const [payments, setPayments] = useState<FeePayment[]>([]);
   const [loading, setLoading] = useState(true);
@@ -31,9 +34,19 @@ export default function FeePaymentsScreen() {
   const [search, setSearch] = useState('');
   const [sortBy, setSortBy] = useState<'paid' | 'pending' | 'not_attended' | null>(null);
   const insets = useSafeAreaInsets();
+  const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
+  const [unpaidRecords, setUnpaidRecords] = useState<UnpaidClassRecord[]>([]);
+  const [showDebtModal, setShowDebtModal] = useState(false);
 
   const currentMonth = viewMonth.getMonth();
   const currentYear = viewMonth.getFullYear();
+
+  const [addMode, setAddMode] = useState(false);
+  const [newMonth, setNewMonth] = useState(currentMonth);
+  const [newYear, setNewYear] = useState(currentYear);
+  const [newClassesCount, setNewClassesCount] = useState('1');
+  const [newClassDates, setNewClassDates] = useState('');
+  const [adding, setAdding] = useState(false);
 
   useEffect(() => {
     loadData();
@@ -52,6 +65,73 @@ export default function FeePaymentsScreen() {
       console.error('Failed to load fee data:', err);
     } finally {
       setLoading(false);
+    }
+  }
+
+  function getMonthName(month: number): string {
+    const names = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    return names[month - 1] || '';
+  }
+
+  async function openDebtModal(student: Student) {
+    setSelectedStudent(student);
+    const records = await unpaidClassService.getUnsettledRecords(student.id);
+    setUnpaidRecords(records);
+    setShowDebtModal(true);
+  }
+
+  async function handleSettle(record: UnpaidClassRecord) {
+    if (!user) return;
+    await unpaidClassService.settleRecord(record.id, user.uid);
+    const newUnpaidClasses = Math.max(0, (selectedStudent?.unpaid_classes || 0) - record.classes_attended);
+    await studentService.updateStudent(record.student_id, {
+      unpaid_classes: newUnpaidClasses,
+    } as any);
+    const updated = await unpaidClassService.getUnsettledRecords(record.student_id);
+    setUnpaidRecords(updated);
+    if (selectedStudent) {
+      setSelectedStudent({ ...selectedStudent, unpaid_classes: newUnpaidClasses });
+    }
+    loadData();
+  }
+
+  async function handleAddManual() {
+    if (!selectedStudent || !user) return;
+    const count = parseInt(newClassesCount, 10);
+    if (isNaN(count) || count <= 0) return;
+
+    const dates = newClassDates
+      .split(/[,.\s/]+/)
+      .map(s => s.trim())
+      .filter(s => /^\d{1,2}$/.test(s))
+      .map(d => `${newYear}-${String(newMonth + 1).padStart(2, '0')}-${d.padStart(2, '0')}`);
+
+    if (dates.length === 0) {
+      for (let i = 0; i < count; i++) {
+        dates.push(`${newYear}-${String(newMonth + 1).padStart(2, '0')}-${String(i + 1).padStart(2, '0')}`);
+      }
+    }
+
+    setAdding(true);
+    try {
+      await unpaidClassService.addUnsettledRecord(
+        selectedStudent.id,
+        selectedStudent.full_name,
+        newMonth + 1,
+        newYear,
+        Math.min(count, dates.length),
+        dates.slice(0, count)
+      );
+      const updated = await unpaidClassService.getUnsettledRecords(selectedStudent.id);
+      setUnpaidRecords(updated);
+      const newUnpaid = (selectedStudent.unpaid_classes || 0) + Math.min(count, dates.length);
+      setSelectedStudent({ ...selectedStudent, unpaid_classes: newUnpaid });
+      setAddMode(false);
+      setNewClassesCount('1');
+      setNewClassDates('');
+      loadData();
+    } finally {
+      setAdding(false);
     }
   }
 
@@ -243,10 +323,18 @@ export default function FeePaymentsScreen() {
               const payment = getPaymentForStudent(student);
               const status = payment?.status || 'not_attended';
               return (
-                <View key={student.id} style={styles.studentCardWrapper}>
-                  <View style={styles.studentCard}>
+                  <View key={student.id} style={styles.studentCardWrapper}>
+                  <TouchableOpacity
+                    style={styles.studentCard}
+                    onPress={() => openDebtModal(student)}
+                    activeOpacity={(student.unpaid_classes || 0) > 0 ? 0.7 : 1}>
                     <View style={styles.studentInfo}>
                       <Text style={styles.studentName}>{student.full_name}{student.summer_class ? ' ☀️' : ''}</Text>
+                      {(student.unpaid_classes || 0) > 0 && (
+                        <Text style={styles.unpaidClassText}>
+                          {student.unpaid_classes} pending classes
+                        </Text>
+                      )}
                       <Text style={styles.studentInstrument}>{student.instrument}</Text>
                     </View>
                     <TouchableOpacity
@@ -263,13 +351,137 @@ export default function FeePaymentsScreen() {
                         {status === 'paid' ? 'Paid' : status === 'pending' ? 'Pending' : 'Not Attended'}
                       </Text>
                     </TouchableOpacity>
-                  </View>
+                  </TouchableOpacity>
                 </View>
               );
             })}
           </View>
         )}
       </ScrollView>
+
+      {/* Debt Management Modal */}
+      <Modal visible={showDebtModal} transparent animationType="slide">
+        <View style={modalStyles.overlay}>
+          <View style={modalStyles.sheet}>
+            <View style={modalStyles.handle} />
+
+            <Text style={modalStyles.title}>
+              Pending Classes — {selectedStudent?.full_name}
+            </Text>
+            <Text style={modalStyles.subtitle}>
+              These classes were attended without fee payment. Mark as settled once resolved with the parent.
+            </Text>
+
+            {unpaidRecords.length === 0 && !addMode ? (
+              <View style={modalStyles.emptyState}>
+                <Text style={modalStyles.emptyText}>No pending classes</Text>
+              </View>
+            ) : (
+              unpaidRecords.map(record => (
+                <View key={record.id} style={modalStyles.recordCard}>
+                  <View style={modalStyles.recordLeft}>
+                    <Text style={modalStyles.recordMonth}>
+                      {getMonthName(record.month)} {record.year}
+                    </Text>
+                    <Text style={modalStyles.recordCount}>
+                      {record.classes_attended} classes attended
+                    </Text>
+                    <Text style={modalStyles.recordDates}>
+                      Dates: {record.class_dates
+                        .map(d => new Date(d + 'T00:00:00').getDate())
+                        .join(', ')} {getMonthName(record.month).slice(0, 3)}
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={modalStyles.settleBtn}
+                    onPress={() => handleSettle(record)}>
+                    <Text style={modalStyles.settleBtnText}>Settle</Text>
+                  </TouchableOpacity>
+                </View>
+              ))
+            )}
+
+            {addMode ? (
+              <View style={modalStyles.addForm}>
+                <Text style={modalStyles.addFormTitle}>Add Manual Entry</Text>
+
+                <Text style={modalStyles.addLabel}>Month</Text>
+                <View style={modalStyles.monthRow}>
+                  {MONTH_NAMES.map((name, i) => (
+                    <TouchableOpacity
+                      key={i}
+                      style={[modalStyles.monthBtn, newMonth === i && modalStyles.monthBtnActive]}
+                      onPress={() => setNewMonth(i)}>
+                      <Text style={[modalStyles.monthBtnText, newMonth === i && modalStyles.monthBtnTextActive]}>
+                        {name}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={modalStyles.addLabel}>Year</Text>
+                <View style={modalStyles.yearRow}>
+                  {[currentYear - 1, currentYear, currentYear + 1].map(y => (
+                    <TouchableOpacity
+                      key={y}
+                      style={[modalStyles.yearBtn, newYear === y && modalStyles.yearBtnActive]}
+                      onPress={() => setNewYear(y)}>
+                      <Text style={[modalStyles.yearBtnText, newYear === y && modalStyles.yearBtnTextActive]}>
+                        {y}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+
+                <Text style={modalStyles.addLabel}>Number of classes</Text>
+                <TextInput
+                  style={modalStyles.addInput}
+                  value={newClassesCount}
+                  onChangeText={setNewClassesCount}
+                  keyboardType="number-pad"
+                  placeholder="e.g. 3"
+                  placeholderTextColor="#94a3b8"
+                />
+
+                <Text style={modalStyles.addLabel}>Class dates (comma-separated day numbers, optional)</Text>
+                <TextInput
+                  style={modalStyles.addInput}
+                  value={newClassDates}
+                  onChangeText={setNewClassDates}
+                  placeholder="e.g. 5, 12, 19"
+                  placeholderTextColor="#94a3b8"
+                />
+
+                <View style={modalStyles.addActions}>
+                  <TouchableOpacity
+                    style={modalStyles.addCancelBtn}
+                    onPress={() => { setAddMode(false); setNewClassesCount('1'); setNewClassDates(''); }}>
+                    <Text style={modalStyles.addCancelBtnText}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    style={[modalStyles.addConfirmBtn, adding && { opacity: 0.6 }]}
+                    onPress={handleAddManual}
+                    disabled={adding}>
+                    <Text style={modalStyles.addConfirmBtnText}>{adding ? 'Adding...' : 'Add'}</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            ) : (
+              <TouchableOpacity
+                style={modalStyles.addManualBtn}
+                onPress={() => setAddMode(true)}>
+                <Text style={modalStyles.addManualBtnText}>+ Add Manually</Text>
+              </TouchableOpacity>
+            )}
+
+            <TouchableOpacity
+              style={modalStyles.closeBtn}
+              onPress={() => { setShowDebtModal(false); setAddMode(false); }}>
+              <Text style={modalStyles.closeBtnText}>Close</Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
@@ -496,5 +708,231 @@ const styles = StyleSheet.create({
     color: '#64748b',
     textAlign: 'center',
     marginTop: 8,
+  },
+  unpaidClassText: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#d97706',
+    marginTop: 2,
+  },
+});
+
+const modalStyles = StyleSheet.create({
+  overlay: {
+    flex: 1,
+    backgroundColor: 'rgba(0,0,0,0.5)',
+    justifyContent: 'flex-end',
+  },
+  sheet: {
+    backgroundColor: '#fff',
+    borderTopLeftRadius: 24,
+    borderTopRightRadius: 24,
+    padding: 24,
+    paddingBottom: 40,
+    maxHeight: '80%',
+  },
+  handle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: '#e2e8f0',
+    alignSelf: 'center',
+    marginBottom: 16,
+  },
+  title: {
+    fontSize: 18,
+    fontWeight: '800',
+    color: '#1e293b',
+    marginBottom: 4,
+  },
+  subtitle: {
+    fontSize: 13,
+    color: '#64748b',
+    lineHeight: 18,
+    marginBottom: 20,
+  },
+  recordCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#fffbeb',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#fde68a',
+    padding: 14,
+    marginBottom: 10,
+  },
+  recordLeft: {
+    flex: 1,
+  },
+  recordMonth: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#92400e',
+  },
+  recordCount: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#b45309',
+    marginTop: 2,
+  },
+  recordDates: {
+    fontSize: 11,
+    color: '#d97706',
+    marginTop: 4,
+  },
+  settleBtn: {
+    backgroundColor: '#16a34a',
+    borderRadius: 10,
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+  },
+  settleBtnText: {
+    color: '#fff',
+    fontSize: 13,
+    fontWeight: '700',
+  },
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 30,
+  },
+  emptyText: {
+    fontSize: 14,
+    color: '#94a3b8',
+  },
+  closeBtn: {
+    backgroundColor: '#f1f5f9',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
+  },
+  closeBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  addManualBtn: {
+    backgroundColor: '#e0f2fe',
+    borderRadius: 12,
+    paddingVertical: 14,
+    alignItems: 'center',
+    marginTop: 12,
+    borderWidth: 1,
+    borderColor: '#7dd3fc',
+  },
+  addManualBtnText: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0369a1',
+  },
+  addForm: {
+    backgroundColor: '#f0f9ff',
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    padding: 16,
+    marginTop: 12,
+  },
+  addFormTitle: {
+    fontSize: 15,
+    fontWeight: '700',
+    color: '#0c4a6e',
+    marginBottom: 12,
+  },
+  addLabel: {
+    fontSize: 12,
+    fontWeight: '600',
+    color: '#0369a1',
+    marginBottom: 6,
+  },
+  monthRow: {
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: 6,
+    marginBottom: 12,
+  },
+  monthBtn: {
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  monthBtnActive: {
+    backgroundColor: '#0ea5e9',
+    borderColor: '#0ea5e9',
+  },
+  monthBtnText: {
+    fontSize: 11,
+    fontWeight: '600',
+    color: '#0369a1',
+  },
+  monthBtnTextActive: {
+    color: '#fff',
+  },
+  yearRow: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  yearBtn: {
+    borderRadius: 8,
+    paddingHorizontal: 16,
+    paddingVertical: 6,
+    backgroundColor: '#fff',
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+  },
+  yearBtnActive: {
+    backgroundColor: '#0ea5e9',
+    borderColor: '#0ea5e9',
+  },
+  yearBtnText: {
+    fontSize: 13,
+    fontWeight: '600',
+    color: '#0369a1',
+  },
+  yearBtnTextActive: {
+    color: '#fff',
+  },
+  addInput: {
+    backgroundColor: '#fff',
+    borderRadius: 10,
+    borderWidth: 1,
+    borderColor: '#bae6fd',
+    paddingHorizontal: 12,
+    paddingVertical: 10,
+    fontSize: 14,
+    color: '#1e293b',
+    marginBottom: 12,
+  },
+  addActions: {
+    flexDirection: 'row',
+    gap: 10,
+  },
+  addCancelBtn: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  addCancelBtnText: {
+    fontSize: 14,
+    fontWeight: '600',
+    color: '#64748b',
+  },
+  addConfirmBtn: {
+    flex: 1,
+    backgroundColor: '#0ea5e9',
+    borderRadius: 10,
+    paddingVertical: 12,
+    alignItems: 'center',
+  },
+  addConfirmBtnText: {
+    fontSize: 14,
+    fontWeight: '700',
+    color: '#fff',
   },
 });

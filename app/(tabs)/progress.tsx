@@ -33,6 +33,7 @@ import {
   Flame,
   Star,
   X,
+  AlertCircle,
 } from 'lucide-react-native';
 
 const INSTRUMENT_IMAGES: { [key: string]: any } = {
@@ -318,7 +319,7 @@ export default function ProgressScreen() {
           <RefreshControl refreshing={refreshing} tintColor={colors.primary} colors={[colors.primary]} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={selectedStudent ? styles.contentContainerSelected : undefined}>
+        contentContainerStyle={[selectedStudent ? styles.contentContainerSelected : styles.contentContainer]}>
 
         {selectedStudent ? (
           <View>
@@ -379,6 +380,21 @@ export default function ProgressScreen() {
                     </View>
                   </View>
                 </View>
+
+                {(selectedStudent.unpaid_classes || 0) > 0 && (
+                  <View style={styles.pendingClassesBox}>
+                    <AlertCircle size={14} color="#d97706" />
+                    <View style={{ flex: 1 }}>
+                      <Text style={styles.pendingClassesTitle}>
+                        {selectedStudent.unpaid_classes} classes pending from previous month
+                      </Text>
+                      <Text style={styles.pendingClassesSub}>
+                        Classes available this month:{' '}
+                        {Math.max(0, 8 - (selectedStudent.unpaid_classes || 0))}
+                      </Text>
+                    </View>
+                  </View>
+                )}
 
                 <View style={styles.goalSection}>
                   <View style={styles.goalHeader}>
@@ -597,6 +613,21 @@ export default function ProgressScreen() {
                           </View>
                         </View>
 
+                        {(student.unpaid_classes || 0) > 0 && (
+                          <View style={styles.pendingClassesBox}>
+                            <AlertCircle size={14} color="#d97706" />
+                            <View style={{ flex: 1 }}>
+                              <Text style={styles.pendingClassesTitle}>
+                                {student.unpaid_classes} classes pending from previous month
+                              </Text>
+                              <Text style={styles.pendingClassesSub}>
+                                Classes available this month:{' '}
+                                {Math.max(0, 8 - (student.unpaid_classes || 0))}
+                              </Text>
+                            </View>
+                          </View>
+                        )}
+
                         <View style={styles.goalSection}>
                           <View style={styles.goalHeader}>
                             <Target size={18} color={colors.iconBlue} />
@@ -697,6 +728,7 @@ function createStyles(colors: Record<string, string>) {
     topHeader: { paddingTop: 0, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
     backButtonHeader: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.skeleton, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
     contentContainerSelected: { paddingBottom: 100 },
+    contentContainer: { paddingHorizontal: 20 },
     greetingText: { fontSize: 28, fontWeight: '800', color: colors.text },
     welcomeSubtitle: { fontSize: 16, color: colors.textSecondary, marginTop: 2 },
     activationBanner: { backgroundColor: colors.errorBg, borderRadius: 16, marginHorizontal: 24, marginBottom: 16, padding: 16, flexDirection: 'row', borderWidth: 1, borderColor: colors.errorLight },
@@ -814,5 +846,26 @@ function createStyles(colors: Record<string, string>) {
     teacherRatingRow: { flexDirection: 'row', alignItems: 'center', marginTop: 8, gap: 2 },
     teacherRatingLabel: { fontSize: 12, color: colors.textSecondary, fontWeight: '600' },
     teacherRatingValue: { fontSize: 12, color: colors.textSecondary, fontWeight: '700', marginLeft: 4 },
+    pendingClassesBox: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 8,
+      backgroundColor: '#fffbeb',
+      borderRadius: 10,
+      borderWidth: 1,
+      borderColor: '#fde68a',
+      padding: 10,
+      marginBottom: 16,
+    },
+    pendingClassesTitle: {
+      fontSize: 12,
+      fontWeight: '700',
+      color: '#92400e',
+    },
+    pendingClassesSub: {
+      fontSize: 11,
+      color: '#b45309',
+      marginTop: 2,
+    },
   });
 }

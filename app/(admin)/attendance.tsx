@@ -16,7 +16,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { studentService, attendanceService } from '@/lib/firestore';
+import { studentService, attendanceService, unpaidClassService, profileService } from '@/lib/firestore';
+import { cacheService } from '@/lib/cache';
 import { Student, AttendanceRecord } from '@/types/database';
 import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Search, X } from 'lucide-react-native';
 
@@ -209,6 +210,35 @@ export default function AttendanceScreen() {
     ));
   }, [allAttendance, detailMonth, selectedStudent]);
 
+  useEffect(() => {
+    if (!profile || profile.role === 'parent' || profile.role === 'student') return;
+    runUnpaidClassDetection();
+  }, [profile?.id]);
+
+  async function runUnpaidClassDetection() {
+    if (!profile) return;
+    try {
+      const now = new Date();
+      let prevMonth = now.getMonth(); // 0-indexed, so current month - 1
+      let prevYear = now.getFullYear();
+      if (prevMonth === 0) {
+        prevMonth = 12;
+        prevYear -= 1;
+      }
+      const checkKey = `${prevYear}-${String(prevMonth).padStart(2, '0')}`;
+      if (profile.last_unpaid_check === checkKey) return;
+
+      const recordsCreated = await unpaidClassService.detectUnpaidClasses(prevMonth, prevYear);
+      await profileService.updateProfile(profile.id, { last_unpaid_check: checkKey });
+      if (recordsCreated > 0) {
+        cacheService.clearByPrefix('students_');
+        cacheService.clearByPrefix('student_');
+      }
+    } catch (err) {
+      console.error('Unpaid class detection failed:', err);
+    }
+  }
+
   function onRefresh() {
     setRefreshing(false);
   }
@@ -249,8 +279,11 @@ export default function AttendanceScreen() {
 
   function isExtraClass(studentId: string, dateStr: string, student?: Student, records?: AttendanceRecord[]): boolean {
     if (student?.summer_class) return false;
+    const regularQuota = 8;
+    const unpaidClasses = student?.unpaid_classes || 0;
+    const effectiveQuota = Math.max(0, regularQuota - unpaidClasses);
     const beforeCount = getStudentMonthlyCount(studentId, dateStr, records);
-    return beforeCount >= 8;
+    return beforeCount >= effectiveQuota;
   }
 
   const handlePrevWeek = () => {
@@ -327,6 +360,13 @@ export default function AttendanceScreen() {
             <Text style={styles.studentName} numberOfLines={1}>
               {displayName(student.full_name || '')}{student.summer_class ? ' ☀️' : ''}
             </Text>
+            {(student.unpaid_classes || 0) > 0 && (
+              <View style={styles.unpaidBadge}>
+                <Text style={styles.unpaidBadgeText}>
+                  -{student.unpaid_classes} cls
+                </Text>
+              </View>
+            )}
             <Text style={styles.instrumentText} numberOfLines={1}>
               {student.instrument}
             </Text>
@@ -823,6 +863,19 @@ const styles = StyleSheet.create({
     color: '#3b82f6',
     marginTop: 4,
     fontWeight: '600',
+  },
+  unpaidBadge: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    marginTop: 2,
+    alignSelf: 'flex-start',
+  },
+  unpaidBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#d97706',
   },
   statusCell: {
     width: 56,

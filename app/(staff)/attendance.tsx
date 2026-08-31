@@ -249,8 +249,11 @@ export default function AttendanceScreen() {
 
   function isExtraClass(studentId: string, dateStr: string, student?: Student, records?: AttendanceRecord[]): boolean {
     if (student?.summer_class) return false;
+    const regularQuota = 8;
+    const unpaidClasses = student?.unpaid_classes || 0;
+    const effectiveQuota = Math.max(0, regularQuota - unpaidClasses);
     const beforeCount = getStudentMonthlyCount(studentId, dateStr, records);
-    return beforeCount >= 8;
+    return beforeCount >= effectiveQuota;
   }
 
   const handlePrevWeek = () => {

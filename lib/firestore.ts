@@ -16,7 +16,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Profile, Student, ProgressRecord, Notification, AttendanceRecord, FeePayment } from '@/types/database';
+import { Profile, Student, ProgressRecord, Notification, AttendanceRecord, FeePayment, UnpaidClassRecord } from '@/types/database';
 import { cacheService } from './cache';
 
 const CACHE_TTL = {
@@ -586,5 +586,149 @@ export const feePaymentService = {
       const snapshot = await getDocs(q);
       return snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() } as FeePayment));
     }, CACHE_TTL.FEE_PAYMENTS);
+  },
+};
+
+const UNPAID_CLASS_COLLECTION = 'unpaid_class_records';
+
+export const unpaidClassService = {
+  async getUnsettledRecords(studentId: string): Promise<UnpaidClassRecord[]> {
+    const q = query(
+      collection(db, UNPAID_CLASS_COLLECTION),
+      where('student_id', '==', studentId),
+      where('settled', '==', false)
+    );
+    const snap = await getDocs(q);
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as UnpaidClassRecord))
+      .sort((a, b) => {
+        const aVal: any = a.created_at;
+        const bVal: any = b.created_at;
+        const aTime = aVal?.seconds ?? new Date(aVal).getTime() / 1000;
+        const bTime = bVal?.seconds ?? new Date(bVal).getTime() / 1000;
+        return bTime - aTime;
+      });
+  },
+
+  async getAllUnsettled(): Promise<UnpaidClassRecord[]> {
+    const q = query(
+      collection(db, UNPAID_CLASS_COLLECTION),
+      where('settled', '==', false)
+    );
+    const snap = await getDocs(q);
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as UnpaidClassRecord))
+      .sort((a, b) => {
+        const aVal: any = a.created_at;
+        const bVal: any = b.created_at;
+        const aTime = aVal?.seconds ?? new Date(aVal).getTime() / 1000;
+        const bTime = bVal?.seconds ?? new Date(bVal).getTime() / 1000;
+        return bTime - aTime;
+      });
+  },
+
+  async settleRecord(recordId: string, settledBy: string): Promise<void> {
+    await updateDoc(doc(db, UNPAID_CLASS_COLLECTION, recordId), {
+      settled: true,
+      settled_by: settledBy,
+      settled_at: serverTimestamp(),
+    });
+  },
+
+  async detectUnpaidClasses(prevMonth: number, prevYear: number): Promise<number> {
+    const monthStr = String(prevMonth).padStart(2, '0');
+    const studentsSnap = await getDocs(collection(db, STUDENTS_COLLECTION));
+    let recordsCreated = 0;
+
+    for (const studentDoc of studentsSnap.docs) {
+      const student = studentDoc.data();
+      const studentId = studentDoc.id;
+
+      const existingRecord = await getDocs(
+        query(
+          collection(db, UNPAID_CLASS_COLLECTION),
+          where('student_id', '==', studentId),
+          where('month', '==', prevMonth),
+          where('year', '==', prevYear),
+          limit(1)
+        )
+      );
+      if (!existingRecord.empty) continue;
+
+      const feeDocId = `${studentId}_${prevYear}_${prevMonth}`;
+      const feeDoc = await getDoc(doc(db, FEE_PAYMENTS_COLLECTION, feeDocId));
+      const feePaid = feeDoc.exists() && feeDoc.data()?.status === 'paid';
+      if (feePaid) continue;
+
+      const attendanceSnap = await getDocs(
+        query(
+          collection(db, ATTENDANCE_COLLECTION),
+          where('student_id', '==', studentId),
+          where('date', '>=', `${prevYear}-${monthStr}-01`),
+          where('date', '<=', `${prevYear}-${monthStr}-31`),
+          where('status', 'in', ['present', 'double_present'])
+        )
+      );
+      if (attendanceSnap.empty) continue;
+
+      const classDates = attendanceSnap.docs.map(d => d.data().date);
+      const classesAttended = attendanceSnap.docs.reduce((sum, d) => {
+        return sum + (d.data().status === 'double_present' ? 2 : 1);
+      }, 0);
+
+      await addDoc(collection(db, UNPAID_CLASS_COLLECTION), {
+        student_id: studentId,
+        student_name: student.full_name,
+        month: prevMonth,
+        year: prevYear,
+        classes_attended: classesAttended,
+        class_dates: classDates,
+        settled: false,
+        settled_by: null,
+        settled_at: null,
+        created_at: serverTimestamp(),
+      });
+
+      await updateDoc(doc(db, STUDENTS_COLLECTION, studentId), {
+        unpaid_classes: (student.unpaid_classes || 0) + classesAttended,
+        updated_at: serverTimestamp(),
+      });
+
+      recordsCreated++;
+    }
+
+    return recordsCreated;
+  },
+
+  async addUnsettledRecord(
+    studentId: string,
+    studentName: string,
+    month: number,
+    year: number,
+    classesAttended: number,
+    classDates: string[]
+  ): Promise<void> {
+    await addDoc(collection(db, UNPAID_CLASS_COLLECTION), {
+      student_id: studentId,
+      student_name: studentName,
+      month,
+      year,
+      classes_attended: classesAttended,
+      class_dates: classDates,
+      settled: false,
+      settled_by: null,
+      settled_at: null,
+      created_at: serverTimestamp(),
+    });
+
+    const studentSnap = await getDoc(doc(db, STUDENTS_COLLECTION, studentId));
+    const currentUnpaid = studentSnap.exists() ? (studentSnap.data().unpaid_classes || 0) : 0;
+    await updateDoc(doc(db, STUDENTS_COLLECTION, studentId), {
+      unpaid_classes: currentUnpaid + classesAttended,
+      updated_at: serverTimestamp(),
+    });
+
+    await cacheService.clearByPrefix('students_');
+    await cacheService.clearByPrefix(`student_${studentId}`);
   },
 };

@@ -58,6 +58,7 @@ export interface Profile {
     push_enabled: boolean;
     email_enabled: boolean;
   };
+  last_unpaid_check?: string;
   created_at: string;
   updated_at: string;
 }
@@ -99,6 +100,7 @@ export interface Student {
   streak: number;
   points: number;
   fee_status: FeeStatus;
+  unpaid_classes: number;
   created_at: string;
   updated_at: string;
 }
@@ -139,4 +141,18 @@ export interface Notification {
   data?: Record<string, any>;
   sent_at: string;
   read: boolean;
+}
+
+export interface UnpaidClassRecord {
+  id: string;
+  student_id: string;
+  student_name: string;
+  month: number;
+  year: number;
+  classes_attended: number;
+  class_dates: string[];
+  settled: boolean;
+  settled_by: string | null;
+  settled_at: string | null;
+  created_at: string;
 }

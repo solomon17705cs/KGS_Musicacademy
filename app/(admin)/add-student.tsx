@@ -223,6 +223,7 @@ export default function AddStudentScreen() {
                 streak: 0,
                 points: 0,
                 fee_status: 'pending',
+                unpaid_classes: 0,
             });
 
             router.back();
