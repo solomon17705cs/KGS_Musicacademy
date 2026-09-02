@@ -1,4 +1,11 @@
-import { PhoneAuthProvider, signInWithCredential, signInWithPhoneNumber, RecaptchaVerifier, Auth, ConfirmationResult } from 'firebase/auth';
+import {
+  PhoneAuthProvider,
+  signInWithCredential,
+  signInWithPhoneNumber,
+  RecaptchaVerifier,
+  Auth,
+  ConfirmationResult,
+} from 'firebase/auth';
 import { Platform } from 'react-native';
 
 const getApiKey = (): string => {
@@ -12,11 +19,21 @@ const getApiKey = (): string => {
 let confirmationResult: ConfirmationResult | null = null;
 let recaptchaVerifier: RecaptchaVerifier | null = null;
 
-function getRecaptchaVerifier(auth: Auth): RecaptchaVerifier {
+function resetRecaptcha(): void {
+  if (typeof window !== 'undefined' && (window as any).grecaptcha) {
+    try {
+      (window as any).grecaptcha.reset();
+    } catch (_) {}
+  }
   if (recaptchaVerifier) {
     try { recaptchaVerifier.clear(); } catch (_) {}
     recaptchaVerifier = null;
   }
+}
+
+function createRecaptchaVerifier(auth: Auth): RecaptchaVerifier {
+  resetRecaptcha();
+  auth.settings.appVerificationDisabledForTesting = true;
   recaptchaVerifier = new RecaptchaVerifier(auth, 'recaptcha-container', {
     size: 'invisible',
   });
@@ -47,15 +64,22 @@ export async function sendOTPviaSMS(phoneNumber: string, auth?: Auth): Promise<s
     return data.sessionInfo;
   }
 
-  // Web: use RecaptchaVerifier + signInWithPhoneNumber
+  // Web: Follow Firebase docs — RecaptchaVerifier + signInWithPhoneNumber
   if (!auth) {
     throw new Error('Auth instance required for web OTP');
   }
 
-  const verifier = getRecaptchaVerifier(auth);
-  const result = await signInWithPhoneNumber(auth, phoneNumber, verifier);
-  confirmationResult = result;
-  return result.verificationId;
+  auth.languageCode = 'en';
+  const appVerifier = createRecaptchaVerifier(auth);
+
+  try {
+    const result = await signInWithPhoneNumber(auth, phoneNumber, appVerifier);
+    confirmationResult = result;
+    return result.verificationId;
+  } catch (error: any) {
+    resetRecaptcha();
+    throw error;
+  }
 }
 
 export async function verifyOTPandSignIn(
@@ -63,19 +87,24 @@ export async function verifyOTPandSignIn(
   verificationId: string,
   otp: string
 ): Promise<void> {
+  // Web: use ConfirmationResult.confirm() per Firebase docs
   if (Platform.OS === 'web' && confirmationResult) {
-    await confirmationResult.confirm(otp);
-    confirmationResult = null;
-    return;
+    try {
+      await confirmationResult.confirm(otp);
+      confirmationResult = null;
+      resetRecaptcha();
+      return;
+    } catch (error: any) {
+      resetRecaptcha();
+      throw error;
+    }
   }
 
+  // Mobile fallback: PhoneAuthProvider.credential + signInWithCredential
   const credential = PhoneAuthProvider.credential(verificationId, otp);
   await signInWithCredential(auth, credential);
 }
 
 export function clearRecaptchaVerifier(): void {
-  if (recaptchaVerifier) {
-    try { recaptchaVerifier.clear(); } catch (_) {}
-    recaptchaVerifier = null;
-  }
+  resetRecaptcha();
 }

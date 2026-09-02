@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useCallback } from 'react';
 import {
   View,
   Text,
@@ -9,10 +9,12 @@ import {
   TextInput,
   Modal,
 } from 'react-native';
-import { useRouter } from 'expo-router';
+import { useRouter, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { studentService, feePaymentService, unpaidClassService } from '@/lib/firestore';
+import { studentService, feePaymentService, unpaidClassService, attendanceService } from '@/lib/firestore';
+import { billService } from '@/lib/billing/firestoreHelpers';
 import { Student, FeePayment, UnpaidClassRecord } from '@/types/database';
+import { Bill } from '@/types/billing';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { ArrowLeft, ChevronLeft, ChevronRight, Calendar, Search, Check, X } from 'lucide-react-native';
 
@@ -37,6 +39,8 @@ export default function FeePaymentsScreen() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [unpaidRecords, setUnpaidRecords] = useState<UnpaidClassRecord[]>([]);
   const [showDebtModal, setShowDebtModal] = useState(false);
+  const [attendedStudentIds, setAttendedStudentIds] = useState<Set<string>>(new Set());
+  const [paidTuitionStudentIds, setPaidTuitionStudentIds] = useState<Set<string>>(new Set());
 
   const currentMonth = viewMonth.getMonth();
   const currentYear = viewMonth.getFullYear();
@@ -48,19 +52,42 @@ export default function FeePaymentsScreen() {
   const [newClassDates, setNewClassDates] = useState('');
   const [adding, setAdding] = useState(false);
 
-  useEffect(() => {
-    loadData();
-  }, [viewMonth]);
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [viewMonth])
+  );
 
   async function loadData() {
     try {
       const month = currentMonth + 1;
-      const [allStudents, monthPayments] = await Promise.all([
+      const [allStudents, monthPayments, tuitionBills] = await Promise.all([
         studentService.getAllStudents(),
         feePaymentService.getMonthPayments(month, currentYear),
+        billService.getTuitionBillsForMonth(month, currentYear),
       ]);
+
+      const paidIds = new Set<string>();
+      for (const bill of tuitionBills) {
+        if (bill.student_id && bill.months?.includes(month)) {
+          paidIds.add(bill.student_id);
+        }
+      }
+
+      const attendedIds = new Set<string>();
+      await Promise.all(
+        allStudents.map(async (student) => {
+          const records = await attendanceService.getMonthAttendanceForStudent(student.id, currentYear, month);
+          if (records.length > 0) {
+            attendedIds.add(student.id);
+          }
+        })
+      );
+
       setStudents(allStudents);
       setPayments(monthPayments);
+      setPaidTuitionStudentIds(paidIds);
+      setAttendedStudentIds(attendedIds);
     } catch (err) {
       console.error('Failed to load fee data:', err);
     } finally {
@@ -137,13 +164,16 @@ export default function FeePaymentsScreen() {
 
   function getPaymentForStudent(student: Student): FeePayment {
     const payment = payments.find(p => p.student_id === student.id && p.month === currentMonth + 1 && p.year === currentYear);
-    if (!payment) {
+    if (payment) {
+      return payment;
+    }
+    if (paidTuitionStudentIds.has(student.id)) {
       return {
         id: `${student.id}_${currentMonth + 1}_${currentYear}`,
         student_id: student.id,
         month: currentMonth + 1,
         year: currentYear,
-        status: 'not_attended',
+        status: 'paid',
         paid_date: null,
         payment_mode: null,
         amount: 0,
@@ -151,7 +181,19 @@ export default function FeePaymentsScreen() {
         updated_at: '',
       };
     }
-    return payment;
+    const hasAttended = attendedStudentIds.has(student.id);
+    return {
+      id: `${student.id}_${currentMonth + 1}_${currentYear}`,
+      student_id: student.id,
+      month: currentMonth + 1,
+      year: currentYear,
+      status: hasAttended ? 'pending' : 'not_attended',
+      paid_date: null,
+      payment_mode: null,
+      amount: 0,
+      created_at: '',
+      updated_at: '',
+    };
   }
 
   async function togglePaymentStatus(student: Student) {
@@ -220,7 +262,7 @@ export default function FeePaymentsScreen() {
 
   const paidCount = students.reduce((count, s) => count + (getPaymentForStudent(s).status === 'paid' ? 1 : 0), 0);
   const pendingCount = students.reduce((count, s) => count + (getPaymentForStudent(s).status === 'pending' ? 1 : 0), 0);
-  const notAttendedCount = students.length - paidCount - pendingCount;
+  const notAttendedCount = students.reduce((count, s) => count + (getPaymentForStudent(s).status === 'not_attended' ? 1 : 0), 0);
 
   function getMonthLabel(date: Date): string {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });

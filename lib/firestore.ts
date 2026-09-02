@@ -47,6 +47,15 @@ const timestampToString = (timestamp: Timestamp | undefined): string => {
   return timestamp ? timestamp.toDate().toISOString() : new Date().toISOString();
 };
 
+export const normalizePhone = (phone: string | null | undefined): string | null => {
+  if (!phone) return null;
+  const digits = phone.replace(/\D/g, '');
+  if (digits.length === 12 && digits.startsWith('91')) {
+    return digits.slice(2);
+  }
+  return digits.slice(-10);
+};
+
 const parseDate = (dateStr: string): Date => {
   const parts = dateStr.split('-');
   return new Date(parseInt(parts[2]), parseInt(parts[1]) - 1, parseInt(parts[0]));
@@ -190,6 +199,8 @@ export const studentService = {
   async createStudent(data: Omit<Student, 'id' | 'created_at' | 'updated_at'>): Promise<string> {
     const docRef = await addDoc(collection(db, STUDENTS_COLLECTION), {
       ...data,
+      father_phone: normalizePhone(data.father_phone),
+      mother_phone: normalizePhone(data.mother_phone),
       created_at: serverTimestamp(),
       updated_at: serverTimestamp(),
     });
@@ -198,8 +209,15 @@ export const studentService = {
   },
 
   async updateStudent(studentId: string, data: Partial<Student>): Promise<void> {
+    const normalizedData = { ...data };
+    if (normalizedData.father_phone !== undefined) {
+      normalizedData.father_phone = normalizePhone(normalizedData.father_phone);
+    }
+    if (normalizedData.mother_phone !== undefined) {
+      normalizedData.mother_phone = normalizePhone(normalizedData.mother_phone);
+    }
     await updateDoc(doc(db, STUDENTS_COLLECTION, studentId), {
-      ...data,
+      ...normalizedData,
       updated_at: serverTimestamp(),
     });
     await cacheService.clearByPrefix('students_');

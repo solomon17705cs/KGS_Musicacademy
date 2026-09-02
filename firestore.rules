@@ -12,12 +12,24 @@ service cloud.firestore {
     function isStaffOrAdmin() { return isAdmin() || isStaff(); }
     function isOwner(userId) { return request.auth != null && request.auth.uid == userId; }
 
+    function existsOrNull(path) {
+      return exists(path) && get(path).data != null;
+    }
+
     function myEmail() {
-      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.email;
+      return existsOrNull(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.email
+        : '';
     }
 
     function myPhone() {
-      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.phone;
+      return existsOrNull(/databases/$(database)/documents/profiles/$(request.auth.uid))
+        ? get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.phone
+        : '';
+    }
+
+    function profileExists() {
+      return exists(/databases/$(database)/documents/profiles/$(request.auth.uid));
     }
 
     function isMyStudent(studentId) {
@@ -37,6 +49,7 @@ service cloud.firestore {
 
     match /students/{studentId} {
       allow read: if isStaffOrAdmin() ||
+        (!profileExists() && request.auth != null) ||
         resource.data.father_phone == myPhone() ||
         resource.data.father_email == myEmail() ||
         resource.data.mother_phone == myPhone() ||
@@ -46,17 +59,23 @@ service cloud.firestore {
     }
 
     match /progress_records/{recordId} {
-      allow read: if isStaffOrAdmin() || isMyStudent(resource.data.student_id);
+      allow read: if isStaffOrAdmin() ||
+        (!profileExists() && request.auth != null) ||
+        isMyStudent(resource.data.student_id);
       allow write: if isStaffOrAdmin();
     }
 
     match /attendance_records/{recordId} {
-      allow read: if isStaffOrAdmin() || isMyStudent(resource.data.student_id);
+      allow read: if isStaffOrAdmin() ||
+        (!profileExists() && request.auth != null) ||
+        isMyStudent(resource.data.student_id);
       allow write: if isStaffOrAdmin();
     }
 
     match /fee_payments/{paymentId} {
-      allow read: if isStaffOrAdmin() || isMyStudent(resource.data.student_id);
+      allow read: if isStaffOrAdmin() ||
+        (!profileExists() && request.auth != null) ||
+        isMyStudent(resource.data.student_id);
       allow write: if isStaffOrAdmin();
     }
 

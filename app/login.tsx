@@ -343,7 +343,9 @@ export default function LoginScreen() {
         </View>
 
       </ScrollView>
-      {Platform.OS === 'web' && <View id="recaptcha-container" />}
+      {Platform.OS === 'web' && (
+        <div id="recaptcha-container" style={{ position: 'absolute', top: 0, left: 0, zIndex: -1 }} />
+      )}
     </KeyboardAvoidingView>
   );
 }

@@ -1,7 +1,7 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, signInWithEmailAndPassword, createUserWithEmailAndPassword, signOut as firebaseSignOut, onAuthStateChanged } from 'firebase/auth';
 import { auth } from '@/lib/firebase';
-import { profileService, studentService } from '@/lib/firestore';
+import { profileService, studentService, normalizePhone } from '@/lib/firestore';
 import { Profile } from '@/types/database';
 import { initializePushNotifications } from '@/lib/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
@@ -93,7 +93,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
             email: '',
             full_name: parentName,
             role: 'parent',
-            phone: firebaseUser.phoneNumber,
+            phone: normalizePhone(firebaseUser.phoneNumber),
             notification_settings: { push_enabled: true },
           });
           userProfile = await profileService.getProfile(firebaseUser.uid);

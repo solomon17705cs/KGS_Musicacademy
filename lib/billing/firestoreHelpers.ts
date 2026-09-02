@@ -88,13 +88,15 @@ export const billService = {
   async getTuitionBillsForMonth(month: number, year: number): Promise<Bill[]> {
     const q = query(
       collection(db, BILLS_COLLECTION),
-      where('fee_type', '==', 'Tuition Fee'),
       where('year', '==', year),
     );
     const snap = await getDocs(q);
     return snap.docs
       .map(d => ({ id: d.id, ...d.data() } as Bill))
-      .filter(b => b.months && b.months.includes(month));
+      .filter(b =>
+        b.months?.includes(month) &&
+        b.fee_items?.some(item => item.fee_type === 'Tuition Fee')
+      );
   },
 
   async getBillsByStudent(studentId: string): Promise<Bill[]> {

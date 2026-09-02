@@ -14,7 +14,8 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useRootNavigationState, useFocusEffect } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { studentService, progressService, attendanceService } from '@/lib/firestore';
+import { studentService, progressService, attendanceService, feePaymentService } from '@/lib/firestore';
+import { billService } from '@/lib/billing/firestoreHelpers';
 import { Student, ProgressRecord } from '@/types/database';
 import {
   LogOut,
@@ -34,7 +35,7 @@ export default function StaffDashboard() {
   const { profile, loading: authLoading, signOut } = useAuth();
   const router = useRouter();
   const rootNavigationState = useRootNavigationState();
-  const [students, setStudents] = useState<(Student & { progress?: ProgressRecord; attendancePct?: number })[]>([]);
+  const [students, setStudents] = useState<(Student & { progress?: ProgressRecord; attendancePct?: number; currentFeeStatus: string })[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState('');
@@ -65,15 +66,34 @@ export default function StaffDashboard() {
     if (showLoader) setLoading(true);
     try {
       setError('');
-      const allStudents = await studentService.getAllStudents();
+      const now = new Date();
+      const currentMonth = now.getMonth() + 1;
+      const currentYear = now.getFullYear();
+
+      const [allStudents, monthPayments, tuitionBills] = await Promise.all([
+        studentService.getAllStudents(),
+        feePaymentService.getMonthPayments(currentMonth, currentYear),
+        billService.getTuitionBillsForMonth(currentMonth, currentYear),
+      ]);
+
+      const paidBillStudentIds = new Set<string>();
+      for (const bill of tuitionBills) {
+        if (bill.student_id && bill.months?.includes(currentMonth)) {
+          paidBillStudentIds.add(bill.student_id);
+        }
+      }
 
       const studentsWithProgress = await Promise.all(
         allStudents.map(async (student) => {
-          const [progress, summary] = await Promise.all([
+          const [progress, summary, monthAttendance] = await Promise.all([
             progressService.getLatestProgress(student.id),
             attendanceService.getAttendanceSummary(student.id, student.enrollment_date, student.summer_class),
+            attendanceService.getMonthAttendanceForStudent(student.id, currentYear, currentMonth),
           ]);
-          return { ...student, progress: progress || undefined, attendancePct: summary.percentage };
+          const payment = monthPayments.find(p => p.student_id === student.id);
+          const hasAttended = monthAttendance.length > 0;
+          const currentFeeStatus = payment?.status || (paidBillStudentIds.has(student.id) ? 'paid' : (hasAttended ? 'pending' : 'not_attended'));
+          return { ...student, progress: progress || undefined, attendancePct: summary.percentage, currentFeeStatus };
         })
       );
 
@@ -269,16 +289,16 @@ export default function StaffDashboard() {
                         <View style={[
                           styles.feeStatusBadge,
                           {
-                            backgroundColor: student.fee_status === 'paid' ? '#f0fdf4' : student.fee_status === 'pending' ? '#fff7ed' : student.fee_status === 'not_attended' ? '#f1f5f9' : '#fee2e2',
+                            backgroundColor: student.currentFeeStatus === 'paid' ? '#f0fdf4' : student.currentFeeStatus === 'pending' ? '#fff7ed' : '#f1f5f9',
                           }
                         ]}>
                           <Text style={[
                             styles.feeStatusText,
                             {
-                              color: student.fee_status === 'paid' ? '#16a34a' : student.fee_status === 'pending' ? '#ea580c' : student.fee_status === 'not_attended' ? '#94a3b8' : '#dc2626',
+                              color: student.currentFeeStatus === 'paid' ? '#16a34a' : student.currentFeeStatus === 'pending' ? '#ea580c' : '#94a3b8',
                             }
                           ]}>
-                            {student.fee_status === 'paid' ? 'Paid' : student.fee_status === 'pending' ? 'Pending' : student.fee_status === 'not_attended' ? 'Not Attended' : 'Overdue'}
+                            {student.currentFeeStatus === 'paid' ? 'Paid' : student.currentFeeStatus === 'pending' ? 'Pending' : 'Not Attended'}
                           </Text>
                         </View>
                       </View>

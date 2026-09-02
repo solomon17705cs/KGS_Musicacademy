@@ -91,15 +91,8 @@ export default function BillingDashboard() {
 
   const filteredBills = useMemo(() => {
     return bills.filter(b => {
-      let billedMonth = b.month;
-      let billedYear = b.year;
-      if (b.paid_date) {
-        const parts = b.paid_date.split('-');
-        if (parts.length === 3) {
-          billedMonth = parseInt(parts[1], 10);
-          billedYear = parseInt(parts[2], 10);
-        }
-      }
+      const billedMonth = b.month;
+      const billedYear = b.year;
       const matchMonth = billedMonth === filterMonth && billedYear === filterYear;
       const matchPaymentMode = !filterPaymentMode || b.payment_mode === filterPaymentMode;
       const matchSearch = !search.trim() ||

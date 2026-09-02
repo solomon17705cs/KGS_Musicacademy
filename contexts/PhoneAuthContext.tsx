@@ -1,6 +1,6 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
-import { auth, phoneAuthProvider, signInWithPhoneCredential } from '@/lib/firebase';
-import { signInWithCredential } from 'firebase/auth';
+import { auth } from '@/lib/firebase';
+import { signInWithCredential, PhoneAuthProvider as FirebaseAuthPhoneAuthProvider } from 'firebase/auth';
 import { initializePushNotifications } from '@/lib/notifications';
 
 interface PhoneAuthContextType {
@@ -24,24 +24,16 @@ export function PhoneAuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
 
     return new Promise((resolve) => {
-      phoneAuthProvider.verifyPhoneNumber(
-        auth,
-        phoneNumber,
-        {
-          timeout: 60,
-        },
-        (vid) => {
-          setVerificationId(vid);
-          setLoading(false);
-          resolve(true);
-        },
-        (err) => {
-          setError(err.message || 'Failed to send OTP');
-          setLoading(false);
-          resolve(false);
-        },
-        () => {}
-      );
+      const provider = new FirebaseAuthPhoneAuthProvider(auth);
+      provider.verifyPhoneNumber(phoneNumber).then((vid) => {
+        setVerificationId(vid);
+        setLoading(false);
+        resolve(true);
+      }).catch((err: any) => {
+        setError(err.message || 'Failed to send OTP');
+        setLoading(false);
+        resolve(false);
+      });
     });
   }, []);
 
@@ -55,7 +47,7 @@ export function PhoneAuthProvider({ children }: { children: React.ReactNode }) {
     setError(null);
 
     try {
-      const credential = await signInWithPhoneCredential(verificationId, code);
+      const credential = FirebaseAuthPhoneAuthProvider.credential(verificationId, code);
       const result = await signInWithCredential(auth, credential);
       if (result.user) {
         initializePushNotifications(result.user.uid).catch(err =>
