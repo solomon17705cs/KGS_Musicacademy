@@ -2,7 +2,7 @@
   "expo": {
     "name": "KGS Music Academy",
     "slug": "kgs-music-academy",
-    "version": "1.5.3",
+    "version": "2.0.1",
     "orientation": "portrait",
     "icon": "./Images/logo_fixed.png",
     "splash": {
