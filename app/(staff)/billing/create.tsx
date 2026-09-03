@@ -13,6 +13,7 @@ import { Student } from '@/types/database';
 import { billService, auditLogService } from '@/lib/billing/firestoreHelpers';
 import { FeeType, BillingPaymentMode, FeeItem } from '@/types/billing';
 import { formatCurrency, getCurrentGradeLevel, getMonthName, getFeeForGrade } from '@/lib/billing/amountInWords';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 
 const FEE_TYPES: FeeType[] = [
   'Tuition Fee', 'Exam Fee', 'Registration Fee', 'Other',
@@ -51,6 +52,7 @@ export default function CreateBill() {
   const { width } = useWindowDimensions();
   const isWeb = width > 768;
   const webDateRef = useRef<HTMLInputElement>(null);
+  const bottomPadding = useBottomPadding(16);
 
   const [students, setStudents] = useState<Student[]>([]);
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
@@ -234,7 +236,7 @@ export default function CreateBill() {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent} keyboardShouldPersistTaps="handled">
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]} keyboardShouldPersistTaps="handled">
 
         <View style={styles.section}>
           <Text style={styles.sectionLabel}>STUDENT</Text>

@@ -2,10 +2,13 @@ import { Tabs } from 'expo-router';
 import { User, Award } from 'lucide-react-native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { Platform, useWindowDimensions } from 'react-native';
+import { useSafeAreaInsets } from 'react-native-safe-area-context';
 
 export default function TabLayout() {
   const { width } = useWindowDimensions();
   const isMobile = width < 768;
+  const insets = useSafeAreaInsets();
+  const androidBottomPad = Platform.OS === 'android' ? insets.bottom : 0;
 
   return (
     <Tabs
@@ -20,14 +23,14 @@ export default function TabLayout() {
           bottom: isMobile ? 0 : 24,
           left: isMobile ? 0 : 24,
           right: isMobile ? 0 : 24,
-          height: isMobile ? 70 : 80,
+          height: isMobile ? 70 + androidBottomPad : 80,
           borderTopLeftRadius: 0,
           borderTopRightRadius: 0,
           borderBottomLeftRadius: 0,
           borderBottomRightRadius: 0,
           borderTopWidth: 0,
           borderTopColor: '#1e293b',
-          paddingBottom: Platform.OS === 'ios' ? 20 : 8,
+          paddingBottom: Platform.OS === 'ios' ? 20 : 8 + androidBottomPad,
           paddingTop: 8,
           elevation: 10,
           shadowColor: '#000',

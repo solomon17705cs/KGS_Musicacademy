@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, RefreshControl, Modal,
-  Pressable,
+  Pressable, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -13,6 +13,7 @@ import {
 import { Bill, BillingPaymentMode } from '@/types/billing';
 import { billService } from '@/lib/billing/firestoreHelpers';
 import { formatCurrency, getMonthName } from '@/lib/billing/amountInWords';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: getMonthName(i + 1).slice(0, 3) }));
 const CURRENT_YEAR = new Date().getFullYear();
@@ -65,6 +66,7 @@ function BillCard({ bill, onPress }: { bill: Bill; onPress: () => void }) {
 export default function BillingDashboard() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const bottomPadding = useBottomPadding(16);
 
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -140,7 +142,7 @@ export default function BillingDashboard() {
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => setRefreshing(true)} />}>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthScroll}>

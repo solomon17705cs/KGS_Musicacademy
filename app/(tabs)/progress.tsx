@@ -21,6 +21,7 @@ import { LinearGradient } from 'expo-linear-gradient';
 import MusicalNotesLoading from '@/components/MusicalNotesLoading';
 import ProgressHistogram from '@/components/ProgressHistogram';
 import { calculateProgressScore } from '@/lib/scoreCalculator';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 import {
   Music2,
   TrendingUp,
@@ -132,6 +133,7 @@ export default function ProgressScreen() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [showActivationBanner, setShowActivationBanner] = useState(true);
   const insets = useSafeAreaInsets();
+  const bottomPadding = useBottomPadding(0);
 
   useEffect(() => {
     if (!profile || !user) return;
@@ -319,7 +321,7 @@ export default function ProgressScreen() {
           <RefreshControl refreshing={refreshing} tintColor={colors.primary} colors={[colors.primary]} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={[selectedStudent ? styles.contentContainerSelected : styles.contentContainer]}>
+        contentContainerStyle={[selectedStudent ? styles.contentContainerSelected : styles.contentContainer, { paddingBottom: bottomPadding }]}>
 
         {selectedStudent ? (
           <View>

@@ -15,6 +15,7 @@ import { Bill, FeeType, BillingPaymentMode } from '@/types/billing';
 import { billService } from '@/lib/billing/firestoreHelpers';
 import { formatCurrency, getMonthName, getCurrentFinancialYear, getFinancialYears } from '@/lib/billing/amountInWords';
 import { exportBillsAsExcel } from '@/lib/billing/excelExport';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 
 const FEE_TYPES: FeeType[] = ['Tuition Fee', 'Exam Fee', 'Registration Fee', 'Other'];
 const PAYMENT_MODES: BillingPaymentMode[] = ['Cash', 'UPI', 'Net Banking', 'Card'];
@@ -72,6 +73,7 @@ export default function BillingDashboard() {
   const insets = useSafeAreaInsets();
   const { width, height } = useWindowDimensions();
   const isWeb = width > 768;
+  const bottomPadding = useBottomPadding(16);
 
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
@@ -200,7 +202,7 @@ export default function BillingDashboard() {
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}
         refreshControl={<RefreshControl refreshing={refreshing} onRefresh={() => setRefreshing(true)} />}>
 
         <ScrollView horizontal showsHorizontalScrollIndicator={false} style={styles.monthScroll}>

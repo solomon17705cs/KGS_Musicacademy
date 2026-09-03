@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
-  ActivityIndicator, TextInput,
+  ActivityIndicator, TextInput, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter, useLocalSearchParams } from 'expo-router';
@@ -13,6 +13,7 @@ import {
 import { Bill } from '@/types/billing';
 import { billService } from '@/lib/billing/firestoreHelpers';
 import { amountInWords, formatCurrency, getMonthName } from '@/lib/billing/amountInWords';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 
 function parseTimestamp(ts: any): string {
   if (!ts) return '—';
@@ -34,6 +35,7 @@ export default function ViewBill() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const bottomPadding = useBottomPadding(16);
 
   const [bill, setBill] = useState<Bill | null>(null);
   const [loading, setLoading] = useState(true);
@@ -110,7 +112,7 @@ export default function ViewBill() {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}>
 
         <View style={styles.successBanner}>
           <Text style={styles.successBannerText}>

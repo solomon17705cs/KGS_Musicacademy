@@ -13,6 +13,7 @@ import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { studentService } from '@/lib/firestore';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 import { Student } from '@/types/database';
 import { LinearGradient } from 'expo-linear-gradient';
 import MusicalNotesLoading from '@/components/MusicalNotesLoading';
@@ -97,6 +98,7 @@ export default function MilestonesScreen() {
   const [students, setStudents] = useState<Student[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const bottomPadding = useBottomPadding(0);
 
   useEffect(() => {
     if (!profile || !user) return;
@@ -160,7 +162,7 @@ export default function MilestonesScreen() {
           <RefreshControl refreshing={refreshing} tintColor={colors.primary} colors={[colors.primary]} onRefresh={onRefresh} />
         }
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.contentContainer}>
+        contentContainerStyle={[styles.contentContainer, { paddingBottom: bottomPadding }]}>
 
         {students.length === 0 ? (
           <View style={styles.emptyContainer}>

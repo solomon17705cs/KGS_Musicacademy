@@ -14,6 +14,7 @@ import { Bill } from '@/types/billing';
 import { billService, auditLogService } from '@/lib/billing/firestoreHelpers';
 import { exportBillAsPDF, printBill } from '@/lib/billing/pdfExport';
 import { amountInWords, formatCurrency, getMonthName } from '@/lib/billing/amountInWords';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 
 function parseTimestamp(ts: any): string {
   if (!ts) return '—';
@@ -35,6 +36,7 @@ export default function ViewBill() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const bottomPadding = useBottomPadding(16);
 
   const [bill, setBill] = useState<Bill | null>(null);
   const [loading, setLoading] = useState(true);
@@ -136,7 +138,7 @@ export default function ViewBill() {
       </View>
 
       <ScrollView style={styles.scroll} showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollContent}>
+        contentContainerStyle={[styles.scrollContent, { paddingBottom: bottomPadding }]}>
 
         <View style={styles.successBanner}>
           <Text style={styles.successBannerText}>
@@ -224,27 +226,29 @@ export default function ViewBill() {
           )}
         </View>
 
-        <View style={styles.actionsRow}>
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnBlue]}
-            onPress={handleExportPDF}
-            disabled={!!actionLoading}>
-            {actionLoading === 'pdf'
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <Download size={18} color="#fff" />}
-            <Text style={styles.actionBtnText}>Save PDF</Text>
-          </TouchableOpacity>
+        {Platform.OS !== 'android' && (
+          <View style={styles.actionsRow}>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnBlue]}
+              onPress={handleExportPDF}
+              disabled={!!actionLoading}>
+              {actionLoading === 'pdf'
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Download size={18} color="#fff" />}
+              <Text style={styles.actionBtnText}>Save PDF</Text>
+            </TouchableOpacity>
 
-          <TouchableOpacity
-            style={[styles.actionBtn, styles.actionBtnGreen]}
-            onPress={handlePrint}
-            disabled={!!actionLoading}>
-            {actionLoading === 'print'
-              ? <ActivityIndicator size="small" color="#fff" />
-              : <Printer size={18} color="#fff" />}
-            <Text style={styles.actionBtnText}>Print</Text>
-          </TouchableOpacity>
-        </View>
+            <TouchableOpacity
+              style={[styles.actionBtn, styles.actionBtnGreen]}
+              onPress={handlePrint}
+              disabled={!!actionLoading}>
+              {actionLoading === 'print'
+                ? <ActivityIndicator size="small" color="#fff" />
+                : <Printer size={18} color="#fff" />}
+              <Text style={styles.actionBtnText}>Print</Text>
+            </TouchableOpacity>
+          </View>
+        )}
 
         <View style={{ height: 40 }} />
       </ScrollView>

@@ -24,6 +24,7 @@ import {
 } from 'lucide-react-native';
 import { studentService, progressService } from '@/lib/firestore';
 import { Student, CompletedGrade } from '@/types/database';
+import { useBottomPadding } from '@/hooks/useBottomPadding';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -543,6 +544,7 @@ export default function MilestoneScreen() {
   const { id } = useLocalSearchParams<{ id: string }>();
   const router = useRouter();
   const insets = useSafeAreaInsets();
+  const bottomPadding = useBottomPadding(20);
 
   const [student, setStudent] = useState<Student | null>(null);
   const [milestones, setMilestones] = useState<MilestoneEvent[]>([]);
@@ -680,7 +682,7 @@ export default function MilestoneScreen() {
       <ScrollView
         style={styles.scroll}
         showsVerticalScrollIndicator={false}
-        contentContainerStyle={styles.scrollInner}>
+        contentContainerStyle={[styles.scrollInner, { paddingBottom: bottomPadding }]}>
 
         {/* Hero */}
         <LinearGradient
