@@ -16,10 +16,11 @@ import {
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
-import { studentService, attendanceService, unpaidClassService, profileService } from '@/lib/firestore';
+import { studentService, attendanceService, unpaidClassService, profileService, compensationService } from '@/lib/firestore';
 import { cacheService } from '@/lib/cache';
 import { Student, AttendanceRecord } from '@/types/database';
 import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Search, X } from 'lucide-react-native';
+import CompensationOverride from '@/components/CompensationOverride';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
@@ -104,6 +105,8 @@ export default function AttendanceScreen() {
   const [searchText, setSearchText] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const searchOpen = searchFocused || searchText.length > 0;
+  const [compOverrideStudent, setCompOverrideStudent] = useState<Student | null>(null);
+  const [prevMonthAttended, setPrevMonthAttended] = useState(0);
 
   function parseName(name: string) {
     const m = name.match(/^((?:[A-Z]\.\s*)+)(.+)/);
@@ -229,6 +232,7 @@ export default function AttendanceScreen() {
       if (profile.last_unpaid_check === checkKey) return;
 
       const recordsCreated = await unpaidClassService.detectUnpaidClasses(prevMonth, prevYear);
+      await compensationService.detectCompensation(prevMonth, prevYear);
       await profileService.updateProfile(profile.id, { last_unpaid_check: checkKey });
       if (recordsCreated > 0) {
         cacheService.clearByPrefix('students_');
@@ -281,9 +285,21 @@ export default function AttendanceScreen() {
     if (student?.summer_class) return false;
     const regularQuota = 8;
     const unpaidClasses = student?.unpaid_classes || 0;
-    const effectiveQuota = Math.max(0, regularQuota - unpaidClasses);
+    const effectiveRegular = Math.max(0, regularQuota - unpaidClasses);
+    const compensation = student?.compensation_classes || 0;
+    const totalPossible = effectiveRegular + compensation;
     const beforeCount = getStudentMonthlyCount(studentId, dateStr, records);
-    return beforeCount >= effectiveQuota;
+    return beforeCount >= totalPossible;
+  }
+
+  function isCompensationClass(studentId: string, dateStr: string, student?: Student, records?: AttendanceRecord[]): boolean {
+    if (student?.summer_class) return false;
+    const regularQuota = 8;
+    const unpaidClasses = student?.unpaid_classes || 0;
+    const effectiveRegular = Math.max(0, regularQuota - unpaidClasses);
+    const compensation = student?.compensation_classes || 0;
+    const beforeCount = getStudentMonthlyCount(studentId, dateStr, records);
+    return beforeCount >= effectiveRegular && beforeCount < effectiveRegular + compensation;
   }
 
   const handlePrevWeek = () => {
@@ -311,6 +327,27 @@ export default function AttendanceScreen() {
   const openDetail = (student: Student) => {
     setSelectedStudent(student);
     setDetailMonth(new Date());
+  };
+
+  const openCompensation = (student: Student) => {
+    const now = new Date();
+    let prevMonth = now.getMonth();
+    let prevYear = now.getFullYear();
+    if (prevMonth === 0) {
+      prevMonth = 12;
+      prevYear -= 1;
+    }
+    const monthStr = String(prevMonth).padStart(2, '0');
+    const prevStart = `${prevYear}-${monthStr}-01`;
+    const prevEnd = `${prevYear}-${monthStr}-31`;
+    const attended = allAttendance.filter(r =>
+      r.student_id === student.id &&
+      r.date >= prevStart &&
+      r.date <= prevEnd &&
+      (r.status === 'present' || r.status === 'double_present')
+    ).reduce((sum, r) => sum + (r.status === 'double_present' ? 2 : 1), 0);
+    setPrevMonthAttended(attended);
+    setCompOverrideStudent(student);
   };
 
   const closeDetail = () => {
@@ -354,6 +391,14 @@ export default function AttendanceScreen() {
   function renderStudentRows(studentList: Student[]) {
     return studentList.map((student) => {
       const studentSummary = summaryByStudent[student.id] || { present: 0, extra: 0, percentage: 0, total: 8 };
+      const compClasses = student.compensation_classes || 0;
+      const isCurrentMonthComp = student.compensation_month === new Date().getMonth() + 1 && student.compensation_year === new Date().getFullYear();
+      const activeComp = isCurrentMonthComp ? compClasses : 0;
+      const monthlyCount = getStudentMonthlyCount(student.id, undefined, monthRecords);
+      const regularQuota = 8;
+      const unpaidClasses = student.unpaid_classes || 0;
+      const effectiveRegular = Math.max(0, regularQuota - unpaidClasses);
+      const regularDone = monthlyCount >= effectiveRegular;
       return (
         <View key={student.id} style={styles.tableRow}>
           <TouchableOpacity style={styles.nameCell} onPress={() => openDetail(student)}>
@@ -367,6 +412,17 @@ export default function AttendanceScreen() {
                 </Text>
               </View>
             )}
+            {!student.summer_class && (
+              <TouchableOpacity
+                style={[styles.compBadge, activeComp > 0 && regularDone && styles.compBadgeActive]}
+                onPress={() => openCompensation(student)}>
+                <Text style={[styles.compBadgeText, activeComp > 0 && regularDone && styles.compBadgeTextActive]}>
+                  {activeComp > 0
+                    ? (regularDone ? `comp: ${activeComp} left` : `${activeComp} comp`)
+                    : 'comp'}
+                </Text>
+              </TouchableOpacity>
+            )}
             <Text style={styles.instrumentText} numberOfLines={1}>
               {student.instrument}
             </Text>
@@ -379,6 +435,7 @@ export default function AttendanceScreen() {
             const isScheduled = (student.class_days || []).includes(DAY_NAMES[idx]);
             const isFuture = date > new Date();
             const isSunday = date.getDay() === 0;
+            const isComp = record?.status === 'present' && isCompensationClass(student.id, dateStr, student);
             const isExtra = record?.status === 'present' && isExtraClass(student.id, dateStr, student);
             const isDouble = record?.status === 'double_present';
 
@@ -388,8 +445,9 @@ export default function AttendanceScreen() {
                 style={[
                   styles.statusCell,
                   isExtra && styles.extraClassCell,
+                  isComp && styles.compClassCell,
                   isDouble && styles.doublePresentCell,
-                  record?.status === 'present' && !isExtra && styles.presentCell,
+                  record?.status === 'present' && !isExtra && !isComp && styles.presentCell,
                   isFuture && styles.futureCell,
                   !isSunday && !isScheduled && styles.unscheduledCell,
                   isSunday && styles.sundayCell,
@@ -416,8 +474,8 @@ export default function AttendanceScreen() {
                 ) : isDouble ? (
                   <Text style={[styles.statusIcon, styles.doublePresentText]}>DP</Text>
                 ) : record && record.status === 'present' ? (
-                  <Text style={[styles.statusIcon, isExtra ? styles.extraText : styles.presentText]}>
-                    {isExtra ? 'E' : 'P'}
+                  <Text style={[styles.statusIcon, isExtra ? styles.extraText : isComp ? styles.compText : styles.presentText]}>
+                    {isExtra ? 'E' : isComp ? 'C' : 'P'}
                   </Text>
                 ) : (
                   <Text style={styles.emptyText}>+</Text>
@@ -536,6 +594,10 @@ export default function AttendanceScreen() {
           <Text style={styles.legendText}>Extra class</Text>
         </View>
         <View style={styles.legendItem}>
+          <View style={[styles.legendDot, styles.compDot]} />
+          <Text style={styles.legendText}>Compensation</Text>
+        </View>
+        <View style={styles.legendItem}>
           <View style={styles.legendDot} />
           <Text style={styles.legendText}>Not marked</Text>
         </View>
@@ -543,8 +605,8 @@ export default function AttendanceScreen() {
 
       {/* Student Monthly Detail Modal */}
       <Modal visible={!!selectedStudent} animationType="slide" transparent>
-        <View style={styles.modalContainer}>
-          <View style={styles.modalContent}>
+        <TouchableOpacity style={styles.modalContainer} activeOpacity={1} onPress={closeDetail}>
+          <TouchableOpacity activeOpacity={1} style={styles.modalContent}>
             <View style={styles.modalHeader}>
               <View>
                 <Text style={styles.modalTitle}>{displayName(selectedStudent?.full_name || '')}</Text>
@@ -586,6 +648,30 @@ export default function AttendanceScreen() {
               <Text style={styles.summaryCount}>{summary.present}/{summary.total} {summary.extra > 0 && `+${summary.extra}`}</Text>
             </View>
 
+            {selectedStudent && !selectedStudent.summer_class && (
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={styles.modalActionBtn}
+                  onPress={() => {
+                    closeDetail();
+                    openCompensation(selectedStudent);
+                  }}>
+                  <Text style={styles.modalActionText}>
+                    Comp: {selectedStudent.compensation_classes || 0} classes
+                  </Text>
+                  <Text style={styles.modalActionSub}>Adjust →</Text>
+                </TouchableOpacity>
+                {(selectedStudent.unpaid_classes || 0) > 0 && (
+                  <View style={styles.modalActionBtn}>
+                    <Text style={styles.modalActionText}>
+                      Pending: {selectedStudent.unpaid_classes} classes
+                    </Text>
+                    <Text style={styles.modalActionSub}>Manage in Fee Payments</Text>
+                  </View>
+                )}
+              </View>
+            )}
+
             <ScrollView style={styles.modalBody}>
               {detailWeeks.map((weekDates, weekIdx) => (
                 <View key={weekIdx} style={styles.modalWeekRow}>
@@ -595,6 +681,7 @@ export default function AttendanceScreen() {
                     const isScheduled = (selectedStudent?.class_days || []).includes(DAY_NAMES[idx]);
                     const isFuture = date > new Date();
                     const isSunday = date.getDay() === 0;
+                    const isComp = record?.status === 'present' && isCompensationClass(selectedStudent!.id, dateStr, selectedStudent!, detailRecords);
                     const isExtra = record?.status === 'present' && isExtraClass(selectedStudent!.id, dateStr, selectedStudent!, detailRecords);
                     const isDouble = record?.status === 'double_present';
                     const sameMonth = date.getMonth() === detailMonth.getMonth();
@@ -608,8 +695,9 @@ export default function AttendanceScreen() {
                             styles.modalStatusCell,
                             !sameMonth && styles.fadedCell,
                             isExtra && styles.extraClassCell,
+                            isComp && styles.compClassCell,
                             isDouble && styles.doublePresentCell,
-                            record?.status === 'present' && !isExtra && styles.presentCell,
+                            record?.status === 'present' && !isExtra && !isComp && styles.presentCell,
                             (isFuture || futureMonth) && styles.futureCell,
                             !isSunday && !isScheduled && styles.unscheduledCell,
                             isSunday && styles.sundayCell,
@@ -636,8 +724,8 @@ export default function AttendanceScreen() {
                           ) : isDouble ? (
                             <Text style={[styles.statusIcon, styles.doublePresentText]}>DP</Text>
                           ) : record && record.status === 'present' ? (
-                            <Text style={[styles.statusIcon, isExtra ? styles.extraText : styles.presentText]}>
-                              {isExtra ? 'E' : 'P'}
+                            <Text style={[styles.statusIcon, isExtra ? styles.extraText : isComp ? styles.compText : styles.presentText]}>
+                              {isExtra ? 'E' : isComp ? 'C' : 'P'}
                             </Text>
                           ) : (
                             <Text style={styles.emptyText}>+</Text>
@@ -649,9 +737,38 @@ export default function AttendanceScreen() {
                 </View>
               ))}
             </ScrollView>
-          </View>
-        </View>
+          </TouchableOpacity>
+        </TouchableOpacity>
       </Modal>
+
+      {compOverrideStudent && (
+        <CompensationOverride
+          student={compOverrideStudent}
+          prevMonthAttended={prevMonthAttended}
+          prevMonth={(() => {
+            const now = new Date();
+            let m = now.getMonth();
+            if (m === 0) m = 12;
+            return m;
+          })()}
+          prevYear={(() => {
+            const now = new Date();
+            let m = now.getMonth();
+            let y = now.getFullYear();
+            if (m === 0) y -= 1;
+            return y;
+          })()}
+          currentMonth={new Date().getMonth() + 1}
+          currentYear={new Date().getFullYear()}
+          visible={!!compOverrideStudent}
+          onSave={() => {
+            setCompOverrideStudent(null);
+            cacheService.clearByPrefix('students_');
+            cacheService.clearByPrefix('student_');
+          }}
+          onCancel={() => setCompOverrideStudent(null)}
+        />
+      )}
     </View>
   );
 }
@@ -877,6 +994,25 @@ const styles = StyleSheet.create({
     fontWeight: '700',
     color: '#d97706',
   },
+  compBadge: {
+    backgroundColor: '#fef3c7',
+    borderRadius: 6,
+    paddingHorizontal: 5,
+    paddingVertical: 2,
+    marginTop: 2,
+    alignSelf: 'flex-start',
+  },
+  compBadgeActive: {
+    backgroundColor: '#dbeafe',
+  },
+  compBadgeText: {
+    fontSize: 9,
+    fontWeight: '700',
+    color: '#d97706',
+  },
+  compBadgeTextActive: {
+    color: '#1d4ed8',
+  },
   statusCell: {
     width: 56,
     height: 44,
@@ -911,6 +1047,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#fef3c7',
     borderColor: '#f59e0b',
   },
+  compClassCell: {
+    backgroundColor: '#dbeafe',
+    borderColor: '#3b82f6',
+  },
   doublePresentCell: {
     backgroundColor: '#eef2ff',
     borderColor: '#6366f1',
@@ -924,6 +1064,9 @@ const styles = StyleSheet.create({
   },
   extraText: {
     color: '#d97706',
+  },
+  compText: {
+    color: '#2563eb',
   },
   doublePresentText: {
     color: '#6366f1',
@@ -988,6 +1131,9 @@ const styles = StyleSheet.create({
   },
   extraDot: {
     backgroundColor: '#f59e0b',
+  },
+  compDot: {
+    backgroundColor: '#3b82f6',
   },
   legendText: {
     fontSize: 12,
@@ -1067,7 +1213,30 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     backgroundColor: '#f8fafc',
     borderRadius: 12,
-    marginBottom: 16,
+    marginBottom: 12,
+  },
+  modalActions: {
+    flexDirection: 'row',
+    gap: 8,
+    marginBottom: 12,
+  },
+  modalActionBtn: {
+    flex: 1,
+    backgroundColor: '#f1f5f9',
+    borderRadius: 10,
+    padding: 10,
+    borderWidth: 1,
+    borderColor: '#e2e8f0',
+  },
+  modalActionText: {
+    fontSize: 12,
+    fontWeight: '700',
+    color: '#1e293b',
+  },
+  modalActionSub: {
+    fontSize: 11,
+    color: '#3b82f6',
+    marginTop: 2,
   },
   modalBody: {
     flex: 1,

@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import {
   View, Text, StyleSheet, ScrollView, TouchableOpacity,
   TextInput, ActivityIndicator, RefreshControl, Modal, Alert,
-  useWindowDimensions, Pressable,
+  useWindowDimensions, Pressable, Platform,
 } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
@@ -21,6 +21,7 @@ const PAYMENT_MODES: BillingPaymentMode[] = ['Cash', 'UPI', 'Net Banking', 'Card
 
 const MONTHS = Array.from({ length: 12 }, (_, i) => ({ value: i + 1, label: getMonthName(i + 1).slice(0, 3) }));
 const CURRENT_YEAR = new Date().getFullYear();
+const isAndroid = Platform.OS === 'android';
 
 function parseTimestamp(ts: any): string {
   if (!ts) return '—';
@@ -173,7 +174,7 @@ export default function BillingDashboard() {
           <TouchableOpacity
             style={styles.paymentsBtn}
             onPress={() => router.push('/(admin)/fee-payments')}>
-            <DollarSign size={18} color="#1e40af" />
+            <DollarSign size={isAndroid ? 14 : 18} color="#1e40af" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.totalBadge}
@@ -185,12 +186,12 @@ export default function BillingDashboard() {
           <TouchableOpacity
             style={styles.exportBtn}
             onPress={() => setShowExportModal(true)}>
-            <FileSpreadsheet size={18} color="#16a34a" />
+            <FileSpreadsheet size={isAndroid ? 14 : 18} color="#16a34a" />
           </TouchableOpacity>
           <TouchableOpacity
             style={styles.newBtn}
             onPress={() => router.push('/(admin)/billing/create')}>
-            <Plus size={20} color="#fff" />
+            <Plus size={isAndroid ? 16 : 20} color="#fff" />
             <Text style={styles.newBtnText}>New</Text>
           </TouchableOpacity>
         </View>
@@ -551,28 +552,28 @@ const styles = StyleSheet.create({
   header: {
     backgroundColor: '#fff', flexDirection: 'row',
     alignItems: 'center',
-    paddingHorizontal: 16, paddingBottom: 16,
+    paddingHorizontal: isAndroid ? 12 : 16, paddingBottom: 16,
     borderBottomWidth: 1, borderBottomColor: '#e2e8f0',
   },
   backBtn: {
-    width: 40, height: 40, borderRadius: 12,
+    width: isAndroid ? 36 : 40, height: isAndroid ? 36 : 40, borderRadius: isAndroid ? 10 : 12,
     backgroundColor: '#f1f5f9', alignItems: 'center', justifyContent: 'center',
   },
-  headerCenter: { flex: 1, marginLeft: 12 },
-  headerTitle: { fontSize: 20, fontWeight: '800', color: '#1e293b' },
-  headerSub: { fontSize: 11, color: '#94a3b8', marginTop: 2 },
+  headerCenter: { flex: 1, marginLeft: isAndroid ? 8 : 12 },
+  headerTitle: { fontSize: isAndroid ? 17 : 20, fontWeight: '800', color: '#1e293b' },
+  headerSub: { fontSize: isAndroid ? 10 : 11, color: '#94a3b8', marginTop: 2 },
   newBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 6,
-    backgroundColor: '#1e40af', borderRadius: 12,
-    paddingHorizontal: 16, paddingVertical: 10,
+    flexDirection: 'row', alignItems: 'center', gap: isAndroid ? 4 : 6,
+    backgroundColor: '#1e40af', borderRadius: isAndroid ? 8 : 12,
+    paddingHorizontal: isAndroid ? 10 : 16, paddingVertical: isAndroid ? 7 : 10,
   },
-  newBtnText: { fontSize: 14, fontWeight: '700', color: '#fff' },
+  newBtnText: { fontSize: isAndroid ? 12 : 14, fontWeight: '700', color: '#fff' },
 
   totalBadge: {
     backgroundColor: '#f0fdf4', borderWidth: 1.5, borderColor: '#bbf7d0',
-    borderRadius: 12, paddingHorizontal: 12, paddingVertical: 8,
+    borderRadius: isAndroid ? 8 : 12, paddingHorizontal: isAndroid ? 8 : 12, paddingVertical: isAndroid ? 5 : 8,
   },
-  totalBadgeText: { fontSize: 13, fontWeight: '800', color: '#166534' },
+  totalBadgeText: { fontSize: isAndroid ? 11 : 13, fontWeight: '800', color: '#166534' },
 
   monthScroll: { marginBottom: 12 },
   monthChip: {
@@ -642,14 +643,14 @@ const styles = StyleSheet.create({
   },
   emptyTitle: { fontSize: 16, fontWeight: '700', color: '#1e293b', marginBottom: 6 },
   emptyText: { fontSize: 13, color: '#94a3b8', textAlign: 'center' },
-  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 8 },
+  headerActions: { flexDirection: 'row', alignItems: 'center', gap: 6 },
   paymentsBtn: {
-    width: 40, height: 40, borderRadius: 12,
+    width: isAndroid ? 32 : 40, height: isAndroid ? 32 : 40, borderRadius: isAndroid ? 8 : 12,
     backgroundColor: '#eff6ff', borderWidth: 1.5, borderColor: '#bfdbfe',
     alignItems: 'center', justifyContent: 'center',
   },
   exportBtn: {
-    width: 40, height: 40, borderRadius: 12,
+    width: isAndroid ? 32 : 40, height: isAndroid ? 32 : 40, borderRadius: isAndroid ? 8 : 12,
     backgroundColor: '#f0fdf4', borderWidth: 1.5, borderColor: '#bbf7d0',
     alignItems: 'center', justifyContent: 'center',
   },

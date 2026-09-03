@@ -14,7 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from '@/contexts/ThemeContext';
 import { studentService, attendanceService } from '@/lib/firestore';
 import { Student, AttendanceRecord } from '@/types/database';
-import { ArrowLeft, Calendar, Check, X, AlertTriangle, HelpCircle } from 'lucide-react-native';
+import { ArrowLeft, Calendar, Check, X, AlertTriangle, HelpCircle, Info } from 'lucide-react-native';
 import MusicalNotesLoading from '@/components/MusicalNotesLoading';
 
 function getMonthName(month: number): string {
@@ -179,18 +179,28 @@ export default function StudentAttendanceScreen() {
                   </View>
                 </View>
 
-                {monthsData.map((monthData) => {
-                  const presentCount = monthData.records.filter(r => r.status === 'present').length;
-                  const isHighlight = presentCount > 8;
+                {monthsData.map((monthData, monthIdx) => {
+                  const presentCount = monthData.records.filter(r => r.status === 'present' || r.status === 'double_present').reduce((sum, r) => sum + (r.status === 'double_present' ? 2 : 1), 0);
+                  const isCurrentMonth = monthIdx === 1;
+                  const isPreviousMonth = monthIdx === 0;
+                  const regularQuota = student.summer_class ? 30 : 8;
+                  const unpaidClasses = student.unpaid_classes || 0;
+                  const effectiveRegular = Math.max(0, regularQuota - unpaidClasses);
+                  const compensation = student.compensation_classes || 0;
+                  const isCurrentMonthComp = student.compensation_month === new Date().getMonth() + 1 && student.compensation_year === new Date().getFullYear();
+                  const activeCompensation = isCurrentMonthComp ? compensation : 0;
+                  const regularDone = presentCount >= effectiveRegular;
+                  const missed = Math.max(0, effectiveRegular - presentCount);
+                  const isHighlight = presentCount > effectiveRegular;
                   const accentColor = isHighlight ? '#ea580c' : colors.primary;
 
                   let orangeThreshold = monthData.records.length;
                   if (isHighlight) {
                     let seen = 0;
                     for (let i = 0; i < monthData.records.length; i++) {
-                      if (monthData.records[i].status === 'present') {
-                        seen++;
-                        if (seen === 9) {
+                      if (monthData.records[i].status === 'present' || monthData.records[i].status === 'double_present') {
+                        seen += monthData.records[i].status === 'double_present' ? 2 : 1;
+                        if (seen > effectiveRegular) {
                           orangeThreshold = i;
                           break;
                         }
@@ -203,6 +213,16 @@ export default function StudentAttendanceScreen() {
                     <View style={styles.monthHeader}>
                       <Calendar size={16} color={accentColor} />
                       <Text style={[styles.monthTitle, isHighlight && styles.monthTitleHighlight]}>{monthData.month}</Text>
+                      {isCurrentMonth && (
+                        <View style={[styles.currentBadge, { backgroundColor: colors.primary + '20' }]}>
+                          <Text style={[styles.currentBadgeText, { color: colors.primary }]}>current</Text>
+                        </View>
+                      )}
+                      {isPreviousMonth && (
+                        <View style={[styles.currentBadge, { backgroundColor: colors.warning + '20' }]}>
+                          <Text style={[styles.currentBadgeText, { color: colors.warning }]}>previous</Text>
+                        </View>
+                      )}
                     </View>
 
                     {monthData.records.length === 0 ? (
@@ -224,6 +244,52 @@ export default function StudentAttendanceScreen() {
                             );
                           })}
                         </View>
+
+                        {isCurrentMonth && !student.summer_class && (
+                          <View style={styles.progressSection}>
+                            <View style={styles.progressBar}>
+                              <View style={[styles.progressFill, { width: `${Math.min(100, (presentCount / effectiveRegular) * 100)}%`, backgroundColor: regularDone ? colors.success : colors.primary }]} />
+                            </View>
+                            <View style={styles.progressInfo}>
+                              <Text style={styles.progressText}>
+                                {presentCount} / {effectiveRegular} classes
+                              </Text>
+                              <Text style={styles.progressRemaining}>
+                                {effectiveRegular - presentCount > 0 ? `${effectiveRegular - presentCount} remaining this month` : 'Regular classes completed'}
+                              </Text>
+                            </View>
+                            {activeCompensation > 0 && (
+                              <View style={styles.compensationInfo}>
+                                <Info size={14} color="#2563eb" />
+                                <View style={styles.compensationTextContainer}>
+                                  <Text style={styles.compensationText}>
+                                    {regularDone
+                                      ? `${activeCompensation} compensation classes available from ${getMonthName(student.compensation_month)}`
+                                      : `+${activeCompensation} extra classes available after ${effectiveRegular} are done`
+                                    }
+                                  </Text>
+                                  <Text style={styles.compensationDisclaimer}>
+                                    Valid this month only · not carried forward
+                                  </Text>
+                                </View>
+                              </View>
+                            )}
+                          </View>
+                        )}
+
+                        {isPreviousMonth && !student.summer_class && missed > 0 && (
+                          <View style={styles.prevMonthInfo}>
+                            <AlertTriangle size={14} color="#d97706" />
+                            <View style={styles.prevMonthTextContainer}>
+                              <Text style={styles.prevMonthText}>
+                                {missed} classes missed
+                              </Text>
+                              <Text style={styles.prevMonthDisclaimer}>
+                                Could be compensated in the current month only. Cannot be carried forward further.
+                              </Text>
+                            </View>
+                          </View>
+                        )}
 
                         <View style={styles.recordsGrid}>
                           {monthData.records.map((record, idx) => {
@@ -365,6 +431,87 @@ function createStyles(colors: Record<string, string>) {
     },
     monthTitleHighlight: {
       color: '#ea580c',
+    },
+    currentBadge: {
+      paddingHorizontal: 6,
+      paddingVertical: 2,
+      borderRadius: 4,
+    },
+    currentBadgeText: {
+      fontSize: 10,
+      fontWeight: '700',
+    },
+    progressSection: {
+      marginBottom: 12,
+    },
+    progressBar: {
+      height: 6,
+      backgroundColor: colors.border,
+      borderRadius: 3,
+      overflow: 'hidden',
+      marginBottom: 6,
+    },
+    progressFill: {
+      height: '100%',
+      borderRadius: 3,
+    },
+    progressInfo: {
+      flexDirection: 'row',
+      justifyContent: 'space-between',
+      alignItems: 'center',
+    },
+    progressText: {
+      fontSize: 13,
+      fontWeight: '700',
+      color: colors.text,
+    },
+    progressRemaining: {
+      fontSize: 12,
+      color: colors.textSecondary,
+    },
+    compensationInfo: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 6,
+      backgroundColor: '#dbeafe',
+      borderRadius: 8,
+      padding: 10,
+      marginTop: 8,
+    },
+    compensationTextContainer: {
+      flex: 1,
+    },
+    compensationText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: '#1d4ed8',
+    },
+    compensationDisclaimer: {
+      fontSize: 11,
+      color: '#3b82f6',
+      marginTop: 2,
+    },
+    prevMonthInfo: {
+      flexDirection: 'row',
+      alignItems: 'flex-start',
+      gap: 6,
+      backgroundColor: '#fef3c7',
+      borderRadius: 8,
+      padding: 10,
+      marginBottom: 12,
+    },
+    prevMonthTextContainer: {
+      flex: 1,
+    },
+    prevMonthText: {
+      fontSize: 12,
+      fontWeight: '600',
+      color: '#92400e',
+    },
+    prevMonthDisclaimer: {
+      fontSize: 11,
+      color: '#b45309',
+      marginTop: 2,
     },
     noRecords: {
       fontSize: 13,

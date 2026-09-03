@@ -16,7 +16,7 @@ import {
   onSnapshot,
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { Profile, Student, ProgressRecord, Notification, AttendanceRecord, FeePayment, UnpaidClassRecord } from '@/types/database';
+import { Profile, Student, ProgressRecord, Notification, AttendanceRecord, FeePayment, UnpaidClassRecord, CompensationAuditLog } from '@/types/database';
 import { cacheService } from './cache';
 
 const CACHE_TTL = {
@@ -748,5 +748,135 @@ export const unpaidClassService = {
 
     await cacheService.clearByPrefix('students_');
     await cacheService.clearByPrefix(`student_${studentId}`);
+  },
+};
+
+const COMPENSATION_AUDIT_COLLECTION = 'compensation_audit';
+
+export const compensationService = {
+  async detectCompensation(prevMonth: number, prevYear: number): Promise<number> {
+    const monthStr = String(prevMonth).padStart(2, '0');
+    const studentsSnap = await getDocs(collection(db, STUDENTS_COLLECTION));
+    const now = new Date();
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    let updated = 0;
+
+    for (const studentDoc of studentsSnap.docs) {
+      const student = studentDoc.data() as Student;
+      const studentId = studentDoc.id;
+
+      if (student.summer_class) continue;
+
+      const feeDocId = `${studentId}_${currentYear}_${currentMonth}`;
+      const feeDoc = await getDoc(doc(db, FEE_PAYMENTS_COLLECTION, feeDocId));
+      const feePaid = feeDoc.exists() && feeDoc.data()?.status === 'paid';
+      if (!feePaid) {
+        await updateDoc(doc(db, STUDENTS_COLLECTION, studentId), {
+          compensation_classes: 0,
+          compensation_month: currentMonth,
+          compensation_year: currentYear,
+          compensation_confirmed_by: null,
+          updated_at: serverTimestamp(),
+        });
+        continue;
+      }
+
+      const attendanceSnap = await getDocs(
+        query(
+          collection(db, ATTENDANCE_COLLECTION),
+          where('student_id', '==', studentId),
+          where('date', '>=', `${prevYear}-${monthStr}-01`),
+          where('date', '<=', `${prevYear}-${monthStr}-31`),
+          where('status', 'in', ['present', 'double_present'])
+        )
+      );
+
+      const classesAttended = attendanceSnap.docs.reduce((sum, d) => {
+        return sum + (d.data().status === 'double_present' ? 2 : 1);
+      }, 0);
+
+      const missed = Math.max(0, 8 - classesAttended);
+
+      await updateDoc(doc(db, STUDENTS_COLLECTION, studentId), {
+        compensation_classes: missed,
+        compensation_month: currentMonth,
+        compensation_year: currentYear,
+        compensation_confirmed_by: null,
+        updated_at: serverTimestamp(),
+      });
+
+      updated++;
+    }
+
+    return updated;
+  },
+
+  async updateCompensation(
+    studentId: string,
+    studentName: string,
+    value: number,
+    autoCalculated: number,
+    currentMonth: number,
+    currentYear: number,
+    confirmedBy: string,
+    confirmedByName: string
+  ): Promise<void> {
+    await updateDoc(doc(db, STUDENTS_COLLECTION, studentId), {
+      compensation_classes: value,
+      compensation_month: currentMonth,
+      compensation_year: currentYear,
+      compensation_confirmed_by: confirmedBy,
+      updated_at: serverTimestamp(),
+    });
+
+    await addDoc(collection(db, COMPENSATION_AUDIT_COLLECTION), {
+      student_id: studentId,
+      student_name: studentName,
+      month: currentMonth,
+      year: currentYear,
+      auto_calculated: autoCalculated,
+      final_value: value,
+      adjusted_by: confirmedBy,
+      adjusted_by_name: confirmedByName,
+      adjusted_at: serverTimestamp(),
+    });
+
+    await cacheService.clearByPrefix('students_');
+    await cacheService.clearByPrefix(`student_${studentId}`);
+  },
+
+  async getAuditLogs(studentId: string): Promise<CompensationAuditLog[]> {
+    const q = query(
+      collection(db, COMPENSATION_AUDIT_COLLECTION),
+      where('student_id', '==', studentId)
+    );
+    const snap = await getDocs(q);
+    return snap.docs
+      .map(d => ({ id: d.id, ...d.data() } as CompensationAuditLog))
+      .sort((a, b) => {
+        const aVal: any = a.adjusted_at;
+        const bVal: any = b.adjusted_at;
+        const aTime = aVal?.seconds ?? new Date(aVal).getTime() / 1000;
+        const bTime = bVal?.seconds ?? new Date(bVal).getTime() / 1000;
+        return bTime - aTime;
+      });
+  },
+
+  async getPreviousMonthAttendance(studentId: string, prevMonth: number, prevYear: number): Promise<number> {
+    const monthStr = String(prevMonth).padStart(2, '0');
+    const attendanceSnap = await getDocs(
+      query(
+        collection(db, ATTENDANCE_COLLECTION),
+        where('student_id', '==', studentId),
+        where('date', '>=', `${prevYear}-${monthStr}-01`),
+        where('date', '<=', `${prevYear}-${monthStr}-31`),
+        where('status', 'in', ['present', 'double_present'])
+      )
+    );
+
+    return attendanceSnap.docs.reduce((sum, d) => {
+      return sum + (d.data().status === 'double_present' ? 2 : 1);
+    }, 0);
   },
 };

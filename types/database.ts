@@ -101,6 +101,10 @@ export interface Student {
   points: number;
   fee_status: FeeStatus;
   unpaid_classes: number;
+  compensation_classes?: number;
+  compensation_month?: number;
+  compensation_year?: number;
+  compensation_confirmed_by?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -141,6 +145,19 @@ export interface Notification {
   data?: Record<string, any>;
   sent_at: string;
   read: boolean;
+}
+
+export interface CompensationAuditLog {
+  id: string;
+  student_id: string;
+  student_name: string;
+  month: number;
+  year: number;
+  auto_calculated: number;
+  final_value: number;
+  adjusted_by: string;
+  adjusted_by_name: string;
+  adjusted_at: string;
 }
 
 export interface UnpaidClassRecord {

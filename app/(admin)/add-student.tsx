@@ -224,6 +224,10 @@ export default function AddStudentScreen() {
                 points: 0,
                 fee_status: 'pending',
                 unpaid_classes: 0,
+                compensation_classes: 0,
+                compensation_month: 0,
+                compensation_year: 0,
+                compensation_confirmed_by: null,
             });
 
             router.back();
