@@ -35,6 +35,7 @@ async function ensureAndroidChannel() {
 }
 
 export async function registerForPushNotifications(): Promise<string | null> {
+  if (Platform.OS === 'web') return null;
   if (!Notifications || !Device) {
     console.log('Push notifications require a development build');
     return null;
@@ -104,6 +105,10 @@ export function addNotificationResponseReceivedListener(
 }
 
 export async function initializePushNotifications(userId: string): Promise<string | null> {
+  if (Platform.OS === 'web') {
+    console.log('[Push] Skipping push init on web');
+    return null;
+  }
   console.log('[Push] Starting initialization for user:', userId);
 
   if (!Notifications || !Device) {

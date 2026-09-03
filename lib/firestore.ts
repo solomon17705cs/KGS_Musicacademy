@@ -115,18 +115,20 @@ export const profileService = {
   },
 
   async getProfileByPhone(phone: string): Promise<Profile | null> {
-    const cleanPhone = phone.replace(/\s/g, '');
-    const withCode = cleanPhone.startsWith('+') ? cleanPhone : '+91' + cleanPhone;
-    const withoutCode = withCode.replace('+91', '');
-
-    const [qWith, qWithout] = await Promise.all([
-      getDocs(query(collection(db, PROFILES_COLLECTION), where('phone', '==', withCode), limit(1))),
-      getDocs(query(collection(db, PROFILES_COLLECTION), where('phone', '==', withoutCode), limit(1))),
-    ]);
-
-    const match = qWith.docs[0] || qWithout.docs[0];
-    if (!match) return null;
-    return { id: match.id, ...match.data() } as Profile;
+    const normalized = normalizePhone(phone);
+    if (!normalized) return null;
+    const variants = [normalized, '+91' + normalized];
+    for (const v of variants) {
+      try {
+        const snap = await getDocs(query(collection(db, PROFILES_COLLECTION), where('phone', '==', v), limit(1)));
+        if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() } as Profile;
+      } catch {}
+    }
+    try {
+      const snap = await getDocs(query(collection(db, PROFILES_COLLECTION), where('phone', '==', normalized), limit(1)));
+      if (!snap.empty) return { id: snap.docs[0].id, ...snap.docs[0].data() } as Profile;
+    } catch {}
+    return null;
   },
 };
 
@@ -161,22 +163,23 @@ export const studentService = {
   },
 
   async getStudentsByParentPhone(parentPhone: string): Promise<Student[]> {
-    const cleanPhone = parentPhone.replace(/\s/g, '');
-    const withCode = cleanPhone.startsWith('+') ? cleanPhone : '+91' + cleanPhone;
-    const withoutCode = withCode.replace('+91', '');
-
-    const [fathersWith, fathersWithout, mothersWith, mothersWithout] = await Promise.all([
-      getDocs(query(collection(db, STUDENTS_COLLECTION), where('father_phone', '==', withCode))),
-      getDocs(query(collection(db, STUDENTS_COLLECTION), where('father_phone', '==', withoutCode))),
-      getDocs(query(collection(db, STUDENTS_COLLECTION), where('mother_phone', '==', withCode))),
-      getDocs(query(collection(db, STUDENTS_COLLECTION), where('mother_phone', '==', withoutCode))),
-    ]);
-
+    const normalized = normalizePhone(parentPhone);
+    if (!normalized) return [];
+    const queries = [
+      query(collection(db, STUDENTS_COLLECTION), where('father_phone', '==', normalized)),
+      query(collection(db, STUDENTS_COLLECTION), where('mother_phone', '==', normalized)),
+      query(collection(db, STUDENTS_COLLECTION), where('father_phone', '==', '+91' + normalized)),
+      query(collection(db, STUDENTS_COLLECTION), where('mother_phone', '==', '+91' + normalized)),
+    ];
+    const snapshots = await Promise.all(
+      queries.map(q => getDocs(q).catch(() => ({ docs: [] as any[], empty: true } as any)))
+    );
     const seen = new Map();
-    [...fathersWith.docs, ...fathersWithout.docs, ...mothersWith.docs, ...mothersWithout.docs].forEach(doc => {
-      seen.set(doc.id, { id: doc.id, ...doc.data() });
-    });
-
+    for (const snap of snapshots) {
+      for (const doc of (snap as any).docs) {
+        seen.set(doc.id, { id: doc.id, ...doc.data() });
+      }
+    }
     return Array.from(seen.values()) as Student[];
   },
 

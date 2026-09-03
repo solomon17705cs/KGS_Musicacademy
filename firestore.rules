@@ -28,6 +28,16 @@ service cloud.firestore {
         : '';
     }
 
+    function myPhoneWithCode() {
+      return myPhone() != '' ? '+91' + myPhone() : '';
+    }
+
+    function tokenPhone() {
+      return request.auth != null && request.auth.token.phone_number != null
+        ? request.auth.token.phone_number
+        : '';
+    }
+
     function profileExists() {
       return exists(/databases/$(database)/documents/profiles/$(request.auth.uid));
     }
@@ -35,8 +45,12 @@ service cloud.firestore {
     function isMyStudent(studentId) {
       let student = get(/databases/$(database)/documents/students/$(studentId));
       return student.data.father_phone == myPhone() ||
+             student.data.father_phone == myPhoneWithCode() ||
+             student.data.father_phone == tokenPhone() ||
              student.data.father_email == myEmail() ||
              student.data.mother_phone == myPhone() ||
+             student.data.mother_phone == myPhoneWithCode() ||
+             student.data.mother_phone == tokenPhone() ||
              student.data.mother_email == myEmail();
     }
 
@@ -51,8 +65,12 @@ service cloud.firestore {
       allow read: if isStaffOrAdmin() ||
         (!profileExists() && request.auth != null) ||
         resource.data.father_phone == myPhone() ||
+        resource.data.father_phone == myPhoneWithCode() ||
+        resource.data.father_phone == tokenPhone() ||
         resource.data.father_email == myEmail() ||
         resource.data.mother_phone == myPhone() ||
+        resource.data.mother_phone == myPhoneWithCode() ||
+        resource.data.mother_phone == tokenPhone() ||
         resource.data.mother_email == myEmail();
       allow write: if isStaffOrAdmin();
       allow delete: if isAdmin();

@@ -481,9 +481,12 @@ export default function ProgressScreen() {
                               <Text style={styles.reportBoxLabel}>Homework</Text>
                               <Text style={styles.reportBoxValue}>{record.homework_completion}%</Text>
                             </View>
-                            <View style={styles.reportBoxItem}>
+                            <View style={[styles.reportBoxItem, styles.reportBoxItemBorder]}>
                               <Text style={styles.reportBoxLabel}>Practice</Text>
-                              <Text style={styles.reportBoxValue}>{record.practice_score}</Text>
+                              <View style={styles.practiceRow}>
+                                <TrendingUp size={12} color={getScoreColor(record.practice_score || 0)} />
+                                <Text style={[styles.reportBoxValue, { color: getScoreColor(record.practice_score || 0) }]}> {record.practice_score}</Text>
+                              </View>
                             </View>
                           </View>
                           <View style={styles.reportBoxGrades}>
@@ -729,7 +732,7 @@ function createStyles(colors: Record<string, string>) {
     container: { flex: 1, backgroundColor: colors.background },
     topHeader: { paddingTop: 0, paddingHorizontal: 24, flexDirection: 'row', alignItems: 'center', marginBottom: 20 },
     backButtonHeader: { width: 40, height: 40, borderRadius: 20, backgroundColor: colors.skeleton, alignItems: 'center', justifyContent: 'center', marginRight: 12 },
-    contentContainerSelected: { paddingBottom: 100 },
+    contentContainerSelected: { paddingHorizontal: 20, paddingBottom: 100 },
     contentContainer: { paddingHorizontal: 20 },
     greetingText: { fontSize: 28, fontWeight: '800', color: colors.text },
     welcomeSubtitle: { fontSize: 16, color: colors.textSecondary, marginTop: 2 },
@@ -826,10 +829,11 @@ function createStyles(colors: Record<string, string>) {
     statusBadgeSmall: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 6 },
     statusBadgeSmallText: { fontSize: 10, fontWeight: '600' },
     reportBoxContent: {},
-    reportBoxRow: { flexDirection: 'row', justifyContent: 'space-between', marginBottom: 8 },
-    reportBoxItem: { alignItems: 'center' },
-    reportBoxLabel: { fontSize: 10, color: colors.textMuted, marginBottom: 2 },
-    reportBoxValue: { fontSize: 14, fontWeight: '700', color: colors.text },
+    reportBoxRow: { flexDirection: 'row', backgroundColor: colors.card, borderRadius: 12, borderWidth: 1, borderColor: colors.borderLight, overflow: 'hidden', marginBottom: 10 },
+    reportBoxItem: { flex: 1, alignItems: 'center', paddingVertical: 10, paddingHorizontal: 8 },
+    reportBoxItemBorder: { borderLeftWidth: 1, borderColor: colors.border },
+    reportBoxLabel: { fontSize: 10, color: colors.textMuted, fontWeight: '700', textTransform: 'uppercase', marginBottom: 4, letterSpacing: 0.5 },
+    reportBoxValue: { fontSize: 15, fontWeight: '800', color: colors.text },
     reportBoxGrades: { flexDirection: 'row', gap: 8, marginBottom: 6 },
     gradePill: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8 },
     gradePillText: { fontSize: 12, fontWeight: '600' },
