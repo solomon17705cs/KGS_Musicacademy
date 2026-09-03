@@ -768,10 +768,21 @@ export const compensationService = {
 
       if (student.summer_class) continue;
 
-      const feeDocId = `${studentId}_${currentYear}_${currentMonth}`;
-      const feeDoc = await getDoc(doc(db, FEE_PAYMENTS_COLLECTION, feeDocId));
-      const feePaid = feeDoc.exists() && feeDoc.data()?.status === 'paid';
-      if (!feePaid) {
+      // Skip if already auto-calculated for this month
+      const alreadyAutoCalc =
+        student.compensation_month === currentMonth &&
+        student.compensation_year === currentYear &&
+        student.compensation_confirmed_by == null;
+      if (alreadyAutoCalc) continue;
+
+      // Check PREVIOUS month's fee — not current month
+      const prevFeeDocId = `${studentId}_${prevYear}_${prevMonth}`;
+      const prevFeeDoc = await getDoc(doc(db, FEE_PAYMENTS_COLLECTION, prevFeeDocId));
+      const prevFeePaid = prevFeeDoc.exists() && prevFeeDoc.data()?.status === 'paid';
+
+      if (!prevFeePaid) {
+        // Previous month fee not paid → no compensation
+        // This intentionally overwrites any manual value too
         await updateDoc(doc(db, STUDENTS_COLLECTION, studentId), {
           compensation_classes: 0,
           compensation_month: currentMonth,
@@ -782,6 +793,7 @@ export const compensationService = {
         continue;
       }
 
+      // Previous month fee was paid → calculate missed classes
       const attendanceSnap = await getDocs(
         query(
           collection(db, ATTENDANCE_COLLECTION),

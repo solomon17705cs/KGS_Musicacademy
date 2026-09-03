@@ -46,11 +46,9 @@ function formatDate(date: Date): string {
   return `${y}-${m}-${d}`;
 }
 
-function getWeekLabel(startDate: Date): string {
-  const dates = getWeekDates(startDate);
-  const start = dates[0];
-  const end = dates[6];
-  return `${start.getDate()}/${start.getMonth() + 1} - ${end.getDate()}/${end.getMonth() + 1}/${end.getFullYear()}`;
+function getWeekLabel(monthDate: Date, weekIdx: number, allWeeks: Date[][]): string {
+  const monthName = monthDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
+  return `${monthName} — Week ${weekIdx + 1}/${allWeeks.length}`;
 }
 
 function getMonthRange(date: Date): { start: string; end: string } {
@@ -88,6 +86,14 @@ function getWeeksOfMonth(monthDate: Date): Date[][] {
   return weeks;
 }
 
+function getWeekIndexForDate(date: Date, weeks: Date[][]): number {
+  const dateStr = date.toDateString();
+  for (let i = 0; i < weeks.length; i++) {
+    if (weeks[i].some(d => d.toDateString() === dateStr)) return i;
+  }
+  return 0;
+}
+
 export default function AttendanceScreen() {
   const router = useRouter();
   const { profile } = useAuth();
@@ -97,7 +103,8 @@ export default function AttendanceScreen() {
   const [monthRecords, setMonthRecords] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [weekStart, setWeekStart] = useState(new Date());
+  const [currentMonth, setCurrentMonth] = useState(new Date());
+  const [currentWeekIndex, setCurrentWeekIndex] = useState(0);
   const [detailMonth, setDetailMonth] = useState(new Date());
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [detailRecords, setDetailRecords] = useState<AttendanceRecord[]>([]);
@@ -130,11 +137,14 @@ export default function AttendanceScreen() {
   const { width } = useWindowDimensions();
   const insets = useSafeAreaInsets();
   const isDesktop = Platform.OS === 'web' && width >= 900;
-  const weekDates = getWeekDates(weekStart);
-  const weekStartStr = formatDate(weekDates[0]);
-  const weekEndStr = formatDate(weekDates[6]);
 
-  const { start: monthStartStr, end: monthEndStr } = getMonthRange(weekStart);
+  const allWeeks = getWeeksOfMonth(currentMonth);
+  const weekDates = allWeeks[currentWeekIndex] || allWeeks[0] || [];
+  const weekMonday = weekDates[0] || new Date();
+  const weekStartStr = formatDate(weekDates[0] || new Date());
+  const weekEndStr = formatDate(weekDates[6] || new Date());
+
+  const { start: monthStartStr, end: monthEndStr } = getMonthRange(currentMonth);
   const { start: detailStartStr, end: detailEndStr } = getMonthRange(detailMonth);
 
   const allAttendanceMap = useMemo(() => {
@@ -273,19 +283,33 @@ export default function AttendanceScreen() {
   }
 
   const handlePrevWeek = () => {
-    const prev = new Date(weekStart);
-    prev.setDate(prev.getDate() - 7);
-    setWeekStart(prev);
+    if (currentWeekIndex > 0) {
+      setCurrentWeekIndex(currentWeekIndex - 1);
+    } else {
+      const prevMonth = new Date(currentMonth);
+      prevMonth.setMonth(prevMonth.getMonth() - 1);
+      const prevWeeks = getWeeksOfMonth(prevMonth);
+      setCurrentMonth(prevMonth);
+      setCurrentWeekIndex(prevWeeks.length - 1);
+    }
   };
 
   const handleNextWeek = () => {
-    const next = new Date(weekStart);
-    next.setDate(next.getDate() + 7);
-    setWeekStart(next);
+    if (currentWeekIndex < allWeeks.length - 1) {
+      setCurrentWeekIndex(currentWeekIndex + 1);
+    } else {
+      const nextMonth = new Date(currentMonth);
+      nextMonth.setMonth(nextMonth.getMonth() + 1);
+      setCurrentMonth(nextMonth);
+      setCurrentWeekIndex(0);
+    }
   };
 
   const handleToday = () => {
-    setWeekStart(new Date());
+    const now = new Date();
+    const todayWeeks = getWeeksOfMonth(now);
+    setCurrentMonth(now);
+    setCurrentWeekIndex(getWeekIndexForDate(now, todayWeeks));
   };
 
   function isFutureMonth(date: Date): boolean {
@@ -344,13 +368,20 @@ export default function AttendanceScreen() {
         <View style={styles.nameHeader}>
           <Text style={styles.nameText}>Student</Text>
         </View>
-        {weekDates.map((date, idx) => (
-          <View key={idx} style={styles.dayHeader}>
-            <Text style={styles.dayName}>{DAY_NAMES[idx]}</Text>
-            <Text style={styles.dayNum}>{date.getDate()}</Text>
-            <Text style={styles.dayCount}>{getDayCount(formatDate(date))}</Text>
-          </View>
-        ))}
+        {weekDates.map((date, idx) => {
+          const isOtherMonth = date.getMonth() !== currentMonth.getMonth() ||
+                               date.getFullYear() !== currentMonth.getFullYear();
+          if (isOtherMonth) {
+            return <View key={idx} style={[styles.dayHeader, styles.emptyMonthHeader]} />;
+          }
+          return (
+            <View key={idx} style={styles.dayHeader}>
+              <Text style={styles.dayName}>{DAY_NAMES[idx]}</Text>
+              <Text style={styles.dayNum}>{date.getDate()}</Text>
+              <Text style={styles.dayCount}>{getDayCount(formatDate(date))}</Text>
+            </View>
+          );
+        })}
         <View style={styles.summaryHeader}>
           <Text style={styles.summaryText}>Month %</Text>
         </View>
@@ -405,42 +436,47 @@ export default function AttendanceScreen() {
             const isScheduled = (student.class_days || []).includes(DAY_NAMES[idx]);
             const isFuture = date > new Date();
             const isSunday = date.getDay() === 0;
-            const isComp = record?.status === 'present' && isCompensationClass(student.id, dateStr, student);
-            const isExtra = record?.status === 'present' && isExtraClass(student.id, dateStr, student);
-            const isDouble = record?.status === 'double_present';
+            const isOtherMonth = date.getMonth() !== currentMonth.getMonth() ||
+                                 date.getFullYear() !== currentMonth.getFullYear();
+            const isComp = !isOtherMonth && record?.status === 'present' && isCompensationClass(student.id, dateStr, student);
+            const isExtra = !isOtherMonth && record?.status === 'present' && isExtraClass(student.id, dateStr, student);
+            const isDouble = !isOtherMonth && record?.status === 'double_present';
 
             return (
               <TouchableOpacity
                 key={idx}
                 style={[
                   styles.statusCell,
-                  isExtra && styles.extraClassCell,
-                  isComp && styles.compClassCell,
-                  isDouble && styles.doublePresentCell,
-                  record?.status === 'present' && !isExtra && !isComp && styles.presentCell,
-                  isFuture && styles.futureCell,
-                  !record && !isSunday && !isScheduled && styles.unscheduledCell,
-                  isSunday && styles.sundayCell,
+                  isOtherMonth && styles.emptyMonthCell,
+                  !isOtherMonth && isExtra && styles.extraClassCell,
+                  !isOtherMonth && isComp && styles.compClassCell,
+                  !isOtherMonth && isDouble && styles.doublePresentCell,
+                  !isOtherMonth && record?.status === 'present' && !isExtra && !isComp && styles.presentCell,
+                  !isOtherMonth && isFuture && styles.futureCell,
+                  !isOtherMonth && !isSunday && !isScheduled && styles.unscheduledCell,
+                  !isOtherMonth && isSunday && styles.sundayCell,
                 ]}
                 onPress={() => {
-                  if (!isFuture && !isSunday) {
+                  if (!isFuture && !isSunday && !isOtherMonth) {
                     toggleAttendance(student.id, dateStr);
                   }
                 }}
                 onContextMenu={(e) => {
-                  if (Platform.OS === 'web' && !isFuture && !isSunday) {
+                  if (Platform.OS === 'web' && !isFuture && !isSunday && !isOtherMonth) {
                     e.preventDefault();
                     toggleAttendance(student.id, dateStr, false, true);
                   }
                 }}
                 onLongPress={() => {
-                  if (!isFuture && !isSunday) {
+                  if (!isFuture && !isSunday && !isOtherMonth) {
                     toggleAttendance(student.id, dateStr, false, true);
                   }
                 }}
-                disabled={isFuture || isSunday}>
+                disabled={isFuture || isSunday || isOtherMonth}>
                 {isSunday ? (
                   <Text style={styles.sundayText}>-</Text>
+                ) : isOtherMonth ? (
+                  null
                 ) : isDouble ? (
                   <Text style={[styles.statusIcon, styles.doublePresentText]}>DP</Text>
                 ) : record && record.status === 'present' ? (
@@ -504,7 +540,7 @@ export default function AttendanceScreen() {
         </TouchableOpacity>
         <TouchableOpacity style={styles.weekLabel} onPress={handleToday}>
           <Calendar size={16} color="#1e40af" />
-          <Text style={styles.weekLabelText}>{getWeekLabel(weekStart)}</Text>
+          <Text style={styles.weekLabelText}>{getWeekLabel(currentMonth, currentWeekIndex, allWeeks)}</Text>
         </TouchableOpacity>
         <TouchableOpacity style={styles.navButton} onPress={handleNextWeek}>
           <ChevronRight size={20} color="#1e40af" />
@@ -1229,5 +1265,14 @@ const styles = StyleSheet.create({
   },
   fadedText: {
     color: '#cbd5e1',
+  },
+  emptyMonthCell: {
+    backgroundColor: 'transparent',
+    borderWidth: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  emptyMonthHeader: {
+    backgroundColor: 'transparent',
   },
 });
