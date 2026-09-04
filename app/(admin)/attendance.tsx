@@ -19,7 +19,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { studentService, attendanceService, unpaidClassService, profileService, compensationService } from '@/lib/firestore';
 import { cacheService } from '@/lib/cache';
 import { Student, AttendanceRecord } from '@/types/database';
-import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Search, X } from 'lucide-react-native';
+import { ArrowLeft, Calendar, ChevronLeft, ChevronRight, Search, X, RefreshCw } from 'lucide-react-native';
+import AsyncStorage from '@react-native-async-storage/async-storage';
 import CompensationOverride from '@/components/CompensationOverride';
 
 const DAY_NAMES = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -110,10 +111,17 @@ export default function AttendanceScreen() {
   const [detailRecords, setDetailRecords] = useState<AttendanceRecord[]>([]);
   const [headerHeight, setHeaderHeight] = useState(56);
   const [searchText, setSearchText] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const searchOpen = searchFocused || searchText.length > 0;
+  const [recalculating, setRecalculating] = useState(false);
   const [compOverrideStudent, setCompOverrideStudent] = useState<Student | null>(null);
   const [prevMonthAttended, setPrevMonthAttended] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchText), 250);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   function parseName(name: string) {
     const m = name.match(/^((?:[A-Z]\.\s*)+)(.+)/);
@@ -158,9 +166,9 @@ export default function AttendanceScreen() {
 
   const filteredStudents = useMemo(() =>
     students.filter(s =>
-      (s.full_name || '').toLowerCase().includes(searchText.toLowerCase())
+      (s.full_name || '').toLowerCase().includes(debouncedSearch.toLowerCase())
     ),
-    [students, searchText]
+    [students, debouncedSearch]
   );
 
   const { leftStudents, rightStudents } = useMemo(() => {
@@ -223,40 +231,82 @@ export default function AttendanceScreen() {
     ));
   }, [allAttendance, detailMonth, selectedStudent]);
 
-  useEffect(() => {
-    if (!profile || profile.role === 'parent' || profile.role === 'student') return;
-    runUnpaidClassDetection();
-  }, [profile?.id]);
-
-  async function runUnpaidClassDetection() {
+  async function runUnpaidClassDetection(force = false) {
     if (!profile) return;
 
     const now = new Date();
     let prevMonth = now.getMonth();
     let prevYear = now.getFullYear();
-    if (prevMonth === 0) {
-      prevMonth = 12;
-      prevYear -= 1;
-    }
+    if (prevMonth === 0) { prevMonth = 12; prevYear -= 1; }
 
-    const checkKey = `unpaid_check_${prevYear}_${String(prevMonth).padStart(2, '0')}`;
+    const currentMonth = now.getMonth() + 1;
+    const currentYear = now.getFullYear();
+    const checkKey = `comp_check_${prevYear}_${String(prevMonth).padStart(2, '0')}`;
 
     try {
-      const AsyncStorage = (await import('@react-native-async-storage/async-storage')).default;
-      const lastCheck = await AsyncStorage.getItem(checkKey);
-      if (lastCheck === 'done') return;
-
-      const recordsCreated = await unpaidClassService.detectUnpaidClasses(prevMonth, prevYear);
-      await compensationService.detectCompensation(prevMonth, prevYear);
-
-      await AsyncStorage.setItem(checkKey, 'done');
-
-      if (recordsCreated > 0) {
-        cacheService.clearByPrefix('students_');
-        cacheService.clearByPrefix('student_');
+      if (!force) {
+        const lastCheck = await AsyncStorage.getItem(checkKey);
+        if (lastCheck === 'done') return;
       }
+
+      const allStudents = await studentService.getAllStudents();
+
+      for (const student of allStudents) {
+        if (student.summer_class) continue;
+
+        const prevFeeId = `${student.id}_${prevYear}_${prevMonth}`;
+        const prevFeeDoc = await (await import('@/lib/firestore')).getDoc((await import('@/lib/firestore')).doc((await import('@/lib/firestore')).db, 'fee_payments', prevFeeId));
+        const prevFeePaid = prevFeeDoc.exists() && prevFeeDoc.data()?.status === 'paid';
+
+        const currFeeId = `${student.id}_${currentYear}_${currentMonth}`;
+        const currFeeDoc = await (await import('@/lib/firestore')).getDoc((await import('@/lib/firestore')).doc((await import('@/lib/firestore')).db, 'fee_payments', currFeeId));
+        const currFeePaid = currFeeDoc.exists() && currFeeDoc.data()?.status === 'paid';
+
+        if (!prevFeePaid || !currFeePaid) {
+          await (await import('@/lib/firestore')).updateDoc((await import('@/lib/firestore')).doc((await import('@/lib/firestore')).db, 'students', student.id), {
+            compensation_classes: 0,
+            compensation_month: currentMonth,
+            compensation_year: currentYear,
+            compensation_confirmed_by: null,
+          });
+          continue;
+        }
+
+        if (
+          student.compensation_month === currentMonth &&
+          student.compensation_year === currentYear &&
+          student.compensation_confirmed_by != null
+        ) continue;
+
+        const monthStr = String(prevMonth).padStart(2, '0');
+        const attendanceSnap = await (await import('@/lib/firestore')).getDocs((await import('@/lib/firestore')).query(
+          (await import('@/lib/firestore')).collection((await import('@/lib/firestore')).db, 'attendance_records'),
+          (await import('@/lib/firestore')).where('student_id', '==', student.id),
+          (await import('@/lib/firestore')).where('date', '>=', `${prevYear}-${monthStr}-01`),
+          (await import('@/lib/firestore')).where('date', '<=', `${prevYear}-${monthStr}-31`),
+          (await import('@/lib/firestore')).where('status', 'in', ['present', 'double_present'])
+        ));
+
+        const classesAttended = attendanceSnap.docs.reduce((sum, d) => {
+          return sum + (d.data().status === 'double_present' ? 2 : 1);
+        }, 0);
+
+        const missed = Math.max(0, 8 - classesAttended);
+
+        await (await import('@/lib/firestore')).updateDoc((await import('@/lib/firestore')).doc((await import('@/lib/firestore')).db, 'students', student.id), {
+          compensation_classes: missed,
+          compensation_month: currentMonth,
+          compensation_year: currentYear,
+          compensation_confirmed_by: null,
+        });
+      }
+
+      await unpaidClassService.detectUnpaidClasses(prevMonth, prevYear);
+      await AsyncStorage.setItem(checkKey, 'done');
+      cacheService.clearByPrefix('students_');
+      cacheService.clearByPrefix('student_');
     } catch (err) {
-      console.error('Unpaid class detection failed:', err);
+      console.error('Detection failed:', err);
     }
   }
 
@@ -291,9 +341,27 @@ export default function AttendanceScreen() {
     return (records || weekRecords).find(r => r.student_id === studentId && r.date === dateStr);
   }
 
-  function getStudentMonthlyCount(studentId: string, excludeDate?: string, records?: AttendanceRecord[]): number {
+  function isClassDay(dateStr: string, classDays: string[]): boolean {
+    const dayIndex = new Date(dateStr).getDay();
+    const dayMap = [0, 1, 2, 3, 4, 5, 6];
+    const dateDay = dayMap[dayIndex];
+    const classDayIndices = classDays.map(d => {
+      if (d === 'Mon') return 1;
+      if (d === 'Tue') return 2;
+      if (d === 'Wed') return 3;
+      if (d === 'Thu') return 4;
+      if (d === 'Fri') return 5;
+      if (d === 'Sat') return 6;
+      if (d === 'Sun') return 0;
+      return -1;
+    });
+    return classDayIndices.includes(dateDay);
+  }
+
+  function getStudentMonthlyCount(studentId: string, excludeDate?: string, records?: AttendanceRecord[], classDays?: string[]): number {
     return (records || monthRecords).reduce((sum, r) => {
       if (r.student_id !== studentId || r.date === excludeDate) return sum;
+      if (classDays && classDays.length > 0 && !isClassDay(r.date, classDays)) return sum;
       return sum + (r.status === 'double_present' ? 2 : 1);
     }, 0);
   }
@@ -305,7 +373,7 @@ export default function AttendanceScreen() {
     const effectiveRegular = Math.max(0, regularQuota - unpaidClasses);
     const compensation = student?.compensation_classes || 0;
     const totalPossible = effectiveRegular + compensation;
-    const beforeCount = getStudentMonthlyCount(studentId, dateStr, records);
+    const beforeCount = getStudentMonthlyCount(studentId, dateStr, records, student?.class_days);
     return beforeCount >= totalPossible;
   }
 
@@ -315,7 +383,7 @@ export default function AttendanceScreen() {
     const unpaidClasses = student?.unpaid_classes || 0;
     const effectiveRegular = Math.max(0, regularQuota - unpaidClasses);
     const compensation = student?.compensation_classes || 0;
-    const beforeCount = getStudentMonthlyCount(studentId, dateStr, records);
+    const beforeCount = getStudentMonthlyCount(studentId, dateStr, records, student?.class_days);
     return beforeCount >= effectiveRegular && beforeCount < effectiveRegular + compensation;
   }
 
@@ -385,7 +453,7 @@ export default function AttendanceScreen() {
     setSelectedStudent(null);
   };
 
-  if (loading) {
+  if (loading && students.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#1e40af" />
@@ -432,7 +500,7 @@ export default function AttendanceScreen() {
       const compClasses = student.compensation_classes || 0;
       const isCurrentMonthComp = student.compensation_month === new Date().getMonth() + 1 && student.compensation_year === new Date().getFullYear();
       const activeComp = isCurrentMonthComp ? compClasses : 0;
-      const monthlyCount = getStudentMonthlyCount(student.id, undefined, monthRecords);
+      const monthlyCount = getStudentMonthlyCount(student.id, undefined, monthRecords, student.class_days);
       const regularQuota = 8;
       const unpaidClasses = student.unpaid_classes || 0;
       const effectiveRegular = Math.max(0, regularQuota - unpaidClasses);

@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import {
   View,
   Text,
@@ -34,7 +34,13 @@ export default function FeePaymentsScreen() {
   const [loading, setLoading] = useState(true);
   const [viewMonth, setViewMonth] = useState(new Date());
   const [search, setSearch] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortBy, setSortBy] = useState<'paid' | 'pending' | 'not_attended' | null>(null);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(search), 250);
+    return () => clearTimeout(timer);
+  }, [search]);
   const insets = useSafeAreaInsets();
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null);
   const [unpaidRecords, setUnpaidRecords] = useState<UnpaidClassRecord[]>([]);
@@ -249,20 +255,36 @@ export default function FeePaymentsScreen() {
     }
   };
 
-  const filteredStudents = students
-    .filter(s => (s.full_name || '').toLowerCase().includes(search.toLowerCase()))
-    .sort((a, b) => {
-      if (!sortBy) return 0;
-      const statusA = getPaymentForStudent(a).status;
-      const statusB = getPaymentForStudent(b).status;
-      if (statusA === sortBy && statusB !== sortBy) return -1;
-      if (statusA !== sortBy && statusB === sortBy) return 1;
-      return 0;
-    });
+  const paymentByStudentId = useMemo(() => {
+    const map: Record<string, FeePayment> = {};
+    payments.forEach(p => { map[p.student_id] = p; });
+    return map;
+  }, [payments]);
 
-  const paidCount = students.reduce((count, s) => count + (getPaymentForStudent(s).status === 'paid' ? 1 : 0), 0);
-  const pendingCount = students.reduce((count, s) => count + (getPaymentForStudent(s).status === 'pending' ? 1 : 0), 0);
-  const notAttendedCount = students.reduce((count, s) => count + (getPaymentForStudent(s).status === 'not_attended' ? 1 : 0), 0);
+  const filteredStudents = useMemo(() =>
+    students
+      .filter(s => (s.full_name || '').toLowerCase().includes(debouncedSearch.toLowerCase()))
+      .sort((a, b) => {
+        if (!sortBy) return 0;
+        const statusA = getPaymentForStudent(a).status;
+        const statusB = getPaymentForStudent(b).status;
+        if (statusA === sortBy && statusB !== sortBy) return -1;
+        if (statusA !== sortBy && statusB === sortBy) return 1;
+        return 0;
+      }),
+    [students, debouncedSearch, sortBy, payments, paidTuitionStudentIds, attendedStudentIds, currentMonth, currentYear]
+  );
+
+  const { paidCount, pendingCount, notAttendedCount } = useMemo(() => {
+    let paid = 0, pending = 0, notAttended = 0;
+    students.forEach(s => {
+      const st = getPaymentForStudent(s).status;
+      if (st === 'paid') paid++;
+      else if (st === 'pending') pending++;
+      else notAttended++;
+    });
+    return { paidCount: paid, pendingCount: pending, notAttendedCount: notAttended };
+  }, [students, payments, paidTuitionStudentIds, attendedStudentIds, currentMonth, currentYear]);
 
   function getMonthLabel(date: Date): string {
     return date.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });

@@ -1,5 +1,4 @@
 import { Platform } from 'react-native';
-import { onForegroundMessage } from './firebase';
 import { profileService, notificationService, pushTokenService } from './firestore';
 
 let Notifications: any = null;
@@ -160,7 +159,8 @@ export async function initializePushNotifications(userId: string): Promise<strin
 }
 
 export function listenForForegroundMessages(callback: (notification: any) => void) {
-  onForegroundMessage(callback);
+  if (!Notifications) return { remove: () => {} } as any;
+  return Notifications.addNotificationReceivedListener(callback);
 }
 
 export async function sendPushNotification(expoPushToken: string, title: string, body: string): Promise<void> {

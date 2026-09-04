@@ -5,6 +5,7 @@ import { profileService, studentService, normalizePhone } from '@/lib/firestore'
 import { Profile } from '@/types/database';
 import { initializePushNotifications } from '@/lib/notifications';
 import AsyncStorage from '@react-native-async-storage/async-storage';
+import { AppState } from 'react-native';
 
 const PROFILE_CACHE_KEY = '@kgs_auth_profile';
 
@@ -52,6 +53,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [loading, setLoading] = useState(true);
+
+  const INACTIVE_TIMEOUT = 30 * 60 * 1000;
+  let inactivityTimer: ReturnType<typeof setTimeout> | null = null;
+
+  function resetInactivityTimer() {
+    if (inactivityTimer) clearTimeout(inactivityTimer);
+    inactivityTimer = setTimeout(async () => {
+      await firebaseSignOut(auth);
+      setProfile(null);
+    }, INACTIVE_TIMEOUT) as any;
+  }
 
   useEffect(() => {
     async function initAuth() {
@@ -113,6 +125,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     });
 
     return unsubscribe;
+  }, []);
+
+  useEffect(() => {
+    resetInactivityTimer();
+    const sub = AppState.addEventListener('change', state => {
+      if (state === 'active') resetInactivityTimer();
+    });
+    return () => {
+      sub.remove();
+      if (inactivityTimer) clearTimeout(inactivityTimer);
+    };
   }, []);
 
   async function signIn(email: string, password: string) {

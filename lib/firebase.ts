@@ -38,48 +38,9 @@ export const db = (() => {
       return initializeFirestore(app, {});
     }
   }
-  return initializeFirestore(app, {});
+  return initializeFirestore(app, {
+    localCache: persistentLocalCache(),
+  });
 })();
 
 export default app;
-
-let messagingInstance: any = null;
-export const getMessagingInstance = async () => {
-  if (Platform.OS === 'web') {
-    return null;
-  }
-  if (!messagingInstance) {
-    try {
-      const { getMessaging } = await import('firebase/messaging');
-      messagingInstance = getMessaging(app);
-    } catch (e) {
-      console.warn('Firebase messaging not supported:', e);
-      return null;
-    }
-  }
-  return messagingInstance;
-};
-
-export async function requestPushToken(): Promise<string | null> {
-  try {
-    const messaging = await getMessagingInstance();
-    if (!messaging) return null;
-
-    const { getToken } = await import('firebase/messaging');
-    const vapidKey = process.env.EXPO_PUBLIC_FIREBASE_MESSAGING_VAPID_KEY;
-    const token = await getToken(messaging, { vapidKey });
-    return token;
-  } catch (e) {
-    console.warn('Failed to get push token:', e);
-    return null;
-  }
-}
-
-export function onForegroundMessage(callback: (payload: any) => void) {
-  getMessagingInstance().then(async messaging => {
-    if (messaging) {
-      const { onMessage } = await import('firebase/messaging');
-      onMessage(messaging, callback);
-    }
-  });
-}

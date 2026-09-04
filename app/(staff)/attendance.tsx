@@ -110,10 +110,16 @@ export default function AttendanceScreen() {
   const [detailRecords, setDetailRecords] = useState<AttendanceRecord[]>([]);
   const [headerHeight, setHeaderHeight] = useState(56);
   const [searchText, setSearchText] = useState('');
+  const [debouncedSearch, setDebouncedSearch] = useState('');
   const [searchFocused, setSearchFocused] = useState(false);
   const searchOpen = searchFocused || searchText.length > 0;
   const [compOverrideStudent, setCompOverrideStudent] = useState<Student | null>(null);
   const [prevMonthAttended, setPrevMonthAttended] = useState(0);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setDebouncedSearch(searchText), 250);
+    return () => clearTimeout(timer);
+  }, [searchText]);
 
   function parseName(name: string) {
     const m = name.match(/^((?:[A-Z]\.\s*)+)(.+)/);
@@ -158,9 +164,9 @@ export default function AttendanceScreen() {
 
   const filteredStudents = useMemo(() =>
     students.filter(s =>
-      (s.full_name || '').toLowerCase().includes(searchText.toLowerCase())
+      (s.full_name || '').toLowerCase().includes(debouncedSearch.toLowerCase())
     ),
-    [students, searchText]
+    [students, debouncedSearch]
   );
 
   const { leftStudents, rightStudents } = useMemo(() => {
@@ -254,9 +260,27 @@ export default function AttendanceScreen() {
     return (records || weekRecords).find(r => r.student_id === studentId && r.date === dateStr);
   }
 
-  function getStudentMonthlyCount(studentId: string, excludeDate?: string, records?: AttendanceRecord[]): number {
+  function isClassDay(dateStr: string, classDays: string[]): boolean {
+    const dayIndex = new Date(dateStr).getDay();
+    const dayMap = [0, 1, 2, 3, 4, 5, 6];
+    const dateDay = dayMap[dayIndex];
+    const classDayIndices = classDays.map(d => {
+      if (d === 'Mon') return 1;
+      if (d === 'Tue') return 2;
+      if (d === 'Wed') return 3;
+      if (d === 'Thu') return 4;
+      if (d === 'Fri') return 5;
+      if (d === 'Sat') return 6;
+      if (d === 'Sun') return 0;
+      return -1;
+    });
+    return classDayIndices.includes(dateDay);
+  }
+
+  function getStudentMonthlyCount(studentId: string, excludeDate?: string, records?: AttendanceRecord[], classDays?: string[]): number {
     return (records || monthRecords).reduce((sum, r) => {
       if (r.student_id !== studentId || r.date === excludeDate) return sum;
+      if (classDays && classDays.length > 0 && !isClassDay(r.date, classDays)) return sum;
       return sum + (r.status === 'double_present' ? 2 : 1);
     }, 0);
   }
@@ -268,7 +292,7 @@ export default function AttendanceScreen() {
     const effectiveRegular = Math.max(0, regularQuota - unpaidClasses);
     const compensation = student?.compensation_classes || 0;
     const totalPossible = effectiveRegular + compensation;
-    const beforeCount = getStudentMonthlyCount(studentId, dateStr, records);
+    const beforeCount = getStudentMonthlyCount(studentId, dateStr, records, student?.class_days);
     return beforeCount >= totalPossible;
   }
 
@@ -278,7 +302,7 @@ export default function AttendanceScreen() {
     const unpaidClasses = student?.unpaid_classes || 0;
     const effectiveRegular = Math.max(0, regularQuota - unpaidClasses);
     const compensation = student?.compensation_classes || 0;
-    const beforeCount = getStudentMonthlyCount(studentId, dateStr, records);
+    const beforeCount = getStudentMonthlyCount(studentId, dateStr, records, student?.class_days);
     return beforeCount >= effectiveRegular && beforeCount < effectiveRegular + compensation;
   }
 
@@ -348,7 +372,7 @@ export default function AttendanceScreen() {
     setSelectedStudent(null);
   };
 
-  if (loading) {
+  if (loading && students.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color="#1e40af" />
@@ -395,7 +419,7 @@ export default function AttendanceScreen() {
       const compClasses = student.compensation_classes || 0;
       const isCurrentMonthComp = student.compensation_month === new Date().getMonth() + 1 && student.compensation_year === new Date().getFullYear();
       const activeComp = isCurrentMonthComp ? compClasses : 0;
-      const monthlyCount = getStudentMonthlyCount(student.id, undefined, monthRecords);
+      const monthlyCount = getStudentMonthlyCount(student.id, undefined, monthRecords, student.class_days);
       const regularQuota = 8;
       const unpaidClasses = student.unpaid_classes || 0;
       const effectiveRegular = Math.max(0, regularQuota - unpaidClasses);

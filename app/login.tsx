@@ -83,11 +83,9 @@ export default function LoginScreen() {
       }
 
       const formattedPhone = '+91' + digits;
-      console.log('Sending OTP to:', formattedPhone);
 
       const sessionInfo = await sendOTPviaSMS(formattedPhone, auth);
       setVerificationId(sessionInfo);
-      console.log('OTP sent, sessionInfo:', sessionInfo);
     } catch (err: any) {
       console.error('Send OTP error:', err);
       const msg = err.message || '';
@@ -125,10 +123,6 @@ export default function LoginScreen() {
 
     try {
       await verifyOTPandSignIn(auth, verificationId, otp);
-      console.log('✅ Firebase sign-in success');
-      console.log('User UID:', auth.currentUser?.uid);
-      console.log('Phone:', auth.currentUser?.phoneNumber);
-      console.log('Email:', auth.currentUser?.email);
     } catch (err: any) {
       console.error('Verify error:', err);
       if (err.code === 'auth/invalid-verification-code') {

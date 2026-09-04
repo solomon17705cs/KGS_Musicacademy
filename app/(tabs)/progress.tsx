@@ -160,8 +160,28 @@ export default function ProgressScreen() {
     return () => backHandler.remove();
   }, [selectedStudent]);
 
+  useEffect(() => {
+    if (!selectedStudent) return;
+    const unsub = progressService.subscribeToProgress(selectedStudent.id, (records) => {
+      setStudentsHistory(prev => {
+        const updated = new Map(prev);
+        updated.set(selectedStudent.id, records);
+        return updated;
+      });
+    });
+    return unsub;
+  }, [selectedStudent?.id]);
+
   async function loadStudentProgress() {
     if (!profile || !user) return;
+
+    if (profile.role === 'parent' || profile.role === 'student') {
+      if (!user.email && !user.phoneNumber && !profile.phone) {
+        setError('Unable to identify your account. Please contact the academy.');
+        setLoading(false);
+        return;
+      }
+    }
 
     try {
       setError('');
@@ -171,46 +191,47 @@ export default function ProgressScreen() {
         studentList = await studentService.getAllStudents();
       } else {
         let siblings: Student[] = [];
-        console.log('🔍 User email:', user.email);
-        console.log('🔍 User phone:', user.phoneNumber);
-        console.log('🔍 Profile phone:', profile.phone);
-        
         if (user.email) {
           siblings = await studentService.getStudentsByParentEmail(user.email);
-          console.log('🔍 Found by email:', siblings.length);
         }
         if (siblings.length === 0 && user.phoneNumber) {
           siblings = await studentService.getStudentsByParentPhone(user.phoneNumber);
-          console.log('🔍 Found by user phone:', siblings.length);
         }
         if (siblings.length === 0 && profile.phone) {
           siblings = await studentService.getStudentsByParentPhone(profile.phone);
-          console.log('🔍 Found by profile phone:', siblings.length);
         }
         studentList = siblings;
-        console.log('🔍 Total students found:', studentList.length);
       }
+
+      const historyMap = new Map<string, ProgressRecord[]>();
 
       const studentsWithProgress = await Promise.all(
         studentList.map(async (student) => {
-          const progress = await progressService.getLatestProgress(student.id);
           const history = await progressService.getProgressRecords(student.id);
-          const realStreak = calculateRealStreak(history);
-          const currentMonthAttendance = await attendanceService.getCurrentMonthAttendance(student.id, student.summer_class);
-          if (realStreak !== student.streak && (profile.role === 'admin' || profile.role === 'staff')) {
-            try {
-              await studentService.updateStudent(student.id, { streak: realStreak });
-            } catch (_) {}
-          }
-          return { ...student, progress: progress || undefined, streak: realStreak, currentMonthAttendance };
-        })
-      );
+          const progress = history.length > 0 ? history[0] : null;
 
-      const historyMap = new Map<string, ProgressRecord[]>();
-      await Promise.all(
-        studentList.map(async (student) => {
-          const history = await progressService.getProgressRecords(student.id);
           historyMap.set(student.id, history);
+
+          const realStreak = calculateRealStreak(history);
+
+          let currentMonthAttendance = '';
+          if (profile.role !== 'admin') {
+            currentMonthAttendance = await attendanceService.getCurrentMonthAttendance(
+              student.id, student.summer_class
+            );
+          }
+
+          if (realStreak !== student.streak &&
+              (profile.role === 'admin' || profile.role === 'staff')) {
+            studentService.updateStudent(student.id, { streak: realStreak }).catch(() => {});
+          }
+
+          return {
+            ...student,
+            progress: progress || undefined,
+            streak: realStreak,
+            currentMonthAttendance,
+          };
         })
       );
 

@@ -20,14 +20,14 @@ import { Profile, Student, ProgressRecord, Notification, AttendanceRecord, FeePa
 import { cacheService } from './cache';
 
 const CACHE_TTL = {
-  STUDENTS: 2 * 60 * 1000,
-  STUDENT: 2 * 60 * 1000,
+  STUDENTS: 10 * 60 * 1000,
+  STUDENT: 10 * 60 * 1000,
   ATTENDANCE: 30 * 1000,
   ATTENDANCE_ALL: 30 * 1000,
-  PROGRESS: 60 * 1000,
-  PROFILE: 5 * 60 * 1000,
-  FEE_PAYMENTS: 60 * 1000,
-  NOTIFICATIONS: 60 * 1000,
+  PROGRESS: 5 * 60 * 1000,
+  PROFILE: 15 * 60 * 1000,
+  FEE_PAYMENTS: 5 * 60 * 1000,
+  NOTIFICATIONS: 2 * 60 * 1000,
 };
 
 async function withCache<T>(cacheKey: string, fetcher: () => Promise<T>, ttl: number): Promise<T> {
@@ -751,6 +751,27 @@ export const unpaidClassService = {
 
     await cacheService.clearByPrefix('students_');
     await cacheService.clearByPrefix(`student_${studentId}`);
+  },
+
+  subscribeToUnsettledRecords(studentId: string, callback: (records: UnpaidClassRecord[]) => void) {
+    const q = query(
+      collection(db, UNPAID_CLASS_COLLECTION),
+      where('student_id', '==', studentId),
+      where('settled', '==', false)
+    );
+    return onSnapshot(q, snap => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as UnpaidClassRecord)));
+    });
+  },
+
+  subscribeToAllUnsettled(callback: (records: UnpaidClassRecord[]) => void) {
+    const q = query(
+      collection(db, UNPAID_CLASS_COLLECTION),
+      where('settled', '==', false)
+    );
+    return onSnapshot(q, snap => {
+      callback(snap.docs.map(d => ({ id: d.id, ...d.data() } as UnpaidClassRecord)));
+    });
   },
 };
 

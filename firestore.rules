@@ -1,115 +1,112 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
     function isAdmin() {
-      return request.auth != null &&
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'admin';
     }
+
     function isStaff() {
-      return request.auth != null &&
+      return isSignedIn() &&
+        exists(/databases/$(database)/documents/profiles/$(request.auth.uid)) &&
         get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'staff';
     }
-    function isStaffOrAdmin() { return isAdmin() || isStaff(); }
-    function isOwner(userId) { return request.auth != null && request.auth.uid == userId; }
 
-    function existsOrNull(path) {
-      return exists(path) && get(path).data != null;
+    function isStaffOrAdmin() {
+      return isAdmin() || isStaff();
     }
 
-    function myEmail() {
-      return existsOrNull(/databases/$(database)/documents/profiles/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.email
-        : '';
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
     }
 
-    function myPhone() {
-      return existsOrNull(/databases/$(database)/documents/profiles/$(request.auth.uid))
-        ? get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.phone
-        : '';
-    }
-
-    function myPhoneWithCode() {
-      return myPhone() != '' ? '+91' + myPhone() : '';
-    }
-
-    function tokenPhone() {
-      return request.auth != null && request.auth.token.phone_number != null
-        ? request.auth.token.phone_number
-        : '';
-    }
-
-    function profileExists() {
-      return exists(/databases/$(database)/documents/profiles/$(request.auth.uid));
-    }
-
-    function isMyStudent(studentId) {
-      let student = get(/databases/$(database)/documents/students/$(studentId));
-      return student.data.father_phone == myPhone() ||
-             student.data.father_phone == myPhoneWithCode() ||
-             student.data.father_phone == tokenPhone() ||
-             student.data.father_email == myEmail() ||
-             student.data.mother_phone == myPhone() ||
-             student.data.mother_phone == myPhoneWithCode() ||
-             student.data.mother_phone == tokenPhone() ||
-             student.data.mother_email == myEmail();
+    function isParentOf(studentData) {
+      return isSignedIn() && (
+        studentData.father_phone == request.auth.token.phone_number ||
+        studentData.mother_phone == request.auth.token.phone_number ||
+        studentData.father_email == request.auth.token.email ||
+        studentData.mother_email == request.auth.token.email
+      );
     }
 
     match /profiles/{userId} {
-      allow read: if isOwner(userId) || isAdmin();
+      allow read:   if isOwner(userId) || isAdmin();
       allow create: if isOwner(userId);
       allow update: if isOwner(userId);
       allow delete: if isAdmin();
     }
 
     match /students/{studentId} {
-      allow read: if isStaffOrAdmin() ||
-        (!profileExists() && request.auth != null) ||
-        resource.data.father_phone == myPhone() ||
-        resource.data.father_phone == myPhoneWithCode() ||
-        resource.data.father_phone == tokenPhone() ||
-        resource.data.father_email == myEmail() ||
-        resource.data.mother_phone == myPhone() ||
-        resource.data.mother_phone == myPhoneWithCode() ||
-        resource.data.mother_phone == tokenPhone() ||
-        resource.data.mother_email == myEmail();
+      allow read: if isStaffOrAdmin() || isParentOf(resource.data);
       allow write: if isStaffOrAdmin();
       allow delete: if isAdmin();
     }
 
-    match /progress_records/{recordId} {
-      allow read: if isStaffOrAdmin() ||
-        (!profileExists() && request.auth != null) ||
-        isMyStudent(resource.data.student_id);
-      allow write: if isStaffOrAdmin();
-    }
-
     match /attendance_records/{recordId} {
       allow read: if isStaffOrAdmin() ||
-        (!profileExists() && request.auth != null) ||
-        isMyStudent(resource.data.student_id);
+        (isSignedIn() &&
+         get(/databases/$(database)/documents/students/$(resource.data.student_id))
+           .data.father_phone == request.auth.token.phone_number) ||
+        (isSignedIn() &&
+         get(/databases/$(database)/documents/students/$(resource.data.student_id))
+           .data.mother_phone == request.auth.token.phone_number) ||
+        (isSignedIn() &&
+         get(/databases/$(database)/documents/students/$(resource.data.student_id))
+           .data.father_email == request.auth.token.email) ||
+        (isSignedIn() &&
+         get(/databases/$(database)/documents/students/$(resource.data.student_id))
+           .data.mother_email == request.auth.token.email);
       allow write: if isStaffOrAdmin();
     }
 
     match /fee_payments/{paymentId} {
       allow read: if isStaffOrAdmin() ||
-        (!profileExists() && request.auth != null) ||
-        isMyStudent(resource.data.student_id);
+        (isSignedIn() &&
+         get(/databases/$(database)/documents/students/$(resource.data.student_id))
+           .data.father_phone == request.auth.token.phone_number) ||
+        (isSignedIn() &&
+         get(/databases/$(database)/documents/students/$(resource.data.student_id))
+           .data.mother_phone == request.auth.token.phone_number);
+      allow write: if isStaffOrAdmin();
+    }
+
+    match /progress_records/{recordId} {
+      allow read: if isStaffOrAdmin() ||
+        (isSignedIn() &&
+         get(/databases/$(database)/documents/students/$(resource.data.student_id))
+           .data.father_phone == request.auth.token.phone_number) ||
+        (isSignedIn() &&
+         get(/databases/$(database)/documents/students/$(resource.data.student_id))
+           .data.mother_phone == request.auth.token.phone_number);
       allow write: if isStaffOrAdmin();
     }
 
     match /notifications/{notificationId} {
-      allow read: if isStaffOrAdmin() || resource.data.userId == request.auth.uid;
+      allow read:   if isStaffOrAdmin() ||
+                       resource.data.userId == request.auth.uid;
       allow create: if isStaffOrAdmin();
       allow update: if resource.data.userId == request.auth.uid;
       allow delete: if isAdmin();
     }
 
     match /push_tokens/{tokenId} {
-      allow read, write: if request.auth != null;
+      allow read, write: if isSignedIn();
     }
 
     match /unpaid_class_records/{recordId} {
-      allow read: if request.auth != null;
+      allow read: if isStaffOrAdmin() ||
+        (isSignedIn() &&
+         get(/databases/$(database)/documents/students/$(resource.data.student_id))
+           .data.mother_phone == request.auth.token.phone_number) ||
+        (isSignedIn() &&
+         get(/databases/$(database)/documents/students/$(resource.data.student_id))
+           .data.father_phone == request.auth.token.phone_number);
       allow write: if isStaffOrAdmin();
     }
 
@@ -121,9 +118,12 @@ service cloud.firestore {
       allow read, write: if isStaffOrAdmin();
     }
 
+    match /bill_counters/{year} {
+      allow read, write: if isStaffOrAdmin();
+    }
+
     match /compensation_audit/{logId} {
-      allow read: if isStaffOrAdmin();
-      allow write: if isStaffOrAdmin();
+      allow read, write: if isStaffOrAdmin();
     }
   }
 }

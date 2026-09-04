@@ -15,9 +15,10 @@ export function useProtectedRoute() {
         // If auth state is still loading, do nothing
         if (loading) return;
 
-        const inAuthGroup = segments[0] === '(admin)' || segments[0] === '(tabs)' || segments[0] === '(staff)' || segments[0] === 'full-report' || segments[0] === 'notification' || segments[0] === 'notification-manage' || segments[0] === 'milestone';
+        const inAuthGroup = segments[0] === '(admin)' || segments[0] === '(tabs)' || segments[0] === '(staff)' || segments[0] === 'full-report' || segments[0] === 'notification' || segments[0] === 'notification-manage' || segments[0] === 'milestone' || segments[0] === 'billing';
         const inAdminGroup = segments[0] === '(admin)';
         const inStaffGroup = segments[0] === '(staff)';
+        const inBillingGroup = segments[0] === 'billing' || (segments[0] === '(admin)' && segments[1] === 'billing');
 
         if (!profile && inAuthGroup) {
             // User is not signed in and trying to access protected route
