@@ -387,6 +387,7 @@ export default function AttendanceScreen() {
   const detailMonthName = detailMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' });
 
   function renderTableHeader() {
+    const today = formatDate(new Date());
     return (
       <View style={styles.tableHeader}>
         <View style={styles.nameHeader}>
@@ -395,13 +396,14 @@ export default function AttendanceScreen() {
         {weekDates.map((date, idx) => {
           const isOtherMonth = date.getMonth() !== currentMonth.getMonth() ||
                                date.getFullYear() !== currentMonth.getFullYear();
+          const isToday = formatDate(date) === today;
           if (isOtherMonth) {
             return <View key={idx} style={[styles.dayHeader, styles.emptyMonthHeader]} />;
           }
           return (
-            <View key={idx} style={styles.dayHeader}>
-              <Text style={styles.dayName}>{DAY_NAMES[idx]}</Text>
-              <Text style={styles.dayNum}>{date.getDate()}</Text>
+            <View key={idx} style={[styles.dayHeader, isToday && styles.todayHeader]}>
+              <Text style={[styles.dayName, isToday && styles.todayText]}>{DAY_NAMES[idx]}</Text>
+              <Text style={[styles.dayNum, isToday && styles.todayText]}>{date.getDate()}</Text>
               <Text style={styles.dayCount}>{getDayCount(formatDate(date))}</Text>
             </View>
           );
@@ -952,6 +954,16 @@ const styles = StyleSheet.create({
   dayHeader: {
     width: 56,
     alignItems: 'center',
+  },
+  todayHeader: {
+    backgroundColor: '#eff6ff',
+    borderRadius: 8,
+    borderWidth: 1.5,
+    borderColor: '#3b82f6',
+    paddingVertical: 4,
+  },
+  todayText: {
+    color: '#1e40af',
   },
   dayName: {
     fontSize: 11,
